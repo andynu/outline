@@ -231,3 +231,100 @@ pub fn list_documents() -> Result<Vec<Uuid>, String> {
 
     Ok(ids)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data::{create_op, update_op, NodeChanges};
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn test_doc_dir() -> (TempDir, PathBuf) {
+        let tmp = TempDir::new().unwrap();
+        let doc_id = Uuid::new_v4();
+        let doc_dir = tmp.path().join(doc_id.to_string());
+        fs::create_dir_all(&doc_dir).unwrap();
+        (tmp, doc_dir)
+    }
+
+    #[test]
+    fn test_create_and_load_document() {
+        let (_tmp, doc_dir) = test_doc_dir();
+
+        // Create empty document
+        let doc = Document::create(doc_dir.clone()).unwrap();
+        assert!(doc.state.nodes.is_empty());
+
+        // Reload it
+        let doc2 = Document::load(doc_dir).unwrap();
+        assert!(doc2.state.nodes.is_empty());
+    }
+
+    #[test]
+    fn test_operations_and_reload() {
+        let (_tmp, doc_dir) = test_doc_dir();
+
+        // Create document
+        let mut doc = Document::create(doc_dir.clone()).unwrap();
+
+        // Add a node via operation
+        let op1 = create_op(None, 0, "First node".to_string());
+        let node_id = match &op1 {
+            crate::data::Operation::Create { id, .. } => *id,
+            _ => unreachable!(),
+        };
+        doc.append_op(&op1).unwrap();
+        op1.apply(&mut doc.state);
+
+        assert_eq!(doc.state.nodes.len(), 1);
+        assert_eq!(doc.state.nodes[0].content, "First node");
+
+        // Update the node
+        let op2 = update_op(
+            node_id,
+            NodeChanges {
+                content: Some("Updated content".to_string()),
+                ..Default::default()
+            },
+        );
+        doc.append_op(&op2).unwrap();
+        op2.apply(&mut doc.state);
+
+        // Reload from disk (should replay pending ops)
+        let doc2 = Document::load(doc_dir.clone()).unwrap();
+        assert_eq!(doc2.state.nodes.len(), 1);
+        assert_eq!(doc2.state.nodes[0].content, "Updated content");
+
+        // Compact and reload
+        let mut doc3 = Document::load(doc_dir.clone()).unwrap();
+        doc3.compact().unwrap();
+
+        let doc4 = Document::load(doc_dir).unwrap();
+        assert_eq!(doc4.state.nodes.len(), 1);
+        assert_eq!(doc4.state.nodes[0].content, "Updated content");
+    }
+
+    #[test]
+    fn test_multi_machine_pending_files() {
+        let (_tmp, doc_dir) = test_doc_dir();
+
+        // Create document
+        let doc = Document::create(doc_dir.clone()).unwrap();
+        doc.save_state().unwrap();
+
+        // Simulate operations from two machines by writing pending files directly
+        let op1 = create_op(None, 0, "From machine A".to_string());
+        let op2 = create_op(None, 1, "From machine B".to_string());
+
+        // Write to different pending files
+        let pending_a = doc_dir.join("pending.machine-a.jsonl");
+        let pending_b = doc_dir.join("pending.machine-b.jsonl");
+
+        fs::write(&pending_a, serde_json::to_string(&op1).unwrap() + "\n").unwrap();
+        fs::write(&pending_b, serde_json::to_string(&op2).unwrap() + "\n").unwrap();
+
+        // Load should merge both
+        let doc2 = Document::load(doc_dir).unwrap();
+        assert_eq!(doc2.state.nodes.len(), 2);
+    }
+}
