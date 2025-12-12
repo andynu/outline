@@ -1,0 +1,7 @@
+{
+  "data_dir": "/path/to/synced/.outline",
+  "calendar_tokens": [
+    "generate-a-uuid-here",
+    "another-token-if-needed"
+  ]
+}

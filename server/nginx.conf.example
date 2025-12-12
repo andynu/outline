@@ -1,0 +1,61 @@
+# Nginx configuration for Outline thin server
+# Place in /etc/nginx/sites-available/outline and symlink to sites-enabled
+
+upstream outline_app {
+    server 127.0.0.1:9292;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name outline.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/outline.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/outline.example.com/privkey.pem;
+
+    # Security headers
+    add_header X-Frame-Options DENY;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-XSS-Protection "1; mode=block";
+
+    # Health check - no auth
+    location = /health {
+        proxy_pass http://outline_app;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Calendar feeds - token-based auth (no basic auth)
+    # Token in URL provides authentication
+    location ~ ^/calendar/[a-f0-9-]+/feed\.ics$ {
+        proxy_pass http://outline_app;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+
+        # Cache headers for calendar clients
+        add_header Cache-Control "private, no-cache";
+    }
+
+    # All /outline/* paths require basic auth
+    location /outline/ {
+        auth_basic "Outline";
+        auth_basic_user_file /etc/nginx/.htpasswd-outline;
+
+        proxy_pass http://outline_app;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Deny all other paths
+    location / {
+        return 404;
+    }
+}
+
+# HTTP redirect to HTTPS
+server {
+    listen 80;
+    server_name outline.example.com;
+    return 301 https://$server_name$request_uri;
+}
