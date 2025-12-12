@@ -51,6 +51,22 @@ class OutlineServer < Sinatra::Base
       content_type :json
       halt status, data.to_json
     end
+
+    def today_date
+      Time.now.strftime('%Y-%m-%d')
+    end
+
+    def build_inbox_entry(content:, note: nil, source: 'web')
+      now = Time.now
+      {
+        id: SecureRandom.uuid,
+        content: content,
+        note: note,
+        capture_date: now.strftime('%Y-%m-%d'),
+        captured_at: now.iso8601,
+        source: source
+      }.compact
+    end
   end
 
   # Health check - no auth required
@@ -140,13 +156,11 @@ class OutlineServer < Sinatra::Base
       return erb(:capture)
     end
 
-    entry = {
-      id: SecureRandom.uuid,
+    entry = build_inbox_entry(
       content: content,
       note: params[:note]&.strip,
-      captured_at: Time.now.iso8601,
       source: 'web'
-    }.compact
+    )
 
     # Append to inbox.jsonl
     File.open(inbox_path, 'a') do |f|
@@ -174,13 +188,11 @@ class OutlineServer < Sinatra::Base
       json_response({ error: 'Content is required' }, status: 400)
     end
 
-    entry = {
-      id: SecureRandom.uuid,
+    entry = build_inbox_entry(
       content: content,
       note: data[:note]&.strip,
-      captured_at: Time.now.iso8601,
       source: data[:source] || 'api'
-    }.compact
+    )
 
     # Append to inbox.jsonl
     File.open(inbox_path, 'a') do |f|
@@ -191,9 +203,10 @@ class OutlineServer < Sinatra::Base
   end
 
   # Get inbox items (for desktop to poll, or viewer to display)
+  # Returns items grouped by capture_date if ?grouped=true
   get '/outline/api/inbox' do
     unless File.exist?(inbox_path)
-      json_response([])
+      json_response(params[:grouped] ? {} : [])
     end
 
     items = File.readlines(inbox_path).filter_map do |line|
@@ -205,6 +218,15 @@ class OutlineServer < Sinatra::Base
     end
 
     content_type :json
-    items.to_json
+
+    if params[:grouped]
+      # Group by capture_date for organized display
+      grouped = items.group_by { |item| item[:capture_date] || 'unknown' }
+      # Sort dates descending (newest first)
+      sorted = grouped.sort_by { |date, _| date }.reverse.to_h
+      sorted.to_json
+    else
+      items.to_json
+    end
   end
 end
