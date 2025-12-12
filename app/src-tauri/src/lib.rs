@@ -29,6 +29,7 @@ pub fn run() {
             commands::search,
             commands::list_documents,
             commands::get_backlinks,
+            commands::get_next_occurrence,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

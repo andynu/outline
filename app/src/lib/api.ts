@@ -346,3 +346,22 @@ export async function getBacklinks(nodeId: string): Promise<BacklinkResult[]> {
   // Browser-only mode: return empty array
   return [];
 }
+
+// Calculate the next occurrence for a recurring task
+export async function getNextOccurrence(
+  rruleStr: string,
+  afterDate: string
+): Promise<string | null> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('get_next_occurrence', { rruleStr, afterDate }) as Promise<string | null>;
+  }
+  // Browser-only mode: simple calculation for daily/weekly
+  // This is a fallback - real RRULE parsing happens in Rust
+  const after = new Date(afterDate);
+  after.setDate(after.getDate() + 1);
+  const year = after.getFullYear();
+  const month = String(after.getMonth() + 1).padStart(2, '0');
+  const day = String(after.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}

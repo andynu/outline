@@ -308,3 +308,45 @@ pub fn get_backlinks(
         .get_backlinks(&node_uuid)
         .map_err(|e| format!("Failed to get backlinks: {}", e))
 }
+
+/// Calculate the next occurrence date given an RRULE and start date
+#[tauri::command]
+pub fn get_next_occurrence(
+    rrule_str: String,
+    after_date: String,
+) -> Result<Option<String>, String> {
+    use chrono::NaiveDate;
+    use rrule::RRuleSet;
+
+    // Parse the after_date (ISO format: YYYY-MM-DD)
+    let after = NaiveDate::parse_from_str(&after_date, "%Y-%m-%d")
+        .map_err(|e| format!("Invalid date format: {}", e))?;
+
+    // Format date for DTSTART (next day after the completion date)
+    let next_day = after + chrono::Duration::days(1);
+    let dtstart = format!(
+        "{}{}{}T000000Z",
+        next_day.format("%Y"),
+        next_day.format("%m"),
+        next_day.format("%d")
+    );
+
+    // Build the full RRULE string with DTSTART
+    // rrule_str format: FREQ=DAILY;INTERVAL=1 or FREQ=WEEKLY;BYDAY=MO,WE,FR etc.
+    let full_rrule = format!("DTSTART:{}\nRRULE:{}", dtstart, rrule_str);
+
+    // Parse the RRuleSet
+    let rrule_set: RRuleSet = full_rrule.parse()
+        .map_err(|e| format!("Invalid RRULE: {}", e))?;
+
+    // Get the first occurrence
+    let result = rrule_set.all(1);
+
+    if let Some(dt) = result.dates.first() {
+        // Format as ISO date
+        let date_str = dt.format("%Y-%m-%d").to_string();
+        Ok(Some(date_str))
+    } else {
+        Ok(None)
+    }
+}

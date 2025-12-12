@@ -11,6 +11,7 @@
   import BacklinksPanel from './BacklinksPanel.svelte';
   import DateBadge from './DateBadge.svelte';
   import DatePicker from './DatePicker.svelte';
+  import RecurrencePicker from './RecurrencePicker.svelte';
 
   interface Props {
     item: TreeNode;
@@ -32,6 +33,10 @@
   // Date picker state
   let showDatePicker = $state(false);
   let datePickerPosition = $state({ x: 0, y: 0 });
+
+  // Recurrence picker state
+  let showRecurrencePicker = $state(false);
+  let recurrencePickerPosition = $state({ x: 0, y: 0 });
 
   // Reactive checks
   let isFocused = $derived(outline.focusedId === item.node.id);
@@ -279,6 +284,13 @@
             return true;
           }
 
+          // Ctrl+R: open recurrence picker
+          if (event.key === 'r' && mod && !event.shiftKey) {
+            event.preventDefault();
+            openRecurrencePicker(view);
+            return true;
+          }
+
           return false;
         }
       },
@@ -330,6 +342,26 @@
 
   function handleDatePickerClose() {
     showDatePicker = false;
+  }
+
+  function openRecurrencePicker(view?: any) {
+    if (view) {
+      const coords = view.coordsAtPos(view.state.selection.from);
+      recurrencePickerPosition = { x: coords.left, y: coords.bottom + 5 };
+    } else if (editorElement) {
+      const rect = editorElement.getBoundingClientRect();
+      recurrencePickerPosition = { x: rect.left, y: rect.bottom + 5 };
+    }
+    showRecurrencePicker = true;
+  }
+
+  function handleRecurrenceSelect(rrule: string | null) {
+    outline.setRecurrence(item.node.id, rrule);
+    showRecurrencePicker = false;
+  }
+
+  function handleRecurrencePickerClose() {
+    showRecurrencePicker = false;
   }
 
   function handleWikiLinkSelect(nodeId: string, displayText: string) {
@@ -387,6 +419,10 @@
 
     <div class="editor-wrapper" bind:this={editorElement}></div>
 
+    {#if item.node.date_recurrence}
+      <span class="recurrence-indicator" title="Recurring: {item.node.date_recurrence}">🔄</span>
+    {/if}
+
     {#if item.node.date}
       <DateBadge
         date={item.node.date}
@@ -427,6 +463,15 @@
     currentDate={item.node.date}
     onSelect={handleDateSelect}
     onClose={handleDatePickerClose}
+  />
+{/if}
+
+{#if showRecurrencePicker}
+  <RecurrencePicker
+    position={recurrencePickerPosition}
+    currentRecurrence={item.node.date_recurrence}
+    onSelect={handleRecurrenceSelect}
+    onClose={handleRecurrencePickerClose}
   />
 {/if}
 
@@ -516,6 +561,17 @@
   .outline-item.checked .editor-wrapper :global(.outline-editor) {
     text-decoration: line-through;
     color: #888;
+  }
+
+  .recurrence-indicator {
+    font-size: 12px;
+    margin-left: 4px;
+    cursor: default;
+    opacity: 0.7;
+  }
+
+  .recurrence-indicator:hover {
+    opacity: 1;
   }
 
   .editor-wrapper {

@@ -333,11 +333,27 @@ export const outline = {
   },
 
   // Toggle checkbox state
+  // For recurring tasks, checking resets the date to the next occurrence
   async toggleCheckbox(nodeId: string): Promise<boolean> {
     const node = nodesById().get(nodeId);
     if (!node) return false;
 
     try {
+      // If this is a recurring task being checked, calculate next occurrence
+      if (!node.is_checked && node.date_recurrence && node.date) {
+        // Get next occurrence date
+        const nextDate = await api.getNextOccurrence(node.date_recurrence, node.date);
+        if (nextDate) {
+          // Update date to next occurrence and keep unchecked
+          const state = await api.updateNode(nodeId, {
+            date: nextDate,
+          });
+          updateFromState(state);
+          return true;
+        }
+      }
+
+      // Normal toggle for non-recurring or already checked tasks
       const state = await api.updateNode(nodeId, {
         is_checked: !node.is_checked,
       });
@@ -387,5 +403,20 @@ export const outline = {
   // Clear date from a node
   async clearDate(nodeId: string): Promise<boolean> {
     return this.setDate(nodeId, '');
+  },
+
+  // Set recurrence on a node (pass null or empty string to clear)
+  async setRecurrence(nodeId: string, rrule: string | null): Promise<boolean> {
+    try {
+      // Empty string signals to backend to clear the recurrence
+      const state = await api.updateNode(nodeId, {
+        date_recurrence: rrule ?? '',
+      });
+      updateFromState(state);
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
   }
 };
