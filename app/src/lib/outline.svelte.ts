@@ -29,11 +29,15 @@ function childrenOf(parentId: string): Node[] {
 // Build tree structure for rendering
 function buildTree(parentId: string | null, depth: number): TreeNode[] {
   const children = parentId === null ? rootNodes() : childrenOf(parentId);
-  return children.map(node => ({
-    node,
-    depth,
-    children: node.collapsed ? [] : buildTree(node.id, depth + 1)
-  }));
+  return children.map(node => {
+    const nodeChildren = childrenOf(node.id);
+    return {
+      node,
+      depth,
+      hasChildren: nodeChildren.length > 0,
+      children: node.collapsed ? [] : buildTree(node.id, depth + 1)
+    };
+  });
 }
 
 // Flatten tree for navigation (visible nodes only)

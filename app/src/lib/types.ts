@@ -73,5 +73,6 @@ export type Operation =
 export interface TreeNode {
   node: Node;
   depth: number;
-  children: TreeNode[];
+  hasChildren: boolean;  // true if node has children (even when collapsed)
+  children: TreeNode[];  // empty when collapsed
 }

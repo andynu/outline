@@ -17,7 +17,6 @@
 
   // Reactive checks
   let isFocused = $derived(outline.focusedId === item.node.id);
-  let hasChildren = $derived(item.children.length > 0);
 
   // Sync content from store to editor when it changes externally
   $effect(() => {
@@ -170,12 +169,12 @@
   <div class="item-row">
     <button
       class="collapse-btn"
-      class:has-children={hasChildren}
+      class:has-children={item.hasChildren}
       class:collapsed={item.node.collapsed}
       onclick={handleCollapseClick}
       tabindex="-1"
     >
-      {#if hasChildren}
+      {#if item.hasChildren}
         <span class="collapse-icon">{item.node.collapsed ? '▶' : '▼'}</span>
       {:else}
         <span class="bullet">•</span>
@@ -185,7 +184,7 @@
     <div class="editor-wrapper" bind:this={editorElement}></div>
   </div>
 
-  {#if hasChildren && !item.node.collapsed}
+  {#if item.hasChildren && !item.node.collapsed}
     <div class="children">
       {#each item.children as child (child.node.id)}
         <OutlineItem item={child} />
