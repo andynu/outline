@@ -31,6 +31,9 @@ pub fn run() {
             commands::get_backlinks,
             commands::get_next_occurrence,
             commands::generate_ical_feed,
+            commands::get_inbox,
+            commands::get_inbox_count,
+            commands::clear_inbox_items,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

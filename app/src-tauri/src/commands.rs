@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::data::{
     create_op, delete_op, documents_dir, ensure_dirs, move_op, update_op, Document, DocumentState,
-    Node, NodeChanges, Operation,
+    InboxItem, Node, NodeChanges, Operation, read_inbox, remove_inbox_items,
 };
 use crate::search::{BacklinkResult, SearchIndex, SearchResult};
 
@@ -422,4 +422,22 @@ pub fn get_next_occurrence(
     } else {
         Ok(None)
     }
+}
+
+/// Get all inbox items
+#[tauri::command]
+pub fn get_inbox() -> Result<Vec<InboxItem>, String> {
+    read_inbox()
+}
+
+/// Get inbox item count (for badge display)
+#[tauri::command]
+pub fn get_inbox_count() -> Result<usize, String> {
+    read_inbox().map(|items| items.len())
+}
+
+/// Remove processed inbox items by ID
+#[tauri::command]
+pub fn clear_inbox_items(ids: Vec<String>) -> Result<(), String> {
+    remove_inbox_items(&ids)
 }

@@ -5,8 +5,10 @@
   import QuickNavigator from '$lib/QuickNavigator.svelte';
   import QuickMove from '$lib/QuickMove.svelte';
   import DateViewsPanel from '$lib/DateViewsPanel.svelte';
+  import InboxPanel from '$lib/InboxPanel.svelte';
   import { outline } from '$lib/outline.svelte';
-  import { generateIcalFeed } from '$lib/api';
+  import { generateIcalFeed, getInboxCount } from '$lib/api';
+  import type { InboxItem } from '$lib/api';
 
   let showSearchModal = $state(false);
   let searchDocumentScope: string | undefined = $state(undefined);
@@ -18,9 +20,25 @@
 
   let showDateViews = $state(false);
 
+  let showInbox = $state(false);
+  let inboxCount = $state(0);
+  let processingInboxItem: InboxItem | null = $state(null);
+
   onMount(() => {
     outline.load();
+    refreshInboxCount();
+    // Poll inbox count every 30 seconds
+    const interval = setInterval(refreshInboxCount, 30000);
+    return () => clearInterval(interval);
   });
+
+  async function refreshInboxCount() {
+    try {
+      inboxCount = await getInboxCount();
+    } catch (e) {
+      console.error('Failed to get inbox count:', e);
+    }
+  }
 
   function handleGlobalKeydown(event: KeyboardEvent) {
     // Ctrl+Shift+F: Global search
@@ -58,6 +76,54 @@
       event.preventDefault();
       if (outline.focusedId) {
         showQuickMove = true;
+      }
+    }
+    // Ctrl+I: Show inbox
+    else if (event.ctrlKey && !event.shiftKey && event.key === 'i') {
+      event.preventDefault();
+      showInbox = true;
+    }
+  }
+
+  // Handle processing an inbox item - creates a node and opens Quick Move
+  async function handleProcessInboxItem(item: InboxItem) {
+    showInbox = false;
+    processingInboxItem = item;
+
+    // Create a new root node with the inbox content
+    try {
+      const result = await import('$lib/api').then(api =>
+        api.createNode(null, 0, item.content)
+      );
+
+      // Focus the new node
+      outline.focus(result.id);
+
+      // Update state
+      // @ts-ignore - accessing internal
+      outline.nodes = result.state.nodes;
+
+      // Open Quick Move to relocate it
+      setTimeout(() => {
+        showQuickMove = true;
+      }, 100);
+    } catch (e) {
+      console.error('Failed to create node from inbox:', e);
+    }
+  }
+
+  // Called when Quick Move closes - clear the inbox item if we were processing one
+  async function handleQuickMoveClose() {
+    showQuickMove = false;
+    if (processingInboxItem) {
+      // Clear the processed inbox item
+      try {
+        const api = await import('$lib/api');
+        await api.clearInboxItems([processingInboxItem.id]);
+        processingInboxItem = null;
+        await refreshInboxCount();
+      } catch (e) {
+        console.error('Failed to clear inbox item:', e);
       }
     }
   }
@@ -105,8 +171,18 @@
   <header>
     <h1>Outline</h1>
     <div class="header-buttons">
+      <button
+        class="header-btn inbox-btn"
+        onclick={() => showInbox = true}
+        title="Inbox (Ctrl+I)"
+      >
+        Inbox
+        {#if inboxCount > 0}
+          <span class="inbox-badge">{inboxCount}</span>
+        {/if}
+      </button>
       <button class="header-btn" onclick={handleExportCalendar} title="Export iCalendar">
-        📅 Export
+        Export
       </button>
       <button class="compact-btn" onclick={() => outline.compact()}>
         Save
@@ -155,6 +231,7 @@
           <ul>
             <li><kbd>Ctrl+F</kbd> Search document</li>
             <li><kbd>Ctrl+Shift+F</kbd> Global search</li>
+            <li><kbd>Ctrl+I</kbd> Inbox</li>
           </ul>
         </div>
         <div class="shortcut-group">
@@ -210,7 +287,13 @@
 
 <QuickMove
   isOpen={showQuickMove}
-  onClose={() => showQuickMove = false}
+  onClose={handleQuickMoveClose}
+/>
+
+<InboxPanel
+  isOpen={showInbox}
+  onClose={() => { showInbox = false; refreshInboxCount(); }}
+  onProcess={handleProcessInboxItem}
 />
 
 <style>
@@ -261,6 +344,25 @@
   .header-btn:hover {
     background: #e0e0e0;
     border-color: #ccc;
+  }
+
+  .inbox-btn {
+    position: relative;
+  }
+
+  .inbox-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    margin-left: 6px;
+    background: #ef4444;
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 9px;
   }
 
   .compact-btn {

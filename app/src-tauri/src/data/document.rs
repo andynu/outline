@@ -232,6 +232,79 @@ pub fn list_documents() -> Result<Vec<Uuid>, String> {
     Ok(ids)
 }
 
+/// An inbox item captured from mobile/web
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InboxItem {
+    pub id: String,
+    pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    pub capture_date: String,
+    pub captured_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+}
+
+/// Get the inbox file path
+pub fn inbox_path() -> PathBuf {
+    data_dir().join("inbox.jsonl")
+}
+
+/// Read all inbox items
+pub fn read_inbox() -> Result<Vec<InboxItem>, String> {
+    let path = inbox_path();
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let file = File::open(&path).map_err(|e| format!("Open inbox.jsonl: {}", e))?;
+    let reader = BufReader::new(file);
+    let mut items = Vec::new();
+
+    for line in reader.lines() {
+        let line = line.map_err(|e| format!("Read line: {}", e))?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<InboxItem>(trimmed) {
+            Ok(item) => items.push(item),
+            Err(e) => log::warn!("Skip malformed inbox item: {}", e),
+        }
+    }
+
+    Ok(items)
+}
+
+/// Remove processed inbox items by their IDs
+pub fn remove_inbox_items(ids: &[String]) -> Result<(), String> {
+    let path = inbox_path();
+    if !path.exists() {
+        return Ok(());
+    }
+
+    // Read all items, filter out the ones to remove, write back
+    let items = read_inbox()?;
+    let remaining: Vec<_> = items.into_iter()
+        .filter(|item| !ids.contains(&item.id))
+        .collect();
+
+    // Write back (or delete file if empty)
+    if remaining.is_empty() {
+        if path.exists() {
+            fs::remove_file(&path).map_err(|e| format!("Remove inbox.jsonl: {}", e))?;
+        }
+    } else {
+        let mut file = File::create(&path).map_err(|e| format!("Create inbox.jsonl: {}", e))?;
+        for item in remaining {
+            let json = serde_json::to_string(&item).map_err(|e| format!("Serialize item: {}", e))?;
+            writeln!(file, "{}", json).map_err(|e| format!("Write item: {}", e))?;
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

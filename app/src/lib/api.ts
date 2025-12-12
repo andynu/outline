@@ -382,3 +382,42 @@ X-WR-CALNAME:Outline Tasks
 END:VCALENDAR
 `;
 }
+
+// Inbox item type
+export interface InboxItem {
+  id: string;
+  content: string;
+  note?: string;
+  capture_date: string;
+  captured_at: string;
+  source?: string;
+}
+
+// Get all inbox items
+export async function getInbox(): Promise<InboxItem[]> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('get_inbox') as Promise<InboxItem[]>;
+  }
+  // Browser-only mode: return empty
+  return [];
+}
+
+// Get inbox item count
+export async function getInboxCount(): Promise<number> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('get_inbox_count') as Promise<number>;
+  }
+  return 0;
+}
+
+// Clear processed inbox items
+export async function clearInboxItems(ids: string[]): Promise<void> {
+  await initTauri();
+  if (tauriInvoke) {
+    await tauriInvoke('clear_inbox_items', { ids });
+    return;
+  }
+  // Browser-only mode: no-op
+}
