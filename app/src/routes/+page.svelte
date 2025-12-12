@@ -3,6 +3,7 @@
   import OutlineItem from '$lib/OutlineItem.svelte';
   import SearchModal from '$lib/SearchModal.svelte';
   import QuickNavigator from '$lib/QuickNavigator.svelte';
+  import QuickMove from '$lib/QuickMove.svelte';
   import DateViewsPanel from '$lib/DateViewsPanel.svelte';
   import { outline } from '$lib/outline.svelte';
   import { generateIcalFeed } from '$lib/api';
@@ -12,6 +13,8 @@
 
   let showQuickNav = $state(false);
   let quickNavMode: 'files' | 'items' = $state('files');
+
+  let showQuickMove = $state(false);
 
   let showDateViews = $state(false);
 
@@ -49,6 +52,13 @@
     else if (event.ctrlKey && event.shiftKey && event.key === 'T') {
       event.preventDefault();
       showDateViews = true;
+    }
+    // Ctrl+Shift+M: Quick move (relocate item)
+    else if (event.ctrlKey && event.shiftKey && event.key === 'M') {
+      event.preventDefault();
+      if (outline.focusedId) {
+        showQuickMove = true;
+      }
     }
   }
 
@@ -137,6 +147,7 @@
             <li><kbd>Ctrl+↓</kbd> Swap down</li>
             <li><kbd>Ctrl+O</kbd> Go to document</li>
             <li><kbd>Ctrl+Shift+O</kbd> Go to item</li>
+            <li><kbd>Ctrl+Shift+M</kbd> Move item to...</li>
           </ul>
         </div>
         <div class="shortcut-group">
@@ -195,6 +206,11 @@
   isOpen={showDateViews}
   onClose={() => showDateViews = false}
   onNavigate={(nodeId) => outline.focus(nodeId)}
+/>
+
+<QuickMove
+  isOpen={showQuickMove}
+  onClose={() => showQuickMove = false}
 />
 
 <style>
