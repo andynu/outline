@@ -14,6 +14,7 @@
 
   let editor: Editor | undefined = $state();
   let editorElement: HTMLDivElement | undefined = $state();
+  let tabHandler: ((e: KeyboardEvent) => void) | undefined;
 
   // Reactive checks
   let isFocused = $derived(outline.focusedId === item.node.id);
@@ -40,6 +41,20 @@
 
   onMount(() => {
     if (!editorElement) return;
+
+    // Capture Tab before browser focus navigation - must use capture phase
+    tabHandler = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.shiftKey) {
+          outline.outdentNode(item.node.id);
+        } else {
+          outline.indentNode(item.node.id);
+        }
+      }
+    };
+    editorElement.addEventListener('keydown', tabHandler, { capture: true });
 
     editor = new Editor({
       element: editorElement,
@@ -146,24 +161,14 @@
   });
 
   onDestroy(() => {
+    if (editorElement && tabHandler) {
+      editorElement.removeEventListener('keydown', tabHandler, { capture: true });
+    }
     editor?.destroy();
   });
 
   function handleCollapseClick() {
     outline.toggleCollapse(item.node.id);
-  }
-
-  // Handle Tab at DOM level before browser focus navigation intercepts it
-  function handleKeyDown(event: KeyboardEvent) {
-    if (event.key === 'Tab') {
-      event.preventDefault();
-      event.stopPropagation();
-      if (event.shiftKey) {
-        outline.outdentNode(item.node.id);
-      } else {
-        outline.indentNode(item.node.id);
-      }
-    }
   }
 </script>
 
@@ -183,8 +188,7 @@
       {/if}
     </button>
 
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="editor-wrapper" bind:this={editorElement} onkeydown={handleKeyDown}></div>
+    <div class="editor-wrapper" bind:this={editorElement}></div>
   </div>
 
   {#if item.hasChildren && !item.node.collapsed}
