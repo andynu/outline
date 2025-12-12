@@ -268,3 +268,41 @@ export async function compactDocument(): Promise<void> {
   }
   // Browser-only mode: no-op
 }
+
+// Search result from backend
+export interface SearchResult {
+  node_id: string;
+  document_id: string;
+  content: string;
+  note: string | null;
+  snippet: string;
+  rank: number;
+}
+
+// Search for nodes matching a query
+export async function search(
+  query: string,
+  docId?: string,
+  limit?: number
+): Promise<SearchResult[]> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('search', { query, docId, limit }) as Promise<SearchResult[]>;
+  }
+  // Browser-only mode: simple client-side search
+  const results: SearchResult[] = [];
+  const queryLower = query.toLowerCase();
+  for (const node of mockState.nodes) {
+    if (node.content.toLowerCase().includes(queryLower)) {
+      results.push({
+        node_id: node.id,
+        document_id: 'mock-doc',
+        content: node.content,
+        note: node.note || null,
+        snippet: node.content,
+        rank: 0,
+      });
+    }
+  }
+  return results.slice(0, limit || 50);
+}

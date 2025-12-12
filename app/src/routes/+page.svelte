@@ -1,12 +1,40 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import OutlineItem from '$lib/OutlineItem.svelte';
+  import SearchModal from '$lib/SearchModal.svelte';
   import { outline } from '$lib/outline.svelte';
+
+  let showSearchModal = $state(false);
+  let searchDocumentScope: string | undefined = $state(undefined);
 
   onMount(() => {
     outline.load();
   });
+
+  function handleGlobalKeydown(event: KeyboardEvent) {
+    // Ctrl+Shift+F: Global search
+    if (event.ctrlKey && event.shiftKey && event.key === 'F') {
+      event.preventDefault();
+      searchDocumentScope = undefined;
+      showSearchModal = true;
+    }
+    // Ctrl+F: Search in current document
+    else if (event.ctrlKey && !event.shiftKey && event.key === 'f') {
+      event.preventDefault();
+      // TODO: Get current document ID when multi-document is fully implemented
+      searchDocumentScope = undefined; // For now, search globally
+      showSearchModal = true;
+    }
+  }
+
+  function handleSearchNavigate(nodeId: string, documentId: string) {
+    // Focus the node
+    outline.focus(nodeId);
+    // TODO: If documentId differs from current, switch documents first
+  }
 </script>
+
+<svelte:window onkeydown={handleGlobalKeydown} />
 
 <svelte:head>
   <title>Outline</title>
@@ -54,6 +82,13 @@
           </ul>
         </div>
         <div class="shortcut-group">
+          <h4>Search</h4>
+          <ul>
+            <li><kbd>Ctrl+F</kbd> Search document</li>
+            <li><kbd>Ctrl+Shift+F</kbd> Global search</li>
+          </ul>
+        </div>
+        <div class="shortcut-group">
           <h4>Collapse</h4>
           <ul>
             <li><kbd>Ctrl+.</kbd> Toggle collapse</li>
@@ -72,6 +107,13 @@
     </details>
   </div>
 </main>
+
+<SearchModal
+  isOpen={showSearchModal}
+  documentScope={searchDocumentScope}
+  onClose={() => showSearchModal = false}
+  onNavigate={handleSearchNavigate}
+/>
 
 <style>
   :global(body) {
