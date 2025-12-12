@@ -29,7 +29,30 @@
     refreshInboxCount();
     // Poll inbox count every 30 seconds
     const interval = setInterval(refreshInboxCount, 30000);
-    return () => clearInterval(interval);
+
+    // Handle Tab for indent/outdent at document level
+    // This ensures Tab works even if the editor's internal handler doesn't capture it
+    const handleTabKey = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        // Only handle Tab when an outline item is focused
+        const focusedId = outline.focusedId;
+        if (focusedId) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (event.shiftKey) {
+            outline.outdentNode(focusedId);
+          } else {
+            outline.indentNode(focusedId);
+          }
+        }
+      }
+    };
+    document.addEventListener('keydown', handleTabKey, { capture: true });
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('keydown', handleTabKey, { capture: true });
+    };
   });
 
   async function refreshInboxCount() {
