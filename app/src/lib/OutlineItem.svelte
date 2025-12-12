@@ -2,19 +2,29 @@
   import { onMount, onDestroy } from 'svelte';
   import { Editor } from '@tiptap/core';
   import StarterKit from '@tiptap/starter-kit';
+  import { Plugin, PluginKey } from '@tiptap/pm/state';
   import { outline } from './outline.svelte';
   import type { TreeNode } from './types';
   import OutlineItem from './OutlineItem.svelte';
+  import { WikiLink } from './WikiLink';
+  import WikiLinkSuggestion from './WikiLinkSuggestion.svelte';
 
   interface Props {
     item: TreeNode;
+    onNavigateToNode?: (nodeId: string) => void;
   }
 
-  let { item }: Props = $props();
+  let { item, onNavigateToNode }: Props = $props();
 
   let editor: Editor | undefined = $state();
   let editorElement: HTMLDivElement | undefined = $state();
   let tabHandler: ((e: KeyboardEvent) => void) | undefined;
+
+  // Wiki link suggestion state
+  let showWikiLinkSuggestion = $state(false);
+  let wikiLinkQuery = $state('');
+  let wikiLinkRange = $state<{ from: number; to: number } | null>(null);
+  let suggestionPosition = $state({ x: 0, y: 0 });
 
   // Reactive checks
   let isFocused = $derived(outline.focusedId === item.node.id);
@@ -56,6 +66,53 @@
     };
     editorElement.addEventListener('keydown', tabHandler, { capture: true });
 
+    // Create plugin for [[ detection
+    const wikiLinkInputPlugin = new Plugin({
+      key: new PluginKey('wikiLinkInput'),
+      props: {
+        handleTextInput: (view, from, to, text) => {
+          const state = view.state;
+          const prevChar = from > 0 ? state.doc.textBetween(from - 1, from) : '';
+
+          // Detect [[ trigger
+          if (text === '[' && prevChar === '[') {
+            showWikiLinkSuggestion = true;
+            wikiLinkQuery = '';
+            wikiLinkRange = { from: from - 1, to: from + 1 };
+            updateSuggestionPosition(view);
+            return false;
+          }
+
+          // If suggestion is active, update query
+          if (showWikiLinkSuggestion && wikiLinkRange) {
+            // Calculate current query
+            const queryStart = wikiLinkRange.from + 2;
+            const currentQuery = state.doc.textBetween(queryStart, from) + text;
+
+            // Check for ]] to close
+            if (text === ']' && currentQuery.endsWith(']')) {
+              showWikiLinkSuggestion = false;
+              wikiLinkRange = null;
+              return false;
+            }
+
+            wikiLinkQuery = currentQuery;
+            wikiLinkRange = { ...wikiLinkRange, to: from + text.length + 1 };
+          }
+
+          return false;
+        },
+      },
+    });
+
+    function updateSuggestionPosition(view: any) {
+      const coords = view.coordsAtPos(view.state.selection.from);
+      suggestionPosition = {
+        x: coords.left,
+        y: coords.bottom + 5,
+      };
+    }
+
     editor = new Editor({
       element: editorElement,
       extensions: [
@@ -68,7 +125,16 @@
           codeBlock: false,
           horizontalRule: false,
           hardBreak: false
-        })
+        }),
+        WikiLink.configure({
+          onNavigate: (nodeId: string) => {
+            if (onNavigateToNode) {
+              onNavigateToNode(nodeId);
+            } else {
+              outline.focus(nodeId);
+            }
+          },
+        }),
       ],
       content: item.node.content || '',
       editorProps: {
@@ -76,6 +142,18 @@
           class: 'outline-editor'
         },
         handleKeyDown: (view, event) => {
+          // Handle wiki link suggestion navigation
+          if (showWikiLinkSuggestion) {
+            if (event.key === 'Escape') {
+              showWikiLinkSuggestion = false;
+              wikiLinkRange = null;
+              return true;
+            }
+            // Let ArrowUp/Down/Enter/Tab pass to suggestion component
+            if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab'].includes(event.key)) {
+              return false; // Let window handler catch it
+            }
+          }
           const mod = event.ctrlKey || event.metaKey;
           const nodeId = item.node.id;
 
@@ -181,6 +259,26 @@
   function handleCollapseClick() {
     outline.toggleCollapse(item.node.id);
   }
+
+  function handleWikiLinkSelect(nodeId: string, displayText: string) {
+    if (!editor || !wikiLinkRange) return;
+
+    // Delete the [[query text and insert the wiki link
+    editor
+      .chain()
+      .focus()
+      .deleteRange(wikiLinkRange)
+      .insertWikiLink(nodeId, displayText)
+      .run();
+
+    showWikiLinkSuggestion = false;
+    wikiLinkRange = null;
+  }
+
+  function handleWikiLinkClose() {
+    showWikiLinkSuggestion = false;
+    wikiLinkRange = null;
+  }
 </script>
 
 <div class="outline-item" class:focused={isFocused} style="margin-left: {item.depth * 24}px">
@@ -205,11 +303,20 @@
   {#if item.hasChildren && !item.node.collapsed}
     <div class="children">
       {#each item.children as child (child.node.id)}
-        <OutlineItem item={child} />
+        <OutlineItem item={child} {onNavigateToNode} />
       {/each}
     </div>
   {/if}
 </div>
+
+{#if showWikiLinkSuggestion}
+  <WikiLinkSuggestion
+    query={wikiLinkQuery}
+    position={suggestionPosition}
+    onSelect={handleWikiLinkSelect}
+    onClose={handleWikiLinkClose}
+  />
+{/if}
 
 <style>
   .item-row {
@@ -285,6 +392,23 @@
     border-radius: 3px;
     font-family: 'SF Mono', Monaco, monospace;
     font-size: 0.9em;
+  }
+
+  .editor-wrapper :global(.wiki-link) {
+    display: inline-flex;
+    align-items: center;
+    background: #e3f2fd;
+    color: #1976d2;
+    padding: 1px 8px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    cursor: pointer;
+    text-decoration: none;
+    margin: 0 2px;
+  }
+
+  .editor-wrapper :global(.wiki-link:hover) {
+    background: #bbdefb;
   }
 
   .children {
