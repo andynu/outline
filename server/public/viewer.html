@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Outline Viewer</title>
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --surface: #16213e;
+      --border: #0f3460;
+      --text: #eaeaea;
+      --text-muted: #888;
+      --accent: #e94560;
+      --checkbox: #4caf50;
+      --heading: #ffd700;
+      --indent-guide: #333;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 500;
+    }
+
+    .doc-select {
+      padding: 0.5rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+
+    .doc-select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+    }
+
+    .error {
+      background: rgba(244, 67, 54, 0.1);
+      border: 1px solid #f44336;
+      color: #f44336;
+      padding: 1rem;
+      border-radius: 4px;
+      margin: 1rem;
+    }
+
+    .outline {
+      padding: 1rem 0;
+    }
+
+    .node {
+      position: relative;
+    }
+
+    .node-content {
+      display: flex;
+      align-items: flex-start;
+      padding: 0.25rem 0;
+      padding-left: calc(var(--depth, 0) * 1.5rem);
+    }
+
+    .node-bullet {
+      width: 6px;
+      height: 6px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      margin-top: 0.5rem;
+      margin-right: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .node-checkbox {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--text-muted);
+      border-radius: 3px;
+      margin-top: 0.25rem;
+      margin-right: 0.5rem;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .node-checkbox.checked {
+      background: var(--checkbox);
+      border-color: var(--checkbox);
+    }
+
+    .node-checkbox.checked::after {
+      content: '✓';
+      color: white;
+      font-size: 0.75rem;
+    }
+
+    .node-text {
+      flex: 1;
+    }
+
+    .node-text.checked {
+      text-decoration: line-through;
+      opacity: 0.6;
+    }
+
+    .node-heading {
+      font-weight: bold;
+      color: var(--heading);
+    }
+
+    .node-heading-1 { font-size: 1.5rem; }
+    .node-heading-2 { font-size: 1.25rem; }
+    .node-heading-3 { font-size: 1.1rem; }
+
+    .node-note {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      padding-left: calc(var(--depth, 0) * 1.5rem + 1.5rem);
+      margin-bottom: 0.25rem;
+    }
+
+    .node-date {
+      display: inline-block;
+      font-size: 0.75rem;
+      background: var(--border);
+      color: var(--text-muted);
+      padding: 0.125rem 0.375rem;
+      border-radius: 3px;
+      margin-left: 0.5rem;
+    }
+
+    .node-date.overdue {
+      background: rgba(244, 67, 54, 0.2);
+      color: #f44336;
+    }
+
+    .node-children {
+      position: relative;
+    }
+
+    /* Indent guides */
+    .node-children::before {
+      content: '';
+      position: absolute;
+      left: calc(var(--depth, 0) * 1.5rem + 0.25rem);
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: var(--indent-guide);
+    }
+
+    .breadcrumb {
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .breadcrumb a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .breadcrumb a:hover {
+      text-decoration: underline;
+    }
+
+    .wiki-link {
+      color: var(--accent);
+      text-decoration: none;
+      border-bottom: 1px dashed var(--accent);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f5f5f5;
+        --surface: #ffffff;
+        --border: #e0e0e0;
+        --text: #212121;
+        --text-muted: #757575;
+        --accent: #1976d2;
+        --heading: #f57c00;
+        --indent-guide: #e0e0e0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Outline</h1>
+    <select id="docSelect" class="doc-select">
+      <option value="">Select document...</option>
+    </select>
+  </header>
+
+  <div id="breadcrumb" class="breadcrumb" style="display: none;"></div>
+
+  <main class="container">
+    <div id="content">
+      <div class="loading">Loading documents...</div>
+    </div>
+  </main>
+
+  <script>
+    const API_BASE = '/outline/data';
+
+    // State
+    let documents = [];
+    let currentDoc = null;
+    let nodes = {};
+    let zoomedNodeId = null;
+
+    // DOM elements
+    const docSelect = document.getElementById('docSelect');
+    const content = document.getElementById('content');
+    const breadcrumb = document.getElementById('breadcrumb');
+
+    // Parse wiki-links in content
+    function parseWikiLinks(text) {
+      // Match [[id|display]] or [[id]]
+      return text.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, id, display) => {
+        return `<a href="#" class="wiki-link" data-node-id="${id}">${display || id}</a>`;
+      });
+    }
+
+    // Strip HTML tags for plain text display
+    function stripHtml(html) {
+      const div = document.createElement('div');
+      div.innerHTML = html;
+      return div.textContent || div.innerText || '';
+    }
+
+    // Check if date is overdue
+    function isOverdue(dateStr) {
+      if (!dateStr) return false;
+      const date = new Date(dateStr);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return date < today;
+    }
+
+    // Build tree from flat nodes
+    function buildTree(nodesArray) {
+      nodes = {};
+      nodesArray.forEach(node => {
+        nodes[node.id] = node;
+      });
+
+      const roots = [];
+      nodesArray.forEach(node => {
+        if (!node.parent_id) {
+          roots.push(node);
+        }
+      });
+
+      // Sort by position
+      const sortByPosition = (a, b) => (a.position || 0) - (b.position || 0);
+      roots.sort(sortByPosition);
+
+      return roots;
+    }
+
+    // Get children of a node
+    function getChildren(nodeId) {
+      if (!currentDoc || !currentDoc.nodes) return [];
+      return currentDoc.nodes
+        .filter(n => n.parent_id === nodeId)
+        .sort((a, b) => (a.position || 0) - (b.position || 0));
+    }
+
+    // Render a single node
+    function renderNode(node, depth = 0) {
+      const children = getChildren(node.id);
+      const hasChildren = children.length > 0;
+
+      let bulletHtml = '';
+      if (node.node_type === 'checkbox') {
+        bulletHtml = `<div class="node-checkbox ${node.is_checked ? 'checked' : ''}"></div>`;
+      } else {
+        bulletHtml = '<div class="node-bullet"></div>';
+      }
+
+      let contentClass = 'node-text';
+      if (node.node_type === 'checkbox' && node.is_checked) {
+        contentClass += ' checked';
+      }
+      if (node.node_type === 'heading') {
+        contentClass += ` node-heading node-heading-${node.heading_level || 1}`;
+      }
+
+      let dateHtml = '';
+      if (node.date) {
+        const dateClass = isOverdue(node.date) && !node.is_checked ? 'node-date overdue' : 'node-date';
+        dateHtml = `<span class="${dateClass}">${node.date}</span>`;
+      }
+
+      const parsedContent = parseWikiLinks(node.content || '');
+
+      let html = `
+        <div class="node" data-node-id="${node.id}">
+          <div class="node-content" style="--depth: ${depth}">
+            ${bulletHtml}
+            <span class="${contentClass}">${parsedContent}${dateHtml}</span>
+          </div>
+          ${node.note ? `<div class="node-note" style="--depth: ${depth}">${node.note}</div>` : ''}
+      `;
+
+      if (hasChildren && !node.collapsed) {
+        html += `<div class="node-children" style="--depth: ${depth}">`;
+        children.forEach(child => {
+          html += renderNode(child, depth + 1);
+        });
+        html += '</div>';
+      }
+
+      html += '</div>';
+      return html;
+    }
+
+    // Render the outline
+    function renderOutline() {
+      if (!currentDoc || !currentDoc.nodes) {
+        content.innerHTML = '<div class="loading">No content</div>';
+        return;
+      }
+
+      const tree = buildTree(currentDoc.nodes);
+      let rootNodes = tree;
+
+      // If zoomed, show only that subtree
+      if (zoomedNodeId && nodes[zoomedNodeId]) {
+        rootNodes = getChildren(zoomedNodeId);
+        showBreadcrumb();
+      } else {
+        breadcrumb.style.display = 'none';
+      }
+
+      if (rootNodes.length === 0) {
+        content.innerHTML = '<div class="loading">Empty document</div>';
+        return;
+      }
+
+      let html = '<div class="outline">';
+      rootNodes.forEach(node => {
+        html += renderNode(node);
+      });
+      html += '</div>';
+
+      content.innerHTML = html;
+
+      // Add wiki-link click handlers
+      content.querySelectorAll('.wiki-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const targetId = link.dataset.nodeId;
+          if (nodes[targetId]) {
+            zoomedNodeId = targetId;
+            renderOutline();
+          }
+        });
+      });
+    }
+
+    // Show breadcrumb navigation
+    function showBreadcrumb() {
+      if (!zoomedNodeId) {
+        breadcrumb.style.display = 'none';
+        return;
+      }
+
+      const path = [];
+      let current = nodes[zoomedNodeId];
+      while (current) {
+        path.unshift(current);
+        current = current.parent_id ? nodes[current.parent_id] : null;
+      }
+
+      const links = path.map((node, i) => {
+        const text = stripHtml(node.content).substring(0, 30) || 'Untitled';
+        if (i === path.length - 1) {
+          return `<span>${text}</span>`;
+        }
+        return `<a href="#" data-node-id="${node.id}">${text}</a>`;
+      });
+
+      breadcrumb.innerHTML = `<a href="#" data-node-id="">Root</a> / ${links.join(' / ')}`;
+      breadcrumb.style.display = 'block';
+
+      breadcrumb.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          zoomedNodeId = link.dataset.nodeId || null;
+          renderOutline();
+        });
+      });
+    }
+
+    // Load documents list
+    async function loadDocuments() {
+      try {
+        const response = await fetch(`${API_BASE}/documents.json`);
+        if (!response.ok) throw new Error('Failed to load documents');
+        documents = await response.json();
+
+        docSelect.innerHTML = '<option value="">Select document...</option>';
+        documents.forEach(doc => {
+          const option = document.createElement('option');
+          option.value = doc.id;
+          option.textContent = doc.name || doc.id;
+          docSelect.appendChild(option);
+        });
+
+        if (documents.length === 0) {
+          content.innerHTML = '<div class="loading">No documents found</div>';
+        } else {
+          content.innerHTML = '<div class="loading">Select a document to view</div>';
+        }
+      } catch (error) {
+        content.innerHTML = `<div class="error">Error loading documents: ${error.message}</div>`;
+      }
+    }
+
+    // Load a specific document
+    async function loadDocument(docId) {
+      if (!docId) {
+        currentDoc = null;
+        zoomedNodeId = null;
+        content.innerHTML = '<div class="loading">Select a document to view</div>';
+        return;
+      }
+
+      content.innerHTML = '<div class="loading">Loading...</div>';
+
+      try {
+        const response = await fetch(`${API_BASE}/${docId}/state.json`);
+        if (!response.ok) throw new Error('Failed to load document');
+        currentDoc = await response.json();
+        zoomedNodeId = null;
+        renderOutline();
+      } catch (error) {
+        content.innerHTML = `<div class="error">Error loading document: ${error.message}</div>`;
+      }
+    }
+
+    // Event listeners
+    docSelect.addEventListener('change', () => {
+      loadDocument(docSelect.value);
+    });
+
+    // Initialize
+    loadDocuments();
+  </script>
+</body>
+</html>

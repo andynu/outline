@@ -142,6 +142,11 @@ class OutlineServer < Sinatra::Base
     documents.to_json
   end
 
+  # Read-only viewer SPA
+  get '/outline/view' do
+    send_file File.join(settings.public_folder, 'viewer.html')
+  end
+
   # Mobile capture form
   get '/outline/capture' do
     erb :capture
