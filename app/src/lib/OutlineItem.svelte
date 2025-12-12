@@ -183,8 +183,8 @@
   }
 </script>
 
-<div class="outline-item" class:focused={isFocused}>
-  <div class="item-row" style="padding-left: {item.depth * 24}px">
+<div class="outline-item" class:focused={isFocused} style="margin-left: {item.depth * 24}px">
+  <div class="item-row">
     <button
       class="collapse-btn"
       class:has-children={item.hasChildren}
@@ -200,7 +200,6 @@
     </button>
 
     <div class="editor-wrapper" bind:this={editorElement}></div>
-    <span style="font-size: 10px; color: #999; margin-left: 8px;">d={item.depth}</span>
   </div>
 
   {#if item.hasChildren && !item.node.collapsed}
