@@ -238,6 +238,25 @@
             return true;
           }
 
+          // === CHECKBOX ===
+
+          // Ctrl+Enter: toggle checkbox (if checkbox type)
+          if (event.key === 'Enter' && mod && !event.shiftKey) {
+            event.preventDefault();
+            const node = outline.getNode(nodeId);
+            if (node?.node_type === 'checkbox') {
+              outline.toggleCheckbox(nodeId);
+            }
+            return true;
+          }
+
+          // Ctrl+Shift+C: toggle node type (bullet <-> checkbox)
+          if (event.key === 'c' && mod && event.shiftKey) {
+            event.preventDefault();
+            outline.toggleNodeType(nodeId);
+            return true;
+          }
+
           return false;
         }
       },
@@ -261,6 +280,12 @@
     outline.toggleCollapse(item.node.id);
   }
 
+  function handleCheckboxClick(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    outline.toggleCheckbox(item.node.id);
+  }
+
   function handleWikiLinkSelect(nodeId: string, displayText: string) {
     if (!editor || !wikiLinkRange) return;
 
@@ -282,21 +307,37 @@
   }
 </script>
 
-<div class="outline-item" class:focused={isFocused} style="margin-left: {item.depth * 24}px">
+<div class="outline-item" class:focused={isFocused} class:checked={item.node.is_checked} style="margin-left: {item.depth * 24}px">
   <div class="item-row">
-    <button
-      class="collapse-btn"
-      class:has-children={item.hasChildren}
-      class:collapsed={item.node.collapsed}
-      onclick={handleCollapseClick}
-      tabindex="-1"
-    >
-      {#if item.hasChildren}
-        <span class="collapse-icon">{item.node.collapsed ? '▶' : '▼'}</span>
-      {:else}
-        <span class="bullet">•</span>
-      {/if}
-    </button>
+    {#if item.node.node_type === 'checkbox'}
+      <button
+        class="checkbox-btn"
+        class:checked={item.node.is_checked}
+        onclick={handleCheckboxClick}
+        tabindex="-1"
+        aria-label={item.node.is_checked ? 'Mark incomplete' : 'Mark complete'}
+      >
+        {#if item.node.is_checked}
+          <span class="checkbox-icon checked">✓</span>
+        {:else}
+          <span class="checkbox-icon"></span>
+        {/if}
+      </button>
+    {:else}
+      <button
+        class="collapse-btn"
+        class:has-children={item.hasChildren}
+        class:collapsed={item.node.collapsed}
+        onclick={handleCollapseClick}
+        tabindex="-1"
+      >
+        {#if item.hasChildren}
+          <span class="collapse-icon">{item.node.collapsed ? '▶' : '▼'}</span>
+        {:else}
+          <span class="bullet">•</span>
+        {/if}
+      </button>
+    {/if}
 
     <div class="editor-wrapper" bind:this={editorElement}></div>
   </div>
@@ -369,6 +410,49 @@
   .bullet {
     font-size: 14px;
     color: #999;
+  }
+
+  .checkbox-btn {
+    width: 20px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+  }
+
+  .checkbox-icon {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #999;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: transparent;
+    background: white;
+    transition: all 0.15s;
+  }
+
+  .checkbox-btn:hover .checkbox-icon {
+    border-color: #666;
+  }
+
+  .checkbox-icon.checked {
+    background: #4caf50;
+    border-color: #4caf50;
+    color: white;
+  }
+
+  /* Strikethrough for checked items */
+  .outline-item.checked .editor-wrapper :global(.outline-editor) {
+    text-decoration: line-through;
+    color: #888;
   }
 
   .editor-wrapper {

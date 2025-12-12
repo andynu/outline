@@ -330,5 +330,42 @@ export const outline = {
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
+  },
+
+  // Toggle checkbox state
+  async toggleCheckbox(nodeId: string): Promise<boolean> {
+    const node = nodesById().get(nodeId);
+    if (!node) return false;
+
+    try {
+      const state = await api.updateNode(nodeId, {
+        is_checked: !node.is_checked,
+      });
+      updateFromState(state);
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
+  },
+
+  // Toggle node type between bullet and checkbox
+  async toggleNodeType(nodeId: string): Promise<boolean> {
+    const node = nodesById().get(nodeId);
+    if (!node) return false;
+
+    try {
+      const newType = node.node_type === 'checkbox' ? 'bullet' : 'checkbox';
+      const state = await api.updateNode(nodeId, {
+        node_type: newType,
+        // Reset is_checked when converting back to bullet
+        is_checked: newType === 'checkbox' ? node.is_checked : false,
+      });
+      updateFromState(state);
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
   }
 };
