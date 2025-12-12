@@ -86,6 +86,17 @@ impl SearchIndex {
 
             -- Index for filtering by document
             CREATE INDEX IF NOT EXISTS idx_nodes_document ON nodes(document_id);
+
+            -- Links table for backlinks tracking
+            CREATE TABLE IF NOT EXISTS links (
+                source_node_id TEXT NOT NULL,
+                target_node_id TEXT NOT NULL,
+                source_document_id TEXT NOT NULL,
+                PRIMARY KEY (source_node_id, target_node_id)
+            );
+
+            -- Index for finding backlinks
+            CREATE INDEX IF NOT EXISTS idx_links_target ON links(target_node_id);
             "#,
         )?;
 
@@ -268,6 +279,134 @@ impl SearchIndex {
         conn.execute("DELETE FROM nodes", [])?;
         Ok(())
     }
+
+    /// Update links for a node by extracting wiki-links from content
+    pub fn update_links(&self, document_id: &Uuid, node: &Node) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        let node_id_str = node.id.to_string();
+        let doc_id_str = document_id.to_string();
+
+        // Delete existing links from this node
+        conn.execute(
+            "DELETE FROM links WHERE source_node_id = ?",
+            params![node_id_str],
+        )?;
+
+        // Extract wiki-links from content
+        let links = extract_wiki_links(&node.content);
+
+        // Insert new links
+        let mut stmt = conn.prepare(
+            "INSERT OR REPLACE INTO links (source_node_id, target_node_id, source_document_id) VALUES (?, ?, ?)",
+        )?;
+
+        for target_id in links {
+            stmt.execute(params![node_id_str, target_id, doc_id_str])?;
+        }
+
+        Ok(())
+    }
+
+    /// Update links for all nodes in a document
+    pub fn update_document_links(&self, document_id: &Uuid, nodes: &[Node]) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        let doc_id_str = document_id.to_string();
+
+        // Delete existing links from this document
+        conn.execute(
+            "DELETE FROM links WHERE source_document_id = ?",
+            params![doc_id_str],
+        )?;
+
+        // Insert new links
+        let mut stmt = conn.prepare(
+            "INSERT OR REPLACE INTO links (source_node_id, target_node_id, source_document_id) VALUES (?, ?, ?)",
+        )?;
+
+        for node in nodes {
+            let node_id_str = node.id.to_string();
+            let links = extract_wiki_links(&node.content);
+
+            for target_id in links {
+                stmt.execute(params![node_id_str, target_id, doc_id_str])?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get backlinks (nodes that link to the given node)
+    pub fn get_backlinks(&self, target_node_id: &Uuid) -> SqliteResult<Vec<BacklinkResult>> {
+        let conn = self.conn.lock().unwrap();
+        let target_id_str = target_node_id.to_string();
+
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT l.source_node_id, l.source_document_id, n.content
+            FROM links l
+            LEFT JOIN nodes n ON l.source_node_id = n.id
+            WHERE l.target_node_id = ?
+            "#,
+        )?;
+
+        let rows = stmt.query_map(params![target_id_str], |row| {
+            Ok(BacklinkResult {
+                source_node_id: row.get(0)?,
+                source_document_id: row.get(1)?,
+                content: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+            })
+        })?;
+
+        let mut results = Vec::new();
+        for result in rows {
+            if let Ok(r) = result {
+                results.push(r);
+            }
+        }
+
+        Ok(results)
+    }
+}
+
+/// Backlink result returned to the frontend
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BacklinkResult {
+    pub source_node_id: String,
+    pub source_document_id: String,
+    pub content: String,
+}
+
+/// Extract wiki-link target IDs from HTML content
+fn extract_wiki_links(html: &str) -> Vec<String> {
+    let mut links = Vec::new();
+
+    // Look for data-node-id attributes in wiki-link spans
+    // Pattern: data-node-id="uuid"
+    let mut i = 0;
+    let bytes = html.as_bytes();
+    let pattern = b"data-node-id=\"";
+
+    while i < bytes.len() {
+        if bytes[i..].starts_with(pattern) {
+            i += pattern.len();
+            let start = i;
+
+            // Find closing quote
+            while i < bytes.len() && bytes[i] != b'"' {
+                i += 1;
+            }
+
+            if i > start {
+                if let Ok(node_id) = std::str::from_utf8(&bytes[start..i]) {
+                    links.push(node_id.to_string());
+                }
+            }
+        } else {
+            i += 1;
+        }
+    }
+
+    links
 }
 
 /// Strip HTML tags from content for indexing

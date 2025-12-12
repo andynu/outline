@@ -6,7 +6,7 @@ use crate::data::{
     create_op, delete_op, documents_dir, ensure_dirs, move_op, update_op, Document, DocumentState,
     Node, NodeChanges, Operation,
 };
-use crate::search::{SearchIndex, SearchResult};
+use crate::search::{BacklinkResult, SearchIndex, SearchResult};
 
 /// State managed by Tauri for the current document
 pub struct AppState {
@@ -56,11 +56,14 @@ pub fn load_document(
 
     let doc_state = doc.state.clone();
 
-    // Index document for search
+    // Index document for search and update links
     if let Ok(search_index) = state.search_index.lock() {
         if let Some(ref index) = *search_index {
             if let Err(e) = index.index_document(&doc_uuid, &doc_state.nodes) {
                 log::warn!("Failed to index document: {}", e);
+            }
+            if let Err(e) = index.update_document_links(&doc_uuid, &doc_state.nodes) {
+                log::warn!("Failed to update document links: {}", e);
             }
         }
     }
@@ -286,4 +289,22 @@ fn strip_html_for_title(html: &str) -> String {
         .replace("&quot;", "\"")
         .trim()
         .to_string()
+}
+
+/// Get backlinks for a node (items that link to this node)
+#[tauri::command]
+pub fn get_backlinks(
+    state: State<AppState>,
+    node_id: String,
+) -> Result<Vec<BacklinkResult>, String> {
+    let node_uuid = Uuid::parse_str(&node_id).map_err(|e| format!("Invalid UUID: {}", e))?;
+
+    let search_index = state.search_index.lock().unwrap();
+    let index = search_index
+        .as_ref()
+        .ok_or("Search index not initialized")?;
+
+    index
+        .get_backlinks(&node_uuid)
+        .map_err(|e| format!("Failed to get backlinks: {}", e))
 }

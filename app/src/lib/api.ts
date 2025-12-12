@@ -329,3 +329,20 @@ export async function listDocuments(): Promise<DocumentInfo[]> {
     },
   ];
 }
+
+// Backlink result from get_backlinks
+export interface BacklinkResult {
+  source_node_id: string;
+  source_document_id: string;
+  content: string;
+}
+
+// Get backlinks for a node
+export async function getBacklinks(nodeId: string): Promise<BacklinkResult[]> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('get_backlinks', { nodeId }) as Promise<BacklinkResult[]>;
+  }
+  // Browser-only mode: return empty array
+  return [];
+}

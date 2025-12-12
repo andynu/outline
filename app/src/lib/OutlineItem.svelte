@@ -8,6 +8,7 @@
   import OutlineItem from './OutlineItem.svelte';
   import { WikiLink } from './WikiLink';
   import WikiLinkSuggestion from './WikiLinkSuggestion.svelte';
+  import BacklinksPanel from './BacklinksPanel.svelte';
 
   interface Props {
     item: TreeNode;
@@ -299,6 +300,13 @@
 
     <div class="editor-wrapper" bind:this={editorElement}></div>
   </div>
+
+  {#if isFocused}
+    <BacklinksPanel
+      nodeId={item.node.id}
+      onNavigate={(nodeId) => onNavigateToNode ? onNavigateToNode(nodeId) : outline.focus(nodeId)}
+    />
+  {/if}
 
   {#if item.hasChildren && !item.node.collapsed}
     <div class="children">

@@ -28,6 +28,7 @@ pub fn run() {
             commands::compact_document,
             commands::search,
             commands::list_documents,
+            commands::get_backlinks,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
