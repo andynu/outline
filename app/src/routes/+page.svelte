@@ -2,10 +2,14 @@
   import { onMount } from 'svelte';
   import OutlineItem from '$lib/OutlineItem.svelte';
   import SearchModal from '$lib/SearchModal.svelte';
+  import QuickNavigator from '$lib/QuickNavigator.svelte';
   import { outline } from '$lib/outline.svelte';
 
   let showSearchModal = $state(false);
   let searchDocumentScope: string | undefined = $state(undefined);
+
+  let showQuickNav = $state(false);
+  let quickNavMode: 'files' | 'items' = $state('files');
 
   onMount(() => {
     outline.load();
@@ -25,12 +29,32 @@
       searchDocumentScope = undefined; // For now, search globally
       showSearchModal = true;
     }
+    // Ctrl+O: File finder (document switcher)
+    else if (event.ctrlKey && !event.shiftKey && event.key === 'o') {
+      event.preventDefault();
+      quickNavMode = 'files';
+      showQuickNav = true;
+    }
+    // Ctrl+Shift+O: Item finder (search all nodes)
+    else if (event.ctrlKey && event.shiftKey && event.key === 'O') {
+      event.preventDefault();
+      quickNavMode = 'items';
+      showQuickNav = true;
+    }
   }
 
   function handleSearchNavigate(nodeId: string, documentId: string) {
     // Focus the node
     outline.focus(nodeId);
     // TODO: If documentId differs from current, switch documents first
+  }
+
+  function handleQuickNavNavigate(nodeId: string, documentId: string) {
+    if (nodeId) {
+      // Navigate to specific node
+      outline.focus(nodeId);
+    }
+    // TODO: Switch documents when multi-document is fully implemented
   }
 </script>
 
@@ -79,6 +103,8 @@
             <li><kbd>↑</kbd> / <kbd>↓</kbd> Move focus</li>
             <li><kbd>Ctrl+↑</kbd> Swap up</li>
             <li><kbd>Ctrl+↓</kbd> Swap down</li>
+            <li><kbd>Ctrl+O</kbd> Go to document</li>
+            <li><kbd>Ctrl+Shift+O</kbd> Go to item</li>
           </ul>
         </div>
         <div class="shortcut-group">
@@ -113,6 +139,13 @@
   documentScope={searchDocumentScope}
   onClose={() => showSearchModal = false}
   onNavigate={handleSearchNavigate}
+/>
+
+<QuickNavigator
+  isOpen={showQuickNav}
+  mode={quickNavMode}
+  onClose={() => showQuickNav = false}
+  onNavigate={handleQuickNavNavigate}
 />
 
 <style>

@@ -222,3 +222,68 @@ pub fn search(
         .search(&query, doc_uuid.as_ref(), limit.unwrap_or(50))
         .map_err(|e| format!("Search error: {}", e))
 }
+
+/// Document info for listing
+#[derive(Clone, serde::Serialize)]
+pub struct DocumentInfo {
+    pub id: String,
+    pub title: String,
+    pub node_count: usize,
+}
+
+/// List all available documents
+#[tauri::command]
+pub fn list_documents() -> Result<Vec<DocumentInfo>, String> {
+    use crate::data::list_documents as list_doc_ids;
+    ensure_dirs()?;
+
+    let doc_ids = list_doc_ids()?;
+    let mut documents = Vec::new();
+
+    for doc_id in doc_ids {
+        let doc_dir = documents_dir().join(doc_id.to_string());
+        if let Ok(doc) = Document::load(doc_dir) {
+            // Get title from first root node
+            let title = doc
+                .state
+                .nodes
+                .iter()
+                .filter(|n| n.parent_id.is_none())
+                .min_by_key(|n| n.position)
+                .map(|n| strip_html_for_title(&n.content))
+                .unwrap_or_else(|| "Untitled".to_string());
+
+            documents.push(DocumentInfo {
+                id: doc_id.to_string(),
+                title,
+                node_count: doc.state.nodes.len(),
+            });
+        }
+    }
+
+    Ok(documents)
+}
+
+/// Strip HTML tags for display (simple version)
+fn strip_html_for_title(html: &str) -> String {
+    let mut result = String::with_capacity(html.len());
+    let mut in_tag = false;
+
+    for c in html.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => result.push(c),
+            _ => {}
+        }
+    }
+
+    result
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .trim()
+        .to_string()
+}

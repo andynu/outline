@@ -279,6 +279,13 @@ export interface SearchResult {
   rank: number;
 }
 
+// Document info from list_documents
+export interface DocumentInfo {
+  id: string;
+  title: string;
+  node_count: number;
+}
+
 // Search for nodes matching a query
 export async function search(
   query: string,
@@ -305,4 +312,20 @@ export async function search(
     }
   }
   return results.slice(0, limit || 50);
+}
+
+// List all documents
+export async function listDocuments(): Promise<DocumentInfo[]> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('list_documents') as Promise<DocumentInfo[]>;
+  }
+  // Browser-only mode: return mock document
+  return [
+    {
+      id: 'mock-doc',
+      title: 'Mock Document',
+      node_count: mockState.nodes.length,
+    },
+  ];
 }

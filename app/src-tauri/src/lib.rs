@@ -27,6 +27,7 @@ pub fn run() {
             commands::delete_node,
             commands::compact_document,
             commands::search,
+            commands::list_documents,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
