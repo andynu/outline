@@ -12,7 +12,7 @@ export interface Node {
   heading_level?: number;
   is_checked: boolean;
   color?: string;
-  tags: string[];
+  tags?: string[];
   date?: string;
   date_recurrence?: string;
   collapsed: boolean;

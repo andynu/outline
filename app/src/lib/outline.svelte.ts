@@ -15,7 +15,7 @@ function nodesById(): Map<string, Node> {
 // Derived: root nodes (no parent)
 function rootNodes(): Node[] {
   return nodes
-    .filter(n => n.parent_id === null)
+    .filter(n => n.parent_id == null)  // loose equality: matches null OR undefined
     .sort((a, b) => a.position - b.position);
 }
 
