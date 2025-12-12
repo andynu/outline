@@ -6,16 +6,24 @@ use crate::data::{
     create_op, delete_op, documents_dir, ensure_dirs, move_op, update_op, Document, DocumentState,
     Node, NodeChanges, Operation,
 };
+use crate::search::{SearchIndex, SearchResult};
 
 /// State managed by Tauri for the current document
 pub struct AppState {
     pub current_document: Mutex<Option<Document>>,
+    pub search_index: Mutex<Option<SearchIndex>>,
 }
 
 impl AppState {
     pub fn new() -> Self {
+        // Initialize search index
+        let search_index = SearchIndex::open()
+            .map_err(|e| log::error!("Failed to open search index: {}", e))
+            .ok();
+
         Self {
             current_document: Mutex::new(None),
+            search_index: Mutex::new(search_index),
         }
     }
 }
@@ -47,6 +55,15 @@ pub fn load_document(
     };
 
     let doc_state = doc.state.clone();
+
+    // Index document for search
+    if let Ok(search_index) = state.search_index.lock() {
+        if let Some(ref index) = *search_index {
+            if let Err(e) = index.index_document(&doc_uuid, &doc_state.nodes) {
+                log::warn!("Failed to index document: {}", e);
+            }
+        }
+    }
 
     // Store current document
     let mut current = state.current_document.lock().unwrap();
@@ -180,4 +197,28 @@ fn create_sample_data(doc: &mut Document) -> Result<(), String> {
     doc.save_state()?;
 
     Ok(())
+}
+
+/// Search for nodes matching a query
+#[tauri::command]
+pub fn search(
+    state: State<AppState>,
+    query: String,
+    doc_id: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<SearchResult>, String> {
+    let doc_uuid = if let Some(id_str) = doc_id {
+        Some(Uuid::parse_str(&id_str).map_err(|e| format!("Invalid UUID: {}", e))?)
+    } else {
+        None
+    };
+
+    let search_index = state.search_index.lock().unwrap();
+    let index = search_index
+        .as_ref()
+        .ok_or("Search index not initialized")?;
+
+    index
+        .search(&query, doc_uuid.as_ref(), limit.unwrap_or(50))
+        .map_err(|e| format!("Search error: {}", e))
 }

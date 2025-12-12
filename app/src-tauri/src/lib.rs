@@ -1,5 +1,6 @@
 mod commands;
 mod data;
+mod search;
 
 use commands::AppState;
 
@@ -25,6 +26,7 @@ pub fn run() {
             commands::move_node,
             commands::delete_node,
             commands::compact_document,
+            commands::search,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
