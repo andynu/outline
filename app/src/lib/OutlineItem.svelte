@@ -88,8 +88,19 @@
             return true;
           }
 
-          // Tab/Shift+Tab handled by DOM-level handler (handleKeyDown)
-          // to intercept before browser focus navigation
+          // Tab: indent
+          if (event.key === 'Tab' && !event.shiftKey) {
+            event.preventDefault();
+            outline.indentNode(nodeId);
+            return true;
+          }
+
+          // Shift+Tab: outdent
+          if (event.key === 'Tab' && event.shiftKey) {
+            event.preventDefault();
+            outline.outdentNode(nodeId);
+            return true;
+          }
 
           // Ctrl+Shift+Backspace: delete item
           if (event.key === 'Backspace' && mod && event.shiftKey) {
@@ -172,7 +183,7 @@
   }
 </script>
 
-<div class="outline-item" class:focused={isFocused} style:--depth={item.depth}>
+<div class="outline-item" class:focused={isFocused} style="--depth: {item.depth}">
   <div class="item-row">
     <button
       class="collapse-btn"
