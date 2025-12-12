@@ -3,6 +3,7 @@
   import OutlineItem from '$lib/OutlineItem.svelte';
   import SearchModal from '$lib/SearchModal.svelte';
   import QuickNavigator from '$lib/QuickNavigator.svelte';
+  import DateViewsPanel from '$lib/DateViewsPanel.svelte';
   import { outline } from '$lib/outline.svelte';
 
   let showSearchModal = $state(false);
@@ -10,6 +11,8 @@
 
   let showQuickNav = $state(false);
   let quickNavMode: 'files' | 'items' = $state('files');
+
+  let showDateViews = $state(false);
 
   onMount(() => {
     outline.load();
@@ -40,6 +43,11 @@
       event.preventDefault();
       quickNavMode = 'items';
       showQuickNav = true;
+    }
+    // Ctrl+Shift+T: Show date views (Tasks)
+    else if (event.ctrlKey && event.shiftKey && event.key === 'T') {
+      event.preventDefault();
+      showDateViews = true;
     }
   }
 
@@ -121,6 +129,16 @@
           </ul>
         </div>
         <div class="shortcut-group">
+          <h4>Tasks & Dates</h4>
+          <ul>
+            <li><kbd>Ctrl+Shift+C</kbd> Toggle checkbox</li>
+            <li><kbd>Ctrl+Enter</kbd> Check/uncheck</li>
+            <li><kbd>Ctrl+D</kbd> Set date</li>
+            <li><kbd>Ctrl+Shift+D</kbd> Clear date</li>
+            <li><kbd>Ctrl+Shift+T</kbd> Date views</li>
+          </ul>
+        </div>
+        <div class="shortcut-group">
           <h4>Formatting</h4>
           <ul>
             <li><kbd>Ctrl+B</kbd> Bold</li>
@@ -146,6 +164,12 @@
   mode={quickNavMode}
   onClose={() => showQuickNav = false}
   onNavigate={handleQuickNavNavigate}
+/>
+
+<DateViewsPanel
+  isOpen={showDateViews}
+  onClose={() => showDateViews = false}
+  onNavigate={(nodeId) => outline.focus(nodeId)}
 />
 
 <style>
