@@ -73,19 +73,8 @@
             return true;
           }
 
-          // Tab: indent
-          if (event.key === 'Tab' && !event.shiftKey) {
-            event.preventDefault();
-            outline.indentNode(nodeId);
-            return true;
-          }
-
-          // Shift+Tab: outdent
-          if (event.key === 'Tab' && event.shiftKey) {
-            event.preventDefault();
-            outline.outdentNode(nodeId);
-            return true;
-          }
+          // Tab/Shift+Tab handled by DOM-level handler (handleKeyDown)
+          // to intercept before browser focus navigation
 
           // Ctrl+Shift+Backspace: delete item
           if (event.key === 'Backspace' && mod && event.shiftKey) {
@@ -163,6 +152,19 @@
   function handleCollapseClick() {
     outline.toggleCollapse(item.node.id);
   }
+
+  // Handle Tab at DOM level before browser focus navigation intercepts it
+  function handleKeyDown(event: KeyboardEvent) {
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.shiftKey) {
+        outline.outdentNode(item.node.id);
+      } else {
+        outline.indentNode(item.node.id);
+      }
+    }
+  }
 </script>
 
 <div class="outline-item" class:focused={isFocused} style:--depth={item.depth}>
@@ -181,7 +183,8 @@
       {/if}
     </button>
 
-    <div class="editor-wrapper" bind:this={editorElement}></div>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="editor-wrapper" bind:this={editorElement} onkeydown={handleKeyDown}></div>
   </div>
 
   {#if item.hasChildren && !item.node.collapsed}
