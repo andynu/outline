@@ -365,3 +365,20 @@ export async function getNextOccurrence(
   const day = String(after.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
+// Generate iCalendar feed for all dated items
+export async function generateIcalFeed(): Promise<string> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('generate_ical_feed') as Promise<string>;
+  }
+  // Browser-only mode: return empty calendar
+  return `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Outline//NONSGML v1.0//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Outline Tasks
+END:VCALENDAR
+`;
+}

@@ -30,6 +30,7 @@ pub fn run() {
             commands::list_documents,
             commands::get_backlinks,
             commands::get_next_occurrence,
+            commands::generate_ical_feed,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

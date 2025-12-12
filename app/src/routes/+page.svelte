@@ -5,6 +5,7 @@
   import QuickNavigator from '$lib/QuickNavigator.svelte';
   import DateViewsPanel from '$lib/DateViewsPanel.svelte';
   import { outline } from '$lib/outline.svelte';
+  import { generateIcalFeed } from '$lib/api';
 
   let showSearchModal = $state(false);
   let searchDocumentScope: string | undefined = $state(undefined);
@@ -64,6 +65,24 @@
     }
     // TODO: Switch documents when multi-document is fully implemented
   }
+
+  async function handleExportCalendar() {
+    try {
+      const icalContent = await generateIcalFeed();
+      // Create a blob and download
+      const blob = new Blob([icalContent], { type: 'text/calendar;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'outline-tasks.ics';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Failed to export calendar:', e);
+    }
+  }
 </script>
 
 <svelte:window onkeydown={handleGlobalKeydown} />
@@ -75,9 +94,14 @@
 <main>
   <header>
     <h1>Outline</h1>
-    <button class="compact-btn" onclick={() => outline.compact()}>
-      Save
-    </button>
+    <div class="header-buttons">
+      <button class="header-btn" onclick={handleExportCalendar} title="Export iCalendar">
+        📅 Export
+      </button>
+      <button class="compact-btn" onclick={() => outline.compact()}>
+        Save
+      </button>
+    </div>
   </header>
 
   {#if outline.loading}
@@ -200,6 +224,27 @@
     margin: 0;
     font-size: 24px;
     font-weight: 600;
+  }
+
+  .header-buttons {
+    display: flex;
+    gap: 8px;
+  }
+
+  .header-btn {
+    padding: 8px 16px;
+    background: #f5f5f5;
+    color: #333;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.1s;
+  }
+
+  .header-btn:hover {
+    background: #e0e0e0;
+    border-color: #ccc;
   }
 
   .compact-btn {
