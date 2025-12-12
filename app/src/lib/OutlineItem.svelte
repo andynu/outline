@@ -9,6 +9,8 @@
   import { WikiLink } from './WikiLink';
   import WikiLinkSuggestion from './WikiLinkSuggestion.svelte';
   import BacklinksPanel from './BacklinksPanel.svelte';
+  import DateBadge from './DateBadge.svelte';
+  import DatePicker from './DatePicker.svelte';
 
   interface Props {
     item: TreeNode;
@@ -26,6 +28,10 @@
   let wikiLinkQuery = $state('');
   let wikiLinkRange = $state<{ from: number; to: number } | null>(null);
   let suggestionPosition = $state({ x: 0, y: 0 });
+
+  // Date picker state
+  let showDatePicker = $state(false);
+  let datePickerPosition = $state({ x: 0, y: 0 });
 
   // Reactive checks
   let isFocused = $derived(outline.focusedId === item.node.id);
@@ -257,6 +263,22 @@
             return true;
           }
 
+          // === DATE ===
+
+          // Ctrl+D: open date picker
+          if (event.key === 'd' && mod && !event.shiftKey) {
+            event.preventDefault();
+            openDatePicker(view);
+            return true;
+          }
+
+          // Ctrl+Shift+D: clear date
+          if (event.key === 'd' && mod && event.shiftKey) {
+            event.preventDefault();
+            outline.clearDate(nodeId);
+            return true;
+          }
+
           return false;
         }
       },
@@ -284,6 +306,30 @@
     e.preventDefault();
     e.stopPropagation();
     outline.toggleCheckbox(item.node.id);
+  }
+
+  function openDatePicker(view?: any) {
+    if (view) {
+      const coords = view.coordsAtPos(view.state.selection.from);
+      datePickerPosition = { x: coords.left, y: coords.bottom + 5 };
+    } else if (editorElement) {
+      const rect = editorElement.getBoundingClientRect();
+      datePickerPosition = { x: rect.left, y: rect.bottom + 5 };
+    }
+    showDatePicker = true;
+  }
+
+  function handleDateBadgeClick() {
+    openDatePicker();
+  }
+
+  function handleDateSelect(date: string | null) {
+    outline.setDate(item.node.id, date);
+    showDatePicker = false;
+  }
+
+  function handleDatePickerClose() {
+    showDatePicker = false;
   }
 
   function handleWikiLinkSelect(nodeId: string, displayText: string) {
@@ -340,6 +386,14 @@
     {/if}
 
     <div class="editor-wrapper" bind:this={editorElement}></div>
+
+    {#if item.node.date}
+      <DateBadge
+        date={item.node.date}
+        isChecked={item.node.is_checked}
+        onclick={handleDateBadgeClick}
+      />
+    {/if}
   </div>
 
   {#if isFocused}
@@ -364,6 +418,15 @@
     position={suggestionPosition}
     onSelect={handleWikiLinkSelect}
     onClose={handleWikiLinkClose}
+  />
+{/if}
+
+{#if showDatePicker}
+  <DatePicker
+    position={datePickerPosition}
+    currentDate={item.node.date}
+    onSelect={handleDateSelect}
+    onClose={handleDatePickerClose}
   />
 {/if}
 

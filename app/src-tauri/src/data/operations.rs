@@ -159,10 +159,12 @@ impl Operation {
                             node.tags = tags.clone();
                         }
                         if let Some(ref date) = changes.date {
-                            node.date = Some(date.clone());
+                            // Empty string means clear the date
+                            node.date = if date.is_empty() { None } else { Some(date.clone()) };
                         }
                         if let Some(ref date_recurrence) = changes.date_recurrence {
-                            node.date_recurrence = Some(date_recurrence.clone());
+                            // Empty string means clear the recurrence
+                            node.date_recurrence = if date_recurrence.is_empty() { None } else { Some(date_recurrence.clone()) };
                         }
                         if let Some(collapsed) = changes.collapsed {
                             node.collapsed = collapsed;

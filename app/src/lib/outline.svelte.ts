@@ -367,5 +367,25 @@ export const outline = {
       error = e instanceof Error ? e.message : String(e);
       return false;
     }
+  },
+
+  // Set date on a node (pass null or empty string to clear)
+  async setDate(nodeId: string, date: string | null): Promise<boolean> {
+    try {
+      // Empty string signals to backend to clear the date
+      const state = await api.updateNode(nodeId, {
+        date: date ?? '',
+      });
+      updateFromState(state);
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
+  },
+
+  // Clear date from a node
+  async clearDate(nodeId: string): Promise<boolean> {
+    return this.setDate(nodeId, '');
   }
 };
