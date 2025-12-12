@@ -183,8 +183,8 @@
   }
 </script>
 
-<div class="outline-item" class:focused={isFocused} style="--depth: {item.depth}">
-  <div class="item-row">
+<div class="outline-item" class:focused={isFocused}>
+  <div class="item-row" style="padding-left: {item.depth * 24}px">
     <button
       class="collapse-btn"
       class:has-children={item.hasChildren}
@@ -200,6 +200,7 @@
     </button>
 
     <div class="editor-wrapper" bind:this={editorElement}></div>
+    <span style="font-size: 10px; color: #999; margin-left: 8px;">d={item.depth}</span>
   </div>
 
   {#if item.hasChildren && !item.node.collapsed}
@@ -212,15 +213,10 @@
 </div>
 
 <style>
-  .outline-item {
-    --indent: calc(var(--depth, 0) * 24px);
-  }
-
   .item-row {
     display: flex;
     align-items: flex-start;
     padding: 2px 0;
-    padding-left: var(--indent);
     border-radius: 4px;
     transition: background-color 0.1s;
   }
