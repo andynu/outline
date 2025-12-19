@@ -8,9 +8,10 @@
   import TagsPanel from '$lib/TagsPanel.svelte';
   import InboxPanel from '$lib/InboxPanel.svelte';
   import Sidebar from '$lib/Sidebar.svelte';
+  import MenuDropdown from '$lib/MenuDropdown.svelte';
   import { outline } from '$lib/outline.svelte';
   import KeyboardShortcutsModal from '$lib/KeyboardShortcutsModal.svelte';
-  import { generateIcalFeed, getInboxCount, createDocument } from '$lib/api';
+  import { generateIcalFeed, getInboxCount, createDocument, exportOpml, exportMarkdown, exportJson } from '$lib/api';
   import type { InboxItem } from '$lib/api';
 
   let showSearchModal = $state(false);
@@ -298,20 +299,78 @@
   async function handleExportCalendar() {
     try {
       const icalContent = await generateIcalFeed();
-      // Create a blob and download
-      const blob = new Blob([icalContent], { type: 'text/calendar;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'outline-tasks.ics';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadFile(icalContent, 'outline-tasks.ics', 'text/calendar;charset=utf-8');
     } catch (e) {
       console.error('Failed to export calendar:', e);
     }
   }
+
+  async function handleExportOpml() {
+    try {
+      const opmlContent = await exportOpml('Outline Export');
+      downloadFile(opmlContent, 'outline-export.opml', 'text/xml;charset=utf-8');
+    } catch (e) {
+      console.error('Failed to export OPML:', e);
+    }
+  }
+
+  async function handleExportMarkdown() {
+    try {
+      const mdContent = await exportMarkdown();
+      downloadFile(mdContent, 'outline-export.md', 'text/markdown;charset=utf-8');
+    } catch (e) {
+      console.error('Failed to export Markdown:', e);
+    }
+  }
+
+  async function handleExportJson() {
+    try {
+      const jsonContent = await exportJson();
+      downloadFile(jsonContent, 'outline-backup.json', 'application/json;charset=utf-8');
+    } catch (e) {
+      console.error('Failed to export JSON:', e);
+    }
+  }
+
+  function downloadFile(content: string, filename: string, mimeType: string) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Menu dropdown state
+  let openMenu = $state<string | null>(null);
+
+  function openMenuDropdown(menu: string) {
+    openMenu = menu;
+  }
+
+  function closeMenuDropdown() {
+    openMenu = null;
+  }
+
+  // File menu items
+  const fileMenuItems = [
+    { label: 'Save', shortcut: 'Ctrl+S', action: handleSave, separator: false as const },
+    { separator: true as const },
+    { label: 'Export as OPML...', action: handleExportOpml, separator: false as const },
+    { label: 'Export as Markdown...', action: handleExportMarkdown, separator: false as const },
+    { label: 'Export as JSON Backup...', action: handleExportJson, separator: false as const },
+    { label: 'Download iCal Feed...', action: handleExportCalendar, separator: false as const },
+    { separator: true as const },
+    { label: 'Quit', shortcut: 'Ctrl+Q', action: handleQuit, separator: false as const },
+  ];
+
+  // Help menu items
+  const helpMenuItems = [
+    { label: 'Keyboard Shortcuts', shortcut: 'Ctrl+/', action: () => { showKeyboardShortcuts = true; }, separator: false as const },
+  ];
 </script>
 
 <svelte:window onkeydown={handleGlobalKeydown} />
@@ -323,10 +382,22 @@
 <div class="app-chrome">
   <!-- Menu Bar -->
   <nav class="menu-bar">
-    <button class="menu-item">File</button>
+    <MenuDropdown
+      label="File"
+      items={fileMenuItems}
+      isOpen={openMenu === 'file'}
+      onOpen={() => openMenuDropdown('file')}
+      onClose={closeMenuDropdown}
+    />
     <button class="menu-item">Edit</button>
     <button class="menu-item">View</button>
-    <button class="menu-item">Help</button>
+    <MenuDropdown
+      label="Help"
+      items={helpMenuItems}
+      isOpen={openMenu === 'help'}
+      onOpen={() => openMenuDropdown('help')}
+      onClose={closeMenuDropdown}
+    />
   </nav>
 
   <!-- Icon Toolbar -->
@@ -402,17 +473,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
           <line x1="7" y1="7" x2="7.01" y2="7"/>
-        </svg>
-      </button>
-      <button
-        class="toolbar-btn"
-        onclick={handleExportCalendar}
-        title="Export iCalendar"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
       </button>
       <div class="toolbar-separator"></div>
