@@ -2,15 +2,16 @@
   import { onMount, onDestroy } from 'svelte';
   import { Editor } from '@tiptap/core';
   import StarterKit from '@tiptap/starter-kit';
-  import { Plugin, PluginKey } from '@tiptap/pm/state';
   import { outline } from './outline.svelte';
   import type { TreeNode } from './types';
   import OutlineItem from './OutlineItem.svelte';
   import { WikiLink } from './WikiLink';
   import { AutoLink } from './AutoLink';
   import { Hashtag } from './Hashtag';
+  import { DueDate } from './DueDate';
   import WikiLinkSuggestion from './WikiLinkSuggestion.svelte';
   import HashtagSuggestion from './HashtagSuggestion.svelte';
+  import DueDateSuggestion from './DueDateSuggestion.svelte';
   import BacklinksPanel from './BacklinksPanel.svelte';
   import DateBadge from './DateBadge.svelte';
   import DatePicker from './DatePicker.svelte';
@@ -38,6 +39,12 @@
   let hashtagQuery = $state('');
   let hashtagRange = $state<{ from: number; to: number } | null>(null);
   let hashtagPosition = $state({ x: 0, y: 0 });
+
+  // Inline due date suggestion state
+  let showDueDateSuggestion = $state(false);
+  let dueDateQuery = $state('');
+  let dueDateRange = $state<{ from: number; to: number } | null>(null);
+  let dueDatePosition = $state({ x: 0, y: 0 });
 
   // Date picker state
   let showDatePicker = $state(false);
@@ -87,10 +94,71 @@
     };
     editorElement.addEventListener('keydown', tabHandler, { capture: true });
 
-    // Create plugin for [[ and # detection
-    const suggestionInputPlugin = new Plugin({
-      key: new PluginKey('suggestionInput'),
-      props: {
+    function updateHashtagPosition(view: any) {
+      const coords = view.coordsAtPos(view.state.selection.from);
+      hashtagPosition = {
+        x: coords.left,
+        y: coords.bottom + 5,
+      };
+    }
+
+    function updateDueDatePosition(view: any) {
+      const coords = view.coordsAtPos(view.state.selection.from);
+      dueDatePosition = {
+        x: coords.left,
+        y: coords.bottom + 5,
+      };
+    }
+
+    function updateSuggestionPosition(view: any) {
+      const coords = view.coordsAtPos(view.state.selection.from);
+      suggestionPosition = {
+        x: coords.left,
+        y: coords.bottom + 5,
+      };
+    }
+
+    editor = new Editor({
+      element: editorElement,
+      extensions: [
+        StarterKit.configure({
+          // Disable multi-line features for single-line items
+          heading: false,
+          bulletList: false,
+          orderedList: false,
+          blockquote: false,
+          codeBlock: false,
+          horizontalRule: false,
+          hardBreak: false
+        }),
+        WikiLink.configure({
+          onNavigate: (nodeId: string) => {
+            if (onNavigateToNode) {
+              onNavigateToNode(nodeId);
+            } else {
+              outline.focus(nodeId);
+            }
+          },
+        }),
+        AutoLink,
+        Hashtag.configure({
+          onHashtagClick: (tag: string) => {
+            // Dispatch custom event for parent to handle search
+            window.dispatchEvent(new CustomEvent('hashtag-search', { detail: { tag } }));
+          },
+        }),
+        DueDate.configure({
+          onDueDateClick: (date: string) => {
+            // When clicking on a due date, open the date picker to edit it
+            openDatePicker();
+          },
+        }),
+      ],
+      content: item.node.content || '',
+      editorProps: {
+        attributes: {
+          class: 'outline-editor'
+        },
         handleTextInput: (view, from, to, text) => {
           const state = view.state;
           const prevChar = from > 0 ? state.doc.textBetween(from - 1, from) : '';
@@ -147,61 +215,33 @@
             hashtagRange = { ...hashtagRange, to: from + text.length + 1 };
           }
 
-          return false;
-        },
-      },
-    });
+          // Detect !( trigger for inline due dates
+          if (text === '(' && prevChar === '!') {
+            showDueDateSuggestion = true;
+            dueDateQuery = '';
+            dueDateRange = { from: from - 1, to: from + 1 };
+            updateDueDatePosition(view);
+            return false;
+          }
 
-    function updateHashtagPosition(view: any) {
-      const coords = view.coordsAtPos(view.state.selection.from);
-      hashtagPosition = {
-        x: coords.left,
-        y: coords.bottom + 5,
-      };
-    }
-
-    function updateSuggestionPosition(view: any) {
-      const coords = view.coordsAtPos(view.state.selection.from);
-      suggestionPosition = {
-        x: coords.left,
-        y: coords.bottom + 5,
-      };
-    }
-
-    editor = new Editor({
-      element: editorElement,
-      extensions: [
-        StarterKit.configure({
-          // Disable multi-line features for single-line items
-          heading: false,
-          bulletList: false,
-          orderedList: false,
-          blockquote: false,
-          codeBlock: false,
-          horizontalRule: false,
-          hardBreak: false
-        }),
-        WikiLink.configure({
-          onNavigate: (nodeId: string) => {
-            if (onNavigateToNode) {
-              onNavigateToNode(nodeId);
-            } else {
-              outline.focus(nodeId);
+          // If due date suggestion is active, update query
+          if (showDueDateSuggestion && dueDateRange) {
+            // Check for ) to close and confirm
+            if (text === ')') {
+              // Close suggestion - the date will be inserted via the handler
+              showDueDateSuggestion = false;
+              dueDateRange = null;
+              return false;
             }
-          },
-        }),
-        AutoLink,
-        Hashtag.configure({
-          onHashtagClick: (tag: string) => {
-            // Dispatch custom event for parent to handle search
-            window.dispatchEvent(new CustomEvent('hashtag-search', { detail: { tag } }));
-          },
-        }),
-      ],
-      content: item.node.content || '',
-      editorProps: {
-        attributes: {
-          class: 'outline-editor'
+
+            // Update query (content between !( and current position)
+            const queryStart = dueDateRange.from + 2;
+            const currentQuery = from > queryStart ? state.doc.textBetween(queryStart, from) + text : text;
+            dueDateQuery = currentQuery;
+            dueDateRange = { ...dueDateRange, to: from + text.length + 1 };
+          }
+
+          return false;
         },
         handleKeyDown: (view, event) => {
           const mod = event.ctrlKey || event.metaKey;
@@ -239,6 +279,19 @@
             if (event.key === 'Escape') {
               showHashtagSuggestion = false;
               hashtagRange = null;
+              return true;
+            }
+            // Let ArrowUp/Down/Enter/Tab pass to suggestion component
+            if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab'].includes(event.key)) {
+              return false; // Let window handler catch it
+            }
+          }
+
+          // Handle due date suggestion navigation
+          if (showDueDateSuggestion) {
+            if (event.key === 'Escape') {
+              showDueDateSuggestion = false;
+              dueDateRange = null;
               return true;
             }
             // Let ArrowUp/Down/Enter/Tab pass to suggestion component
@@ -468,6 +521,26 @@
     hashtagRange = null;
   }
 
+  function handleDueDateSelect(date: string) {
+    if (!editor || !dueDateRange) return;
+
+    // Delete the !( and partial text, insert the complete due date
+    editor
+      .chain()
+      .focus()
+      .deleteRange(dueDateRange)
+      .insertContent(`!(${date}) `)
+      .run();
+
+    showDueDateSuggestion = false;
+    dueDateRange = null;
+  }
+
+  function handleDueDateClose() {
+    showDueDateSuggestion = false;
+    dueDateRange = null;
+  }
+
   function handleRowClick(e: MouseEvent) {
     // Don't handle if clicking on buttons or the editor itself
     const target = e.target as HTMLElement;
@@ -654,6 +727,15 @@
   />
 {/if}
 
+{#if showDueDateSuggestion}
+  <DueDateSuggestion
+    query={dueDateQuery}
+    position={dueDatePosition}
+    onSelect={handleDueDateSelect}
+    onClose={handleDueDateClose}
+  />
+{/if}
+
 {#if showDatePicker}
   <DatePicker
     position={datePickerPosition}
@@ -814,6 +896,65 @@
 
   .editor-wrapper :global(.hashtag:hover) {
     background: #e9d5ff;
+  }
+
+  /* Inline due dates */
+  .editor-wrapper :global(.due-date) {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 0.85em;
+    font-weight: 500;
+    cursor: pointer;
+    margin: 0 2px;
+    transition: all 0.15s;
+  }
+
+  .editor-wrapper :global(.due-date-overdue) {
+    background: #ffebee;
+    color: #c62828;
+  }
+
+  .editor-wrapper :global(.due-date-overdue:hover) {
+    background: #ffcdd2;
+  }
+
+  .editor-wrapper :global(.due-date-today) {
+    background: #fff3e0;
+    color: #e65100;
+  }
+
+  .editor-wrapper :global(.due-date-today:hover) {
+    background: #ffe0b2;
+  }
+
+  .editor-wrapper :global(.due-date-upcoming) {
+    background: #e3f2fd;
+    color: #1565c0;
+  }
+
+  .editor-wrapper :global(.due-date-upcoming:hover) {
+    background: #bbdefb;
+  }
+
+  .editor-wrapper :global(.due-date-future) {
+    background: #f5f5f5;
+    color: #616161;
+  }
+
+  .editor-wrapper :global(.due-date-future:hover) {
+    background: #eeeeee;
+  }
+
+  .editor-wrapper :global(.due-date-completed) {
+    background: #e8f5e9;
+    color: #2e7d32;
+    text-decoration: line-through;
+  }
+
+  .editor-wrapper :global(.due-date-completed:hover) {
+    background: #c8e6c9;
   }
 
   .children {
