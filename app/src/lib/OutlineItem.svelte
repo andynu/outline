@@ -154,6 +154,23 @@
           class: 'outline-editor'
         },
         handleKeyDown: (view, event) => {
+          const mod = event.ctrlKey || event.metaKey;
+          const nodeId = item.node.id;
+
+          // === TAB HANDLING (must be first to prevent browser focus navigation) ===
+
+          // Tab: indent, Shift+Tab: outdent
+          if (event.key === 'Tab') {
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.shiftKey) {
+              outline.outdentNode(nodeId);
+            } else {
+              outline.indentNode(nodeId);
+            }
+            return true;
+          }
+
           // Handle wiki link suggestion navigation
           if (showWikiLinkSuggestion) {
             if (event.key === 'Escape') {
@@ -161,13 +178,11 @@
               wikiLinkRange = null;
               return true;
             }
-            // Let ArrowUp/Down/Enter/Tab pass to suggestion component
-            if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab'].includes(event.key)) {
+            // Let ArrowUp/Down/Enter pass to suggestion component
+            if (['ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) {
               return false; // Let window handler catch it
             }
           }
-          const mod = event.ctrlKey || event.metaKey;
-          const nodeId = item.node.id;
 
           // === EDITING ===
 
@@ -175,20 +190,6 @@
           if (event.key === 'Enter' && !mod && !event.shiftKey) {
             event.preventDefault();
             outline.addSiblingAfter(nodeId);
-            return true;
-          }
-
-          // Tab: indent
-          if (event.key === 'Tab' && !event.shiftKey) {
-            event.preventDefault();
-            outline.indentNode(nodeId);
-            return true;
-          }
-
-          // Shift+Tab: outdent
-          if (event.key === 'Tab' && event.shiftKey) {
-            event.preventDefault();
-            outline.outdentNode(nodeId);
             return true;
           }
 
