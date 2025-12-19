@@ -8,6 +8,7 @@
   import OutlineItem from './OutlineItem.svelte';
   import { WikiLink } from './WikiLink';
   import { AutoLink } from './AutoLink';
+  import { Hashtag } from './Hashtag';
   import WikiLinkSuggestion from './WikiLinkSuggestion.svelte';
   import BacklinksPanel from './BacklinksPanel.svelte';
   import DateBadge from './DateBadge.svelte';
@@ -149,6 +150,12 @@
           },
         }),
         AutoLink,
+        Hashtag.configure({
+          onHashtagClick: (tag: string) => {
+            // Dispatch custom event for parent to handle search
+            window.dispatchEvent(new CustomEvent('hashtag-search', { detail: { tag } }));
+          },
+        }),
       ],
       content: item.node.content || '',
       editorProps: {
@@ -634,6 +641,18 @@
 
   .editor-wrapper :global(.auto-link:hover) {
     text-decoration-color: #1976d2;
+  }
+
+  .editor-wrapper :global(.hashtag) {
+    color: #7c3aed;
+    background: #f3e8ff;
+    padding: 1px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+
+  .editor-wrapper :global(.hashtag:hover) {
+    background: #e9d5ff;
   }
 
   .children {

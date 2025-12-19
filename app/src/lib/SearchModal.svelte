@@ -7,13 +7,21 @@
   interface Props {
     isOpen: boolean;
     documentScope?: string; // If set, search only within this document
+    initialQuery?: string; // Pre-fill search query
     onClose: () => void;
     onNavigate: (nodeId: string, documentId: string) => void;
   }
 
-  let { isOpen, documentScope, onClose, onNavigate }: Props = $props();
+  let { isOpen, documentScope, initialQuery = '', onClose, onNavigate }: Props = $props();
 
-  let query = $state('');
+  let query = $state(initialQuery);
+
+  // Update query when initialQuery changes (e.g., hashtag click)
+  $effect(() => {
+    if (initialQuery && isOpen) {
+      query = initialQuery;
+    }
+  });
   let results = $state<SearchResult[]>([]);
   let selectedIndex = $state(0);
   let loading = $state(false);

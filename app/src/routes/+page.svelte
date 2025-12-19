@@ -13,6 +13,7 @@
 
   let showSearchModal = $state(false);
   let searchDocumentScope: string | undefined = $state(undefined);
+  let searchInitialQuery = $state('');
 
   let showQuickNav = $state(false);
   let quickNavMode: 'files' | 'items' = $state('files');
@@ -52,9 +53,19 @@
     };
     document.addEventListener('keydown', handleTabKey, { capture: true });
 
+    // Handle hashtag clicks - open search with tag
+    const handleHashtagSearch = (event: Event) => {
+      const { tag } = (event as CustomEvent).detail;
+      searchInitialQuery = `#${tag}`;
+      searchDocumentScope = undefined;
+      showSearchModal = true;
+    };
+    window.addEventListener('hashtag-search', handleHashtagSearch);
+
     return () => {
       clearInterval(interval);
       document.removeEventListener('keydown', handleTabKey, { capture: true });
+      window.removeEventListener('hashtag-search', handleHashtagSearch);
     };
   });
 
@@ -71,6 +82,7 @@
     if (event.ctrlKey && event.shiftKey && event.key === 'F') {
       event.preventDefault();
       searchDocumentScope = undefined;
+      searchInitialQuery = '';
       showSearchModal = true;
     }
     // Ctrl+F: Search in current document
@@ -78,6 +90,7 @@
       event.preventDefault();
       // TODO: Get current document ID when multi-document is fully implemented
       searchDocumentScope = undefined; // For now, search globally
+      searchInitialQuery = '';
       showSearchModal = true;
     }
     // Ctrl+O: File finder (document switcher)
@@ -280,7 +293,7 @@
           type="text"
           placeholder="Search (Ctrl+F)"
           readonly
-          onclick={() => { searchDocumentScope = undefined; showSearchModal = true; }}
+          onclick={() => { searchDocumentScope = undefined; searchInitialQuery = ''; showSearchModal = true; }}
         />
       </div>
     </div>
@@ -319,7 +332,8 @@
 <SearchModal
   isOpen={showSearchModal}
   documentScope={searchDocumentScope}
-  onClose={() => showSearchModal = false}
+  initialQuery={searchInitialQuery}
+  onClose={() => { showSearchModal = false; searchInitialQuery = ''; }}
   onNavigate={handleSearchNavigate}
 />
 
