@@ -392,11 +392,15 @@
       {#if outline.loading}
         Loading...
       {:else}
-        {Object.keys(outline.nodes).length} items
+        {outline.nodes.length} items
       {/if}
     </span>
     <span class="status-right">
-      Outline
+      {#if outline.isSaving}
+        <span class="save-status saving">Saving...</span>
+      {:else if outline.lastSavedAt}
+        <span class="save-status saved">Saved</span>
+      {/if}
     </span>
   </footer>
 </div>
@@ -652,5 +656,20 @@
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+
+  .save-status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+  }
+
+  .save-status.saving {
+    color: #888;
+  }
+
+  .save-status.saved {
+    color: #22c55e;
   }
 </style>

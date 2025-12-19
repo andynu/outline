@@ -19,6 +19,8 @@ let focusedId = $state<string | null>(null);
 let loading = $state(true);
 let error = $state<string | null>(null);
 let draggedId = $state<string | null>(null);
+let pendingOperations = $state(0);
+let lastSavedAt = $state<Date | null>(null);
 
 // Derived: nodes indexed by ID
 function nodesById(): Map<string, Node> {
@@ -84,6 +86,16 @@ function updateFromState(state: DocumentState) {
   nodes = state.nodes;
 }
 
+// Track operation start/end for save status
+function startOperation() {
+  pendingOperations++;
+}
+
+function endOperation() {
+  pendingOperations--;
+  lastSavedAt = new Date();
+}
+
 // --- Public API ---
 
 export const outline = {
@@ -93,6 +105,8 @@ export const outline = {
   get loading() { return loading; },
   get error() { return error; },
   get draggedId() { return draggedId; },
+  get isSaving() { return pendingOperations > 0; },
+  get lastSavedAt() { return lastSavedAt; },
 
   // Build tree for rendering
   getTree(): TreeNode[] {
@@ -166,12 +180,13 @@ export const outline = {
     const idx = siblings.findIndex(n => n.id === nodeId);
     const newPosition = idx + 1;
 
-    // Shift siblings after insertion point
-    for (let i = idx + 1; i < siblings.length; i++) {
-      await api.moveNode(siblings[i].id, node.parent_id, i + 1);
-    }
-
+    startOperation();
     try {
+      // Shift siblings after insertion point
+      for (let i = idx + 1; i < siblings.length; i++) {
+        await api.moveNode(siblings[i].id, node.parent_id, i + 1);
+      }
+
       const result = await api.createNode(node.parent_id, newPosition, '');
       updateFromState(result.state);
       focusedId = result.id;
@@ -179,16 +194,21 @@ export const outline = {
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       return null;
+    } finally {
+      endOperation();
     }
   },
 
   // Update node content
   async updateContent(nodeId: string, content: string) {
+    startOperation();
     try {
       const state = await api.updateNode(nodeId, { content });
       updateFromState(state);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+    } finally {
+      endOperation();
     }
   },
 
@@ -201,11 +221,14 @@ export const outline = {
     const children = childrenOf(nodeId);
     if (children.length === 0) return;
 
+    startOperation();
     try {
       const state = await api.updateNode(nodeId, { collapsed: !node.collapsed });
       updateFromState(state);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+    } finally {
+      endOperation();
     }
   },
 
@@ -223,6 +246,7 @@ export const outline = {
     const newParent = siblings[idx - 1];
     const newPosition = childrenOf(newParent.id).length;
 
+    startOperation();
     try {
       const state = await api.moveNode(nodeId, newParent.id, newPosition);
       updateFromState(state);
@@ -236,6 +260,8 @@ export const outline = {
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       return false;
+    } finally {
+      endOperation();
     }
   },
 
@@ -254,6 +280,7 @@ export const outline = {
     const parentIdx = grandparentChildren.findIndex(n => n.id === parent.id);
     const newPosition = parentIdx + 1;
 
+    startOperation();
     try {
       const state = await api.moveNode(nodeId, parent.parent_id, newPosition);
       updateFromState(state);
@@ -261,6 +288,8 @@ export const outline = {
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       return false;
+    } finally {
+      endOperation();
     }
   },
 
@@ -276,6 +305,7 @@ export const outline = {
 
     const prevNode = siblings[idx - 1];
 
+    startOperation();
     try {
       // Swap positions
       await api.moveNode(nodeId, node.parent_id, prevNode.position);
@@ -285,6 +315,8 @@ export const outline = {
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       return false;
+    } finally {
+      endOperation();
     }
   },
 
@@ -300,6 +332,7 @@ export const outline = {
 
     const nextNode = siblings[idx + 1];
 
+    startOperation();
     try {
       // Swap positions
       await api.moveNode(nodeId, node.parent_id, nextNode.position);
@@ -309,6 +342,8 @@ export const outline = {
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       return false;
+    } finally {
+      endOperation();
     }
   },
 
@@ -320,6 +355,7 @@ export const outline = {
     // Don't delete the last node
     if (visible.length <= 1) return null;
 
+    startOperation();
     try {
       const state = await api.deleteNode(nodeId);
       updateFromState(state);
@@ -334,6 +370,8 @@ export const outline = {
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       return null;
+    } finally {
+      endOperation();
     }
   },
 
@@ -367,6 +405,7 @@ export const outline = {
     const node = nodesById().get(nodeId);
     if (!node) return false;
 
+    startOperation();
     try {
       // If this is a recurring task being checked, calculate next occurrence
       if (!node.is_checked && node.date_recurrence && node.date) {
@@ -391,6 +430,8 @@ export const outline = {
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       return false;
+    } finally {
+      endOperation();
     }
   },
 
@@ -399,6 +440,7 @@ export const outline = {
     const node = nodesById().get(nodeId);
     if (!node) return false;
 
+    startOperation();
     try {
       const newType = node.node_type === 'checkbox' ? 'bullet' : 'checkbox';
       const state = await api.updateNode(nodeId, {
@@ -411,11 +453,14 @@ export const outline = {
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       return false;
+    } finally {
+      endOperation();
     }
   },
 
   // Set date on a node (pass null or empty string to clear)
   async setDate(nodeId: string, date: string | null): Promise<boolean> {
+    startOperation();
     try {
       // Empty string signals to backend to clear the date
       const state = await api.updateNode(nodeId, {
@@ -426,6 +471,8 @@ export const outline = {
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       return false;
+    } finally {
+      endOperation();
     }
   },
 
@@ -436,6 +483,7 @@ export const outline = {
 
   // Set recurrence on a node (pass null or empty string to clear)
   async setRecurrence(nodeId: string, rrule: string | null): Promise<boolean> {
+    startOperation();
     try {
       // Empty string signals to backend to clear the recurrence
       const state = await api.updateNode(nodeId, {
@@ -446,6 +494,8 @@ export const outline = {
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       return false;
+    } finally {
+      endOperation();
     }
   },
 
@@ -518,6 +568,7 @@ export const outline = {
       checkId = node?.parent_id ?? null;
     }
 
+    startOperation();
     try {
       let newParentId: string | null;
       let newPosition: number;
@@ -553,6 +604,8 @@ export const outline = {
       error = e instanceof Error ? e.message : String(e);
       draggedId = null;
       return false;
+    } finally {
+      endOperation();
     }
   }
 };
