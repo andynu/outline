@@ -52,8 +52,8 @@
           <h4>Navigation</h4>
           <ul>
             <li><kbd>↑</kbd> / <kbd>↓</kbd> Move focus</li>
-            <li><kbd>Ctrl+↑</kbd> Swap up</li>
-            <li><kbd>Ctrl+↓</kbd> Swap down</li>
+            <li><kbd>Shift+↑</kbd> Move up</li>
+            <li><kbd>Shift+↓</kbd> Move down</li>
             <li><kbd>Ctrl+O</kbd> Go to document</li>
             <li><kbd>Ctrl+Shift+O</kbd> Go to item</li>
             <li><kbd>Ctrl+Shift+M</kbd> Move item to...</li>

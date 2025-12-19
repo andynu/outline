@@ -214,28 +214,28 @@
           // === NAVIGATION ===
 
           // Up arrow: previous node
-          if (event.key === 'ArrowUp' && !mod) {
+          if (event.key === 'ArrowUp' && !mod && !event.shiftKey) {
             event.preventDefault();
             outline.moveToPrevious();
             return true;
           }
 
           // Down arrow: next node
-          if (event.key === 'ArrowDown' && !mod) {
+          if (event.key === 'ArrowDown' && !mod && !event.shiftKey) {
             event.preventDefault();
             outline.moveToNext();
             return true;
           }
 
-          // Ctrl+Up: swap with previous sibling
-          if (event.key === 'ArrowUp' && mod && !event.shiftKey) {
+          // Shift+Up or Ctrl+Up: swap with previous sibling
+          if (event.key === 'ArrowUp' && (event.shiftKey || mod)) {
             event.preventDefault();
             outline.swapWithPrevious(nodeId);
             return true;
           }
 
-          // Ctrl+Down: swap with next sibling
-          if (event.key === 'ArrowDown' && mod && !event.shiftKey) {
+          // Shift+Down or Ctrl+Down: swap with next sibling
+          if (event.key === 'ArrowDown' && (event.shiftKey || mod)) {
             event.preventDefault();
             outline.swapWithNext(nodeId);
             return true;
