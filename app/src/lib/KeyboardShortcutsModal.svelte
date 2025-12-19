@@ -40,6 +40,12 @@
 
       <div class="shortcut-grid">
         <div class="shortcut-group">
+          <h4>File</h4>
+          <ul>
+            <li><kbd>Ctrl+S</kbd> Save</li>
+          </ul>
+        </div>
+        <div class="shortcut-group">
           <h4>Editing</h4>
           <ul>
             <li><kbd>Enter</kbd> New sibling</li>

@@ -31,6 +31,8 @@
 
   let showKeyboardShortcuts = $state(false);
 
+  let saveStatus: 'idle' | 'saving' | 'saved' = $state('idle');
+
   onMount(() => {
     outline.load();
     refreshInboxCount();
@@ -94,7 +96,32 @@
     }
   }
 
+  async function handleSave() {
+    if (saveStatus === 'saving') return;
+
+    saveStatus = 'saving';
+    try {
+      await outline.compact();
+      saveStatus = 'saved';
+      // Reset to idle after a brief delay
+      setTimeout(() => {
+        if (saveStatus === 'saved') {
+          saveStatus = 'idle';
+        }
+      }, 2000);
+    } catch (e) {
+      console.error('Failed to save:', e);
+      saveStatus = 'idle';
+    }
+  }
+
   function handleGlobalKeydown(event: KeyboardEvent) {
+    // Ctrl+S / Cmd+S: Save (compact)
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key === 's') {
+      event.preventDefault();
+      handleSave();
+      return;
+    }
     // Ctrl+Shift+F: Global search
     if (event.ctrlKey && event.shiftKey && event.key === 'F') {
       event.preventDefault();
@@ -247,14 +274,27 @@
     <div class="toolbar-left">
       <button
         class="toolbar-btn"
-        onclick={() => outline.compact()}
-        title="Save (Compact)"
+        class:saving={saveStatus === 'saving'}
+        class:saved={saveStatus === 'saved'}
+        onclick={handleSave}
+        title="Save (Ctrl+S)"
+        disabled={saveStatus === 'saving'}
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-          <polyline points="17 21 17 13 7 13 7 21"/>
-          <polyline points="7 3 7 8 15 8"/>
-        </svg>
+        {#if saveStatus === 'saving'}
+          <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
+          </svg>
+        {:else if saveStatus === 'saved'}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        {:else}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+        {/if}
       </button>
       <button
         class="toolbar-btn"
@@ -497,6 +537,24 @@
   .toolbar-btn svg {
     width: 18px;
     height: 18px;
+  }
+
+  .toolbar-btn.saving {
+    color: #888;
+    cursor: wait;
+  }
+
+  .toolbar-btn.saved {
+    color: #22c55e;
+  }
+
+  .toolbar-btn svg.spin {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
 
   .toolbar-badge {
