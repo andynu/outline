@@ -26,6 +26,8 @@ pub fn run() {
             commands::move_node,
             commands::delete_node,
             commands::compact_document,
+            commands::check_for_changes,
+            commands::reload_if_changed,
             commands::search,
             commands::list_documents,
             commands::get_backlinks,

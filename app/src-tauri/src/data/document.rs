@@ -47,6 +47,8 @@ pub struct Document {
     pub dir: PathBuf,
     /// Current state (after loading and applying pending ops)
     pub state: DocumentState,
+    /// Timestamp of last load (for change detection)
+    pub last_load_time: std::time::SystemTime,
 }
 
 impl Document {
@@ -111,7 +113,12 @@ impl Document {
             op.apply(&mut state);
         }
 
-        Ok(Self { id, dir, state })
+        Ok(Self {
+            id,
+            dir,
+            state,
+            last_load_time: std::time::SystemTime::now(),
+        })
     }
 
     /// Create a new empty document
@@ -126,7 +133,12 @@ impl Document {
 
         let state = DocumentState::new();
 
-        let doc = Self { id, dir, state };
+        let doc = Self {
+            id,
+            dir,
+            state,
+            last_load_time: std::time::SystemTime::now(),
+        };
         doc.save_state()?;
 
         Ok(doc)
@@ -183,6 +195,48 @@ impl Document {
         // State is already up-to-date from load(), just save and clear
         self.save_state()?;
         self.clear_pending()?;
+        self.last_load_time = std::time::SystemTime::now();
+        Ok(())
+    }
+
+    /// Check if any document files have been modified since last load
+    pub fn has_external_changes(&self) -> bool {
+        // Check state.json
+        let state_path = self.state_path();
+        if let Ok(meta) = fs::metadata(&state_path) {
+            if let Ok(modified) = meta.modified() {
+                if modified > self.last_load_time {
+                    return true;
+                }
+            }
+        }
+
+        // Check all pending files (not just ours - other machines may have synced)
+        if let Ok(entries) = fs::read_dir(&self.dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if name.starts_with("pending.") && name.ends_with(".jsonl") {
+                        if let Ok(meta) = fs::metadata(&path) {
+                            if let Ok(modified) = meta.modified() {
+                                if modified > self.last_load_time {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
+    /// Reload document from disk, updating state
+    pub fn reload(&mut self) -> Result<(), String> {
+        let new_doc = Document::load(self.dir.clone())?;
+        self.state = new_doc.state;
+        self.last_load_time = std::time::SystemTime::now();
         Ok(())
     }
 }

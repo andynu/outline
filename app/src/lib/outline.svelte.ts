@@ -332,6 +332,21 @@ export const outline = {
     }
   },
 
+  // Check for and apply external changes (from sync)
+  async checkAndReload(): Promise<boolean> {
+    try {
+      const newState = await api.reloadIfChanged();
+      if (newState) {
+        updateFromState(newState);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
+  },
+
   // Toggle checkbox state
   // For recurring tasks, checking resets the date to the next occurrence
   async toggleCheckbox(nodeId: string): Promise<boolean> {

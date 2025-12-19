@@ -32,7 +32,19 @@
     outline.load();
     refreshInboxCount();
     // Poll inbox count every 30 seconds
-    const interval = setInterval(refreshInboxCount, 30000);
+    const inboxInterval = setInterval(refreshInboxCount, 30000);
+
+    // Poll for external changes (sync) every 5 seconds
+    const syncInterval = setInterval(() => {
+      outline.checkAndReload();
+    }, 5000);
+
+    // Also check on window focus (user returns to app)
+    const handleFocus = () => {
+      outline.checkAndReload();
+      refreshInboxCount();
+    };
+    window.addEventListener('focus', handleFocus);
 
     // Handle Tab for indent/outdent at document level
     // This ensures Tab works even if the editor's internal handler doesn't capture it
@@ -63,7 +75,9 @@
     window.addEventListener('hashtag-search', handleHashtagSearch);
 
     return () => {
-      clearInterval(interval);
+      clearInterval(inboxInterval);
+      clearInterval(syncInterval);
+      window.removeEventListener('focus', handleFocus);
       document.removeEventListener('keydown', handleTabKey, { capture: true });
       window.removeEventListener('hashtag-search', handleHashtagSearch);
     };

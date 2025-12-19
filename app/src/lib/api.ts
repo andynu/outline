@@ -269,6 +269,26 @@ export async function compactDocument(): Promise<void> {
   // Browser-only mode: no-op
 }
 
+// Check if document has external changes from sync
+export async function checkForChanges(): Promise<boolean> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('check_for_changes') as Promise<boolean>;
+  }
+  // Browser-only mode: no external changes possible
+  return false;
+}
+
+// Reload document if there are external changes, returns new state or null
+export async function reloadIfChanged(): Promise<DocumentState | null> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('reload_if_changed') as Promise<DocumentState | null>;
+  }
+  // Browser-only mode: no external changes possible
+  return null;
+}
+
 // Search result from backend
 export interface SearchResult {
   node_id: string;

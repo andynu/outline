@@ -161,6 +161,33 @@ pub fn compact_document(state: State<AppState>) -> Result<(), String> {
     doc.compact()
 }
 
+/// Check if document has external changes (from sync)
+#[tauri::command]
+pub fn check_for_changes(state: State<AppState>) -> Result<bool, String> {
+    let current = state.current_document.lock().unwrap();
+    let doc = current.as_ref().ok_or("No document loaded")?;
+    Ok(doc.has_external_changes())
+}
+
+/// Reload document if there are external changes
+#[tauri::command]
+pub fn reload_if_changed(state: State<AppState>) -> Result<Option<DocumentState>, String> {
+    let mut current = state.current_document.lock().unwrap();
+    let doc = current.as_mut().ok_or("No document loaded")?;
+
+    if doc.has_external_changes() {
+        doc.reload()?;
+
+        // Re-index after reload
+        // Note: We'd need access to search_index here, but for simplicity
+        // the frontend can call load_document again if needed
+
+        Ok(Some(doc.state.clone()))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Create sample data for a new document
 fn create_sample_data(doc: &mut Document) -> Result<(), String> {
     let root1 = Node::new("Welcome to Outline".to_string());
