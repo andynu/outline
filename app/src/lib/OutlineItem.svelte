@@ -10,6 +10,7 @@
   import { AutoLink } from './AutoLink';
   import { Hashtag } from './Hashtag';
   import WikiLinkSuggestion from './WikiLinkSuggestion.svelte';
+  import HashtagSuggestion from './HashtagSuggestion.svelte';
   import BacklinksPanel from './BacklinksPanel.svelte';
   import DateBadge from './DateBadge.svelte';
   import DatePicker from './DatePicker.svelte';
@@ -31,6 +32,12 @@
   let wikiLinkQuery = $state('');
   let wikiLinkRange = $state<{ from: number; to: number } | null>(null);
   let suggestionPosition = $state({ x: 0, y: 0 });
+
+  // Hashtag suggestion state
+  let showHashtagSuggestion = $state(false);
+  let hashtagQuery = $state('');
+  let hashtagRange = $state<{ from: number; to: number } | null>(null);
+  let hashtagPosition = $state({ x: 0, y: 0 });
 
   // Date picker state
   let showDatePicker = $state(false);
@@ -80,15 +87,15 @@
     };
     editorElement.addEventListener('keydown', tabHandler, { capture: true });
 
-    // Create plugin for [[ detection
-    const wikiLinkInputPlugin = new Plugin({
-      key: new PluginKey('wikiLinkInput'),
+    // Create plugin for [[ and # detection
+    const suggestionInputPlugin = new Plugin({
+      key: new PluginKey('suggestionInput'),
       props: {
         handleTextInput: (view, from, to, text) => {
           const state = view.state;
           const prevChar = from > 0 ? state.doc.textBetween(from - 1, from) : '';
 
-          // Detect [[ trigger
+          // Detect [[ trigger for wiki links
           if (text === '[' && prevChar === '[') {
             showWikiLinkSuggestion = true;
             wikiLinkQuery = '';
@@ -97,7 +104,7 @@
             return false;
           }
 
-          // If suggestion is active, update query
+          // If wiki link suggestion is active, update query
           if (showWikiLinkSuggestion && wikiLinkRange) {
             // Calculate current query
             const queryStart = wikiLinkRange.from + 2;
@@ -112,12 +119,46 @@
 
             wikiLinkQuery = currentQuery;
             wikiLinkRange = { ...wikiLinkRange, to: from + text.length + 1 };
+            return false;
+          }
+
+          // Detect # trigger for hashtags (must be at start or after whitespace)
+          if (text === '#' && (prevChar === '' || prevChar === ' ' || prevChar === '\t' || from === 1)) {
+            showHashtagSuggestion = true;
+            hashtagQuery = '';
+            hashtagRange = { from: from, to: from + 1 };
+            updateHashtagPosition(view);
+            return false;
+          }
+
+          // If hashtag suggestion is active, update query
+          if (showHashtagSuggestion && hashtagRange) {
+            // Check for space or special char to close
+            if (text === ' ' || text === '\t' || text === '\n') {
+              showHashtagSuggestion = false;
+              hashtagRange = null;
+              return false;
+            }
+
+            // Update query (tag after #)
+            const queryStart = hashtagRange.from + 1;
+            const currentQuery = from > queryStart ? state.doc.textBetween(queryStart, from) + text : text;
+            hashtagQuery = currentQuery;
+            hashtagRange = { ...hashtagRange, to: from + text.length + 1 };
           }
 
           return false;
         },
       },
     });
+
+    function updateHashtagPosition(view: any) {
+      const coords = view.coordsAtPos(view.state.selection.from);
+      hashtagPosition = {
+        x: coords.left,
+        y: coords.bottom + 5,
+      };
+    }
 
     function updateSuggestionPosition(view: any) {
       const coords = view.coordsAtPos(view.state.selection.from);
@@ -189,6 +230,19 @@
             }
             // Let ArrowUp/Down/Enter pass to suggestion component
             if (['ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) {
+              return false; // Let window handler catch it
+            }
+          }
+
+          // Handle hashtag suggestion navigation
+          if (showHashtagSuggestion) {
+            if (event.key === 'Escape') {
+              showHashtagSuggestion = false;
+              hashtagRange = null;
+              return true;
+            }
+            // Let ArrowUp/Down/Enter/Tab pass to suggestion component
+            if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab'].includes(event.key)) {
               return false; // Let window handler catch it
             }
           }
@@ -394,6 +448,26 @@
     wikiLinkRange = null;
   }
 
+  function handleHashtagSelect(tag: string) {
+    if (!editor || !hashtagRange) return;
+
+    // Delete the # and partial tag text, insert the complete hashtag
+    editor
+      .chain()
+      .focus()
+      .deleteRange(hashtagRange)
+      .insertContent(`#${tag} `)
+      .run();
+
+    showHashtagSuggestion = false;
+    hashtagRange = null;
+  }
+
+  function handleHashtagClose() {
+    showHashtagSuggestion = false;
+    hashtagRange = null;
+  }
+
   function handleRowClick(e: MouseEvent) {
     // Don't handle if clicking on buttons or the editor itself
     const target = e.target as HTMLElement;
@@ -475,6 +549,15 @@
     position={suggestionPosition}
     onSelect={handleWikiLinkSelect}
     onClose={handleWikiLinkClose}
+  />
+{/if}
+
+{#if showHashtagSuggestion}
+  <HashtagSuggestion
+    query={hashtagQuery}
+    position={hashtagPosition}
+    onSelect={handleHashtagSelect}
+    onClose={handleHashtagClose}
   />
 {/if}
 
