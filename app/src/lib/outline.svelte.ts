@@ -4,6 +4,9 @@ import * as api from './api';
 // Hashtag pattern - matches #word (letters, numbers, underscores, hyphens)
 const HASHTAG_PATTERN = /(?:^|(?<=\s))#([a-zA-Z][a-zA-Z0-9_-]*)/g;
 
+// Mention pattern - matches @word (letters, numbers, underscores, hyphens)
+const MENTION_PATTERN = /(?:^|(?<=\s))@([a-zA-Z][a-zA-Z0-9_-]*)/g;
+
 // Extract all hashtags from text
 function extractHashtags(text: string): string[] {
   const tags: string[] = [];
@@ -11,6 +14,28 @@ function extractHashtags(text: string): string[] {
     tags.push(match[1]); // The tag without #
   }
   return tags;
+}
+
+// Extract all mentions from text
+function extractMentions(text: string): string[] {
+  const mentions: string[] = [];
+  for (const match of text.matchAll(MENTION_PATTERN)) {
+    mentions.push(match[1]); // The mention without @
+  }
+  return mentions;
+}
+
+// Check if node content matches a filter (hashtag or mention)
+function nodeMatchesFilter(node: Node, filter: string): boolean {
+  const plainText = node.content.replace(/<[^>]*>/g, '');
+  if (filter.startsWith('#')) {
+    const tag = filter.slice(1);
+    return extractHashtags(plainText).includes(tag);
+  } else if (filter.startsWith('@')) {
+    const mention = filter.slice(1);
+    return extractMentions(plainText).includes(mention);
+  }
+  return false;
 }
 
 // Reactive state
@@ -21,6 +46,7 @@ let error = $state<string | null>(null);
 let draggedId = $state<string | null>(null);
 let pendingOperations = $state(0);
 let lastSavedAt = $state<Date | null>(null);
+let filterQuery = $state<string | null>(null);  // e.g., "#tag" or "@mention"
 
 // Lock to prevent concurrent position-changing operations
 let isMoving = false;
@@ -44,16 +70,58 @@ function childrenOf(parentId: string): Node[] {
     .sort((a, b) => a.position - b.position);
 }
 
+// Get all ancestor IDs for a node
+function getAncestorIds(nodeId: string): string[] {
+  const ancestors: string[] = [];
+  const nodeMap = nodesById();
+  let current = nodeMap.get(nodeId);
+  while (current?.parent_id) {
+    ancestors.push(current.parent_id);
+    current = nodeMap.get(current.parent_id);
+  }
+  return ancestors;
+}
+
+// Build set of visible node IDs when filtering
+function getFilteredNodeIds(filter: string): Set<string> {
+  const visibleIds = new Set<string>();
+
+  // Find all matching nodes and add them + their ancestors
+  for (const node of nodes) {
+    if (nodeMatchesFilter(node, filter)) {
+      visibleIds.add(node.id);
+      // Add all ancestors to make the path visible
+      for (const ancestorId of getAncestorIds(node.id)) {
+        visibleIds.add(ancestorId);
+      }
+    }
+  }
+
+  return visibleIds;
+}
+
 // Build tree structure for rendering
-function buildTree(parentId: string | null, depth: number): TreeNode[] {
+function buildTree(parentId: string | null, depth: number, filteredIds?: Set<string>): TreeNode[] {
   const children = parentId === null ? rootNodes() : childrenOf(parentId);
-  return children.map(node => {
+
+  // Filter children if we have a filter active
+  const visibleChildren = filteredIds
+    ? children.filter(n => filteredIds.has(n.id))
+    : children;
+
+  return visibleChildren.map(node => {
     const nodeChildren = childrenOf(node.id);
+    // When filtering, check if any children are in the filtered set
+    const hasVisibleChildren = filteredIds
+      ? nodeChildren.some(c => filteredIds.has(c.id))
+      : nodeChildren.length > 0;
+
     return {
       node,
       depth,
-      hasChildren: nodeChildren.length > 0,
-      children: node.collapsed ? [] : buildTree(node.id, depth + 1)
+      hasChildren: hasVisibleChildren,
+      // When filtering, expand all nodes to show matches; otherwise respect collapsed state
+      children: (filteredIds || !node.collapsed) ? buildTree(node.id, depth + 1, filteredIds) : []
     };
   });
 }
@@ -110,15 +178,28 @@ export const outline = {
   get draggedId() { return draggedId; },
   get isSaving() { return pendingOperations > 0; },
   get lastSavedAt() { return lastSavedAt; },
+  get filterQuery() { return filterQuery; },
 
-  // Build tree for rendering
-  getTree(): TreeNode[] {
-    return buildTree(null, 0);
+  // Set filter (e.g., "#tag" or "@mention")
+  setFilter(query: string | null) {
+    filterQuery = query;
   },
 
-  // Get visible nodes in order
+  // Clear filter
+  clearFilter() {
+    filterQuery = null;
+  },
+
+  // Build tree for rendering (respects active filter)
+  getTree(): TreeNode[] {
+    const filteredIds = filterQuery ? getFilteredNodeIds(filterQuery) : undefined;
+    return buildTree(null, 0, filteredIds);
+  },
+
+  // Get visible nodes in order (respects active filter)
   getVisibleNodes(): Node[] {
-    return flattenTree(buildTree(null, 0));
+    const filteredIds = filterQuery ? getFilteredNodeIds(filterQuery) : undefined;
+    return flattenTree(buildTree(null, 0, filteredIds));
   },
 
   // Get a node by ID

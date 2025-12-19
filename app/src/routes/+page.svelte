@@ -109,21 +109,17 @@
     };
     document.addEventListener('keydown', handleTabKey, { capture: true });
 
-    // Handle hashtag clicks - open search with tag
+    // Handle hashtag clicks - filter document to matching items
     const handleHashtagSearch = (event: Event) => {
       const { tag } = (event as CustomEvent).detail;
-      searchInitialQuery = `#${tag}`;
-      searchDocumentScope = undefined;
-      showSearchModal = true;
+      outline.setFilter(`#${tag}`);
     };
     window.addEventListener('hashtag-search', handleHashtagSearch);
 
-    // Handle mention clicks - open search with @mention
+    // Handle mention clicks - filter document to matching items
     const handleMentionSearch = (event: Event) => {
       const { mention } = (event as CustomEvent).detail;
-      searchInitialQuery = `@${mention}`;
-      searchDocumentScope = undefined;
-      showSearchModal = true;
+      outline.setFilter(`@${mention}`);
     };
     window.addEventListener('mention-search', handleMentionSearch);
 
@@ -248,6 +244,11 @@
     else if (event.ctrlKey && !event.shiftKey && event.key === 'q') {
       event.preventDefault();
       handleQuit();
+    }
+    // Escape: Clear filter if one is active (only when no modal is open)
+    else if (event.key === 'Escape' && outline.filterQuery && !showSearchModal && !showQuickNav && !showQuickMove && !showDateViews && !showTags && !showInbox && !showKeyboardShortcuts) {
+      event.preventDefault();
+      outline.clearFilter();
     }
   }
 
@@ -572,6 +573,18 @@
       {:else if outline.error}
         <div class="error">Error: {outline.error}</div>
       {:else}
+        {#if outline.filterQuery}
+          <div class="filter-bar">
+            <span class="filter-label">Filtering by:</span>
+            <span class="filter-query">{outline.filterQuery}</span>
+            <button class="filter-clear" onclick={() => outline.clearFilter()} title="Clear filter (Escape)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        {/if}
         <div class="outline-container">
           {#each outline.getTree() as item (item.node.id)}
             <OutlineItem {item} />
@@ -638,9 +651,7 @@
   onNavigate={(nodeId) => outline.focus(nodeId)}
   onTagSearch={(tag) => {
     showTags = false;
-    searchInitialQuery = `#${tag}`;
-    searchDocumentScope = undefined;
-    showSearchModal = true;
+    outline.setFilter(`#${tag}`);
   }}
 />
 
@@ -835,6 +846,52 @@
 
   .outline-container {
     padding: 16px;
+  }
+
+  /* Filter bar */
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--accent-primary-lighter);
+    border-bottom: 1px solid var(--accent-primary-light);
+  }
+
+  .filter-label {
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+
+  .filter-query {
+    color: var(--accent-primary);
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .filter-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    margin-left: auto;
+  }
+
+  .filter-clear:hover {
+    background: var(--accent-primary-light);
+    color: var(--accent-primary);
+  }
+
+  .filter-clear svg {
+    width: 14px;
+    height: 14px;
   }
 
   .loading, .error {
