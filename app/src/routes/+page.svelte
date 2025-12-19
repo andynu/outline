@@ -5,6 +5,7 @@
   import QuickNavigator from '$lib/QuickNavigator.svelte';
   import QuickMove from '$lib/QuickMove.svelte';
   import DateViewsPanel from '$lib/DateViewsPanel.svelte';
+  import TagsPanel from '$lib/TagsPanel.svelte';
   import InboxPanel from '$lib/InboxPanel.svelte';
   import { outline } from '$lib/outline.svelte';
   import KeyboardShortcutsModal from '$lib/KeyboardShortcutsModal.svelte';
@@ -21,6 +22,8 @@
   let showQuickMove = $state(false);
 
   let showDateViews = $state(false);
+
+  let showTags = $state(false);
 
   let showInbox = $state(false);
   let inboxCount = $state(0);
@@ -135,6 +138,11 @@
     else if (event.ctrlKey && !event.shiftKey && event.key === 'i') {
       event.preventDefault();
       showInbox = true;
+    }
+    // Ctrl+Shift+G: Show tags panel
+    else if (event.ctrlKey && event.shiftKey && event.key === 'G') {
+      event.preventDefault();
+      showTags = true;
     }
     // ?: Show keyboard shortcuts
     else if (event.key === '?' && !event.ctrlKey && !event.altKey) {
@@ -275,6 +283,16 @@
       </button>
       <button
         class="toolbar-btn"
+        onclick={() => { showTags = true; }}
+        title="Tags (Ctrl+Shift+G)"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+          <line x1="7" y1="7" x2="7.01" y2="7"/>
+        </svg>
+      </button>
+      <button
+        class="toolbar-btn"
         onclick={handleExportCalendar}
         title="Export iCalendar"
       >
@@ -373,6 +391,18 @@
   isOpen={showInbox}
   onClose={() => { showInbox = false; refreshInboxCount(); }}
   onProcess={handleProcessInboxItem}
+/>
+
+<TagsPanel
+  isOpen={showTags}
+  onClose={() => showTags = false}
+  onNavigate={(nodeId) => outline.focus(nodeId)}
+  onTagSearch={(tag) => {
+    showTags = false;
+    searchInitialQuery = `#${tag}`;
+    searchDocumentScope = undefined;
+    showSearchModal = true;
+  }}
 />
 
 <KeyboardShortcutsModal

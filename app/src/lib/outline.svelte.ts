@@ -1,6 +1,18 @@
 import type { DocumentState, Node, NodeChanges, TreeNode } from './types';
 import * as api from './api';
 
+// Hashtag pattern - matches #word (letters, numbers, underscores, hyphens)
+const HASHTAG_PATTERN = /(?:^|(?<=\s))#([a-zA-Z][a-zA-Z0-9_-]*)/g;
+
+// Extract all hashtags from text
+function extractHashtags(text: string): string[] {
+  const tags: string[] = [];
+  for (const match of text.matchAll(HASHTAG_PATTERN)) {
+    tags.push(match[1]); // The tag without #
+  }
+  return tags;
+}
+
 // Reactive state
 let nodes = $state<Node[]>([]);
 let focusedId = $state<string | null>(null);
@@ -433,5 +445,39 @@ export const outline = {
       error = e instanceof Error ? e.message : String(e);
       return false;
     }
+  },
+
+  // Get all tags used in the document with counts and associated node IDs
+  getAllTags(): Map<string, { count: number; nodeIds: string[] }> {
+    const tagMap = new Map<string, { count: number; nodeIds: string[] }>();
+
+    for (const node of nodes) {
+      // Extract tags from content (strip HTML first)
+      const plainText = node.content.replace(/<[^>]*>/g, '');
+      const contentTags = extractHashtags(plainText);
+
+      for (const tag of contentTags) {
+        const existing = tagMap.get(tag);
+        if (existing) {
+          existing.count++;
+          if (!existing.nodeIds.includes(node.id)) {
+            existing.nodeIds.push(node.id);
+          }
+        } else {
+          tagMap.set(tag, { count: 1, nodeIds: [node.id] });
+        }
+      }
+    }
+
+    return tagMap;
+  },
+
+  // Get nodes that have a specific tag
+  getNodesWithTag(tag: string): Node[] {
+    return nodes.filter(node => {
+      const plainText = node.content.replace(/<[^>]*>/g, '');
+      const tags = extractHashtags(plainText);
+      return tags.includes(tag);
+    });
   }
 };
