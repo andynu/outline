@@ -7,9 +7,10 @@
   import DateViewsPanel from '$lib/DateViewsPanel.svelte';
   import TagsPanel from '$lib/TagsPanel.svelte';
   import InboxPanel from '$lib/InboxPanel.svelte';
+  import Sidebar from '$lib/Sidebar.svelte';
   import { outline } from '$lib/outline.svelte';
   import KeyboardShortcutsModal from '$lib/KeyboardShortcutsModal.svelte';
-  import { generateIcalFeed, getInboxCount } from '$lib/api';
+  import { generateIcalFeed, getInboxCount, createDocument } from '$lib/api';
   import type { InboxItem } from '$lib/api';
 
   let showSearchModal = $state(false);
@@ -33,7 +34,42 @@
 
   let saveStatus: 'idle' | 'saving' | 'saved' = $state('idle');
 
+  // Sidebar state - persisted in localStorage
+  let sidebarOpen = $state(false);
+  let currentDocumentId = $state<string | undefined>(undefined);
+
+  // Initialize sidebar state from localStorage
+  function initSidebarState() {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('outline-sidebar-open');
+      sidebarOpen = stored === 'true';
+    }
+  }
+
+  function toggleSidebar() {
+    sidebarOpen = !sidebarOpen;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('outline-sidebar-open', String(sidebarOpen));
+    }
+  }
+
+  async function handleSelectDocument(docId: string) {
+    currentDocumentId = docId;
+    await outline.load(docId);
+  }
+
+  async function handleNewDocument() {
+    try {
+      const newId = await createDocument();
+      currentDocumentId = newId;
+      await outline.load(newId);
+    } catch (e) {
+      console.error('Failed to create document:', e);
+    }
+  }
+
   onMount(() => {
+    initSidebarState();
     outline.load();
     refreshInboxCount();
     // Poll inbox count every 30 seconds
@@ -273,6 +309,19 @@
   <div class="toolbar">
     <div class="toolbar-left">
       <button
+        class="toolbar-btn sidebar-toggle"
+        class:active={sidebarOpen}
+        onclick={toggleSidebar}
+        title="Toggle sidebar"
+        aria-label="Toggle sidebar"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <line x1="9" y1="3" x2="9" y2="21"/>
+        </svg>
+      </button>
+      <div class="toolbar-separator"></div>
+      <button
         class="toolbar-btn"
         class:saving={saveStatus === 'saving'}
         class:saved={saveStatus === 'saved'}
@@ -371,20 +420,31 @@
     </div>
   </div>
 
-  <!-- Main Content Area -->
-  <main class="content-area">
-    {#if outline.loading}
-      <div class="loading">Loading...</div>
-    {:else if outline.error}
-      <div class="error">Error: {outline.error}</div>
-    {:else}
-      <div class="outline-container">
-        {#each outline.getTree() as item (item.node.id)}
-          <OutlineItem {item} />
-        {/each}
-      </div>
-    {/if}
-  </main>
+  <!-- Main Area with Sidebar -->
+  <div class="main-wrapper">
+    <Sidebar
+      isOpen={sidebarOpen}
+      {currentDocumentId}
+      onToggle={toggleSidebar}
+      onSelectDocument={handleSelectDocument}
+      onNewDocument={handleNewDocument}
+    />
+
+    <!-- Main Content Area -->
+    <main class="content-area">
+      {#if outline.loading}
+        <div class="loading">Loading...</div>
+      {:else if outline.error}
+        <div class="error">Error: {outline.error}</div>
+      {:else}
+        <div class="outline-container">
+          {#each outline.getTree() as item (item.node.id)}
+            <OutlineItem {item} />
+          {/each}
+        </div>
+      {/if}
+    </main>
+  </div>
 
   <!-- Status Bar -->
   <footer class="status-bar">
@@ -618,11 +678,24 @@
     color: #888;
   }
 
+  /* Main wrapper - holds sidebar and content */
+  .main-wrapper {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
   /* Main Content Area - Flex grow and scroll */
   .content-area {
     flex: 1;
     overflow-y: auto;
     background: #fff;
+  }
+
+  /* Sidebar toggle button active state */
+  .toolbar-btn.sidebar-toggle.active {
+    background: #e3f2fd;
+    color: #1976d2;
   }
 
   .outline-container {

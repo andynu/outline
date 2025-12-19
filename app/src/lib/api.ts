@@ -365,6 +365,20 @@ export async function listDocuments(): Promise<DocumentInfo[]> {
   ];
 }
 
+// Create a new document with a unique ID
+export async function createDocument(): Promise<string> {
+  await initTauri();
+  if (tauriInvoke) {
+    // Generate a new UUID for the document
+    const newId = crypto.randomUUID();
+    // Loading a non-existent document will create it
+    await tauriInvoke('load_document', { docId: newId });
+    return newId;
+  }
+  // Browser-only mode: return mock ID
+  return 'mock-doc-' + Date.now();
+}
+
 // Backlink result from get_backlinks
 export interface BacklinkResult {
   source_node_id: string;
