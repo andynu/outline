@@ -1,5 +1,6 @@
 mod commands;
 mod data;
+mod import_export;
 mod search;
 
 use commands::AppState;
@@ -36,6 +37,11 @@ pub fn run() {
             commands::get_inbox,
             commands::get_inbox_count,
             commands::clear_inbox_items,
+            commands::import_opml,
+            commands::export_opml,
+            commands::export_markdown,
+            commands::export_json,
+            commands::import_json,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

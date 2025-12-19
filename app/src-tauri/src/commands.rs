@@ -468,3 +468,134 @@ pub fn get_inbox_count() -> Result<usize, String> {
 pub fn clear_inbox_items(ids: Vec<String>) -> Result<(), String> {
     remove_inbox_items(&ids)
 }
+
+/// Import OPML content into the current document
+#[tauri::command]
+pub fn import_opml(
+    state: State<AppState>,
+    content: String,
+) -> Result<DocumentState, String> {
+    let mut current = state.current_document.lock().unwrap();
+    let doc = current.as_mut().ok_or("No document loaded")?;
+
+    // Parse OPML
+    let nodes = crate::import_export::parse_opml(&content)?;
+
+    // Add nodes to document via operations
+    for node in nodes {
+        // Create the node
+        let create_op = crate::data::Operation::Create {
+            id: node.id,
+            parent_id: node.parent_id,
+            position: node.position,
+            content: node.content.clone(),
+            node_type: node.node_type.clone(),
+            updated_at: node.updated_at,
+        };
+        doc.append_op(&create_op)?;
+        create_op.apply(&mut doc.state);
+
+        // If there's a note, update the node with it
+        if node.note.is_some() {
+            let update_op = update_op(
+                node.id,
+                NodeChanges {
+                    note: node.note,
+                    ..Default::default()
+                },
+            );
+            doc.append_op(&update_op)?;
+            update_op.apply(&mut doc.state);
+        }
+    }
+
+    Ok(doc.state.clone())
+}
+
+/// Export current document to OPML format
+#[tauri::command]
+pub fn export_opml(state: State<AppState>, title: String) -> Result<String, String> {
+    let current = state.current_document.lock().unwrap();
+    let doc = current.as_ref().ok_or("No document loaded")?;
+
+    crate::import_export::generate_opml(&doc.state.nodes, &title)
+}
+
+/// Export current document to Markdown format
+#[tauri::command]
+pub fn export_markdown(state: State<AppState>) -> Result<String, String> {
+    let current = state.current_document.lock().unwrap();
+    let doc = current.as_ref().ok_or("No document loaded")?;
+
+    Ok(crate::import_export::generate_markdown(&doc.state.nodes))
+}
+
+/// Export current document to JSON backup format
+#[tauri::command]
+pub fn export_json(state: State<AppState>) -> Result<String, String> {
+    let current = state.current_document.lock().unwrap();
+    let doc = current.as_ref().ok_or("No document loaded")?;
+
+    crate::import_export::generate_json_backup(&doc.state.nodes)
+}
+
+/// Import JSON backup into the current document
+#[tauri::command]
+pub fn import_json(
+    state: State<AppState>,
+    content: String,
+) -> Result<DocumentState, String> {
+    let mut current = state.current_document.lock().unwrap();
+    let doc = current.as_mut().ok_or("No document loaded")?;
+
+    // Parse JSON backup
+    let nodes = crate::import_export::parse_json_backup(&content)?;
+
+    // Add nodes to document via operations
+    for node in nodes {
+        // Create the base node
+        let create_op = crate::data::Operation::Create {
+            id: node.id,
+            parent_id: node.parent_id,
+            position: node.position,
+            content: node.content.clone(),
+            node_type: node.node_type.clone(),
+            updated_at: node.updated_at,
+        };
+        doc.append_op(&create_op)?;
+        create_op.apply(&mut doc.state);
+
+        // If node has additional metadata, update it
+        let needs_update = node.note.is_some()
+            || node.heading_level.is_some()
+            || node.is_checked
+            || node.color.is_some()
+            || !node.tags.is_empty()
+            || node.date.is_some()
+            || node.date_recurrence.is_some()
+            || node.collapsed
+            || node.mirror_source_id.is_some();
+
+        if needs_update {
+            let update_op = update_op(
+                node.id,
+                NodeChanges {
+                    note: node.note,
+                    heading_level: node.heading_level,
+                    is_checked: if node.is_checked { Some(true) } else { None },
+                    color: node.color,
+                    tags: if node.tags.is_empty() { None } else { Some(node.tags) },
+                    date: node.date,
+                    date_recurrence: node.date_recurrence,
+                    collapsed: if node.collapsed { Some(true) } else { None },
+                    mirror_source_id: node.mirror_source_id,
+                    ..Default::default()
+                },
+            );
+            doc.append_op(&update_op)?;
+            update_op.apply(&mut doc.state);
+        }
+    }
+
+    Ok(doc.state.clone())
+}

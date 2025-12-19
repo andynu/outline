@@ -441,3 +441,158 @@ export async function clearInboxItems(ids: string[]): Promise<void> {
   }
   // Browser-only mode: no-op
 }
+
+// Import OPML content into the current document
+export async function importOpml(content: string): Promise<DocumentState> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('import_opml', { content }) as Promise<DocumentState>;
+  }
+  // Browser-only mode: parse OPML client-side (basic implementation)
+  // This is a simplified fallback - real parsing happens in Rust
+  console.warn('OPML import not fully supported in browser-only mode');
+  return mockState;
+}
+
+// Export current document to OPML format
+export async function exportOpml(title: string): Promise<string> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('export_opml', { title }) as Promise<string>;
+  }
+  // Browser-only mode: generate basic OPML
+  return generateMockOpml(title);
+}
+
+// Export current document to Markdown format
+export async function exportMarkdown(): Promise<string> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('export_markdown') as Promise<string>;
+  }
+  // Browser-only mode: generate basic markdown
+  return generateMockMarkdown();
+}
+
+// Export current document to JSON backup format
+export async function exportJson(): Promise<string> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('export_json') as Promise<string>;
+  }
+  // Browser-only mode: return mock state as JSON
+  return JSON.stringify({
+    version: 1,
+    exported_at: new Date().toISOString(),
+    nodes: mockState.nodes,
+  }, null, 2);
+}
+
+// Import JSON backup into the current document
+export async function importJson(content: string): Promise<DocumentState> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('import_json', { content }) as Promise<DocumentState>;
+  }
+  // Browser-only mode: parse JSON and merge into state
+  try {
+    const backup = JSON.parse(content);
+    if (backup.nodes) {
+      mockState.nodes = [...mockState.nodes, ...backup.nodes];
+    }
+    return { ...mockState };
+  } catch {
+    throw new Error('Invalid JSON backup format');
+  }
+}
+
+// Helper: Generate basic OPML for browser-only mode
+function generateMockOpml(title: string): string {
+  const lines: string[] = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<opml version="2.0">',
+    '<head>',
+    `<title>${escapeXml(title)}</title>`,
+    '</head>',
+    '<body>',
+  ];
+
+  function addNode(node: Node, indent: number) {
+    const spaces = '  '.repeat(indent);
+    const text = escapeXml(stripHtml(node.content));
+    const children = mockState.nodes.filter(n => n.parent_id === node.id);
+
+    if (children.length > 0) {
+      lines.push(`${spaces}<outline text="${text}">`);
+      children.sort((a, b) => a.position - b.position);
+      for (const child of children) {
+        addNode(child, indent + 1);
+      }
+      lines.push(`${spaces}</outline>`);
+    } else {
+      lines.push(`${spaces}<outline text="${text}"/>`);
+    }
+  }
+
+  const roots = mockState.nodes.filter(n => !n.parent_id);
+  roots.sort((a, b) => a.position - b.position);
+  for (const root of roots) {
+    addNode(root, 1);
+  }
+
+  lines.push('</body>');
+  lines.push('</opml>');
+  return lines.join('\n');
+}
+
+// Helper: Generate basic Markdown for browser-only mode
+function generateMockMarkdown(): string {
+  const lines: string[] = [];
+
+  function addNode(node: Node, depth: number) {
+    const indent = '  '.repeat(depth);
+    const text = stripHtml(node.content);
+    const bullet = node.is_checked ? '- [x]' : (node.node_type === 'checkbox' ? '- [ ]' : '-');
+    lines.push(`${indent}${bullet} ${text}`);
+
+    if (node.note) {
+      const noteIndent = '  '.repeat(depth + 1);
+      lines.push(`${noteIndent}${node.note}`);
+    }
+
+    const children = mockState.nodes.filter(n => n.parent_id === node.id);
+    children.sort((a, b) => a.position - b.position);
+    for (const child of children) {
+      addNode(child, depth + 1);
+    }
+  }
+
+  const roots = mockState.nodes.filter(n => !n.parent_id);
+  roots.sort((a, b) => a.position - b.position);
+  for (const root of roots) {
+    addNode(root, 0);
+  }
+
+  return lines.join('\n');
+}
+
+// Helper: Strip HTML tags
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .trim();
+}
+
+// Helper: Escape XML special characters
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
