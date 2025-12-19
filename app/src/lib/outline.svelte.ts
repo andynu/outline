@@ -22,6 +22,9 @@ let draggedId = $state<string | null>(null);
 let pendingOperations = $state(0);
 let lastSavedAt = $state<Date | null>(null);
 
+// Lock to prevent concurrent position-changing operations
+let isMoving = false;
+
 // Derived: nodes indexed by ID
 function nodesById(): Map<string, Node> {
   return new Map(nodes.map(n => [n.id, n]));
@@ -295,6 +298,9 @@ export const outline = {
 
   // Swap with previous sibling
   async swapWithPrevious(nodeId: string): Promise<boolean> {
+    // Prevent concurrent moves
+    if (isMoving) return false;
+
     const node = nodesById().get(nodeId);
     if (!node) return false;
 
@@ -305,6 +311,7 @@ export const outline = {
 
     const prevNode = siblings[idx - 1];
 
+    isMoving = true;
     startOperation();
     try {
       // Swap positions
@@ -316,12 +323,16 @@ export const outline = {
       error = e instanceof Error ? e.message : String(e);
       return false;
     } finally {
+      isMoving = false;
       endOperation();
     }
   },
 
   // Swap with next sibling
   async swapWithNext(nodeId: string): Promise<boolean> {
+    // Prevent concurrent moves
+    if (isMoving) return false;
+
     const node = nodesById().get(nodeId);
     if (!node) return false;
 
@@ -332,6 +343,7 @@ export const outline = {
 
     const nextNode = siblings[idx + 1];
 
+    isMoving = true;
     startOperation();
     try {
       // Swap positions
@@ -343,6 +355,7 @@ export const outline = {
       error = e instanceof Error ? e.message : String(e);
       return false;
     } finally {
+      isMoving = false;
       endOperation();
     }
   },
