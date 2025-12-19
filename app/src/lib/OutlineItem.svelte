@@ -393,10 +393,21 @@
     showWikiLinkSuggestion = false;
     wikiLinkRange = null;
   }
+
+  function handleRowClick(e: MouseEvent) {
+    // Don't handle if clicking on buttons or the editor itself
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('.outline-editor')) {
+      return;
+    }
+    // Focus the editor at the end when clicking on empty space in the row
+    editor?.commands.focus('end');
+  }
 </script>
 
 <div class="outline-item" class:focused={isFocused} class:checked={item.node.is_checked} style="margin-left: {item.depth * 24}px">
-  <div class="item-row">
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="item-row" onclick={handleRowClick}>
     {#if item.node.node_type === 'checkbox'}
       <button
         class="checkbox-btn"
@@ -492,6 +503,7 @@
     padding: 2px 0;
     border-radius: 4px;
     transition: background-color 0.1s;
+    cursor: text;
   }
 
   .focused .item-row {
