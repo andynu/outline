@@ -416,6 +416,13 @@
           }
 
           return false;
+        },
+        handleDrop: (view, event, slice, moved) => {
+          // Prevent TipTap from handling drops of our outline nodes
+          if (event.dataTransfer?.types.includes('application/x-outline-node')) {
+            return true; // Prevent ProseMirror from handling
+          }
+          return false;
         }
       },
       onUpdate: ({ editor }) => {
@@ -566,7 +573,8 @@
     e.stopPropagation();
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', item.node.id);
+      // Use custom MIME type so TipTap won't try to insert it as text
+      e.dataTransfer.setData('application/x-outline-node', item.node.id);
     }
     outline.startDrag(item.node.id);
   }
