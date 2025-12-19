@@ -43,48 +43,48 @@
   }
 
   .date-badge.overdue {
-    background: #ffebee;
-    color: #c62828;
+    background: var(--date-overdue-bg);
+    color: var(--date-overdue);
   }
 
   .date-badge.overdue:hover {
-    background: #ffcdd2;
+    background: var(--date-overdue-bg-hover);
   }
 
   .date-badge.today {
-    background: #fff3e0;
-    color: #e65100;
+    background: var(--date-today-bg);
+    color: var(--date-today);
   }
 
   .date-badge.today:hover {
-    background: #ffe0b2;
+    background: var(--date-today-bg-hover);
   }
 
   .date-badge.upcoming {
-    background: #e3f2fd;
-    color: #1565c0;
+    background: var(--date-upcoming-bg);
+    color: var(--date-upcoming);
   }
 
   .date-badge.upcoming:hover {
-    background: #bbdefb;
+    background: var(--date-upcoming-bg-hover);
   }
 
   .date-badge.future {
-    background: #f5f5f5;
-    color: #616161;
+    background: var(--date-future-bg);
+    color: var(--date-future);
   }
 
   .date-badge.future:hover {
-    background: #eeeeee;
+    background: var(--date-future-bg-hover);
   }
 
   .date-badge.completed {
-    background: #e8f5e9;
-    color: #2e7d32;
+    background: var(--date-completed-bg);
+    color: var(--date-completed);
     text-decoration: line-through;
   }
 
   .date-badge.completed:hover {
-    background: #c8e6c9;
+    background: var(--date-completed-bg-hover);
   }
 </style>

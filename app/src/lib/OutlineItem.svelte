@@ -780,12 +780,12 @@
   }
 
   .focused .item-row {
-    background-color: rgba(59, 130, 246, 0.1);
+    background-color: var(--selection-bg);
   }
 
   .bullet {
     font-size: 14px;
-    color: #999;
+    color: var(--text-tertiary);
   }
 
   .checkbox-btn {
@@ -804,31 +804,31 @@
   .checkbox-icon {
     width: 14px;
     height: 14px;
-    border: 2px solid #999;
+    border: 2px solid var(--checkbox-border);
     border-radius: 3px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 10px;
     color: transparent;
-    background: white;
+    background: var(--bg-elevated);
     transition: all 0.15s;
   }
 
   .checkbox-btn:hover .checkbox-icon {
-    border-color: #666;
+    border-color: var(--checkbox-border-hover);
   }
 
   .checkbox-icon.checked {
-    background: #4caf50;
-    border-color: #4caf50;
+    background: var(--checkbox-checked-bg);
+    border-color: var(--checkbox-checked-bg);
     color: white;
   }
 
   /* Strikethrough for checked items */
   .outline-item.checked .editor-wrapper :global(.outline-editor) {
     text-decoration: line-through;
-    color: #888;
+    color: var(--text-tertiary);
   }
 
   .recurrence-indicator {
@@ -866,7 +866,7 @@
   }
 
   .editor-wrapper :global(.outline-editor code) {
-    background: #f0f0f0;
+    background: var(--bg-tertiary);
     padding: 1px 4px;
     border-radius: 3px;
     font-family: 'SF Mono', Monaco, monospace;
@@ -876,8 +876,8 @@
   .editor-wrapper :global(.wiki-link) {
     display: inline-flex;
     align-items: center;
-    background: #e3f2fd;
-    color: #1976d2;
+    background: var(--wiki-link-bg);
+    color: var(--wiki-link-color);
     padding: 1px 8px;
     border-radius: 12px;
     font-size: 0.9em;
@@ -887,30 +887,30 @@
   }
 
   .editor-wrapper :global(.wiki-link:hover) {
-    background: #bbdefb;
+    background: var(--wiki-link-bg-hover);
   }
 
   .editor-wrapper :global(.auto-link) {
-    color: #1976d2;
+    color: var(--auto-link-color);
     text-decoration: underline;
-    text-decoration-color: #90caf9;
+    text-decoration-color: var(--auto-link-underline);
     cursor: pointer;
   }
 
   .editor-wrapper :global(.auto-link:hover) {
-    text-decoration-color: #1976d2;
+    text-decoration-color: var(--auto-link-color);
   }
 
   .editor-wrapper :global(.hashtag) {
-    color: #7c3aed;
-    background: #f3e8ff;
+    color: var(--hashtag-color);
+    background: var(--hashtag-bg);
     padding: 1px 4px;
     border-radius: 3px;
     cursor: pointer;
   }
 
   .editor-wrapper :global(.hashtag:hover) {
-    background: #e9d5ff;
+    background: var(--hashtag-bg-hover);
   }
 
   /* Inline due dates */
@@ -927,49 +927,49 @@
   }
 
   .editor-wrapper :global(.due-date-overdue) {
-    background: #ffebee;
-    color: #c62828;
+    background: var(--date-overdue-bg);
+    color: var(--date-overdue);
   }
 
   .editor-wrapper :global(.due-date-overdue:hover) {
-    background: #ffcdd2;
+    background: var(--date-overdue-bg-hover);
   }
 
   .editor-wrapper :global(.due-date-today) {
-    background: #fff3e0;
-    color: #e65100;
+    background: var(--date-today-bg);
+    color: var(--date-today);
   }
 
   .editor-wrapper :global(.due-date-today:hover) {
-    background: #ffe0b2;
+    background: var(--date-today-bg-hover);
   }
 
   .editor-wrapper :global(.due-date-upcoming) {
-    background: #e3f2fd;
-    color: #1565c0;
+    background: var(--date-upcoming-bg);
+    color: var(--date-upcoming);
   }
 
   .editor-wrapper :global(.due-date-upcoming:hover) {
-    background: #bbdefb;
+    background: var(--date-upcoming-bg-hover);
   }
 
   .editor-wrapper :global(.due-date-future) {
-    background: #f5f5f5;
-    color: #616161;
+    background: var(--date-future-bg);
+    color: var(--date-future);
   }
 
   .editor-wrapper :global(.due-date-future:hover) {
-    background: #eeeeee;
+    background: var(--date-future-bg-hover);
   }
 
   .editor-wrapper :global(.due-date-completed) {
-    background: #e8f5e9;
-    color: #2e7d32;
+    background: var(--date-completed-bg);
+    color: var(--date-completed);
     text-decoration: line-through;
   }
 
   .editor-wrapper :global(.due-date-completed:hover) {
-    background: #c8e6c9;
+    background: var(--date-completed-bg-hover);
   }
 
   .children {
@@ -986,7 +986,7 @@
     background: none;
     border: none;
     cursor: pointer;
-    color: #999;
+    color: var(--text-tertiary);
     font-size: 8px;
     flex-shrink: 0;
     padding: 0;
@@ -994,7 +994,7 @@
   }
 
   .expand-btn:hover {
-    color: #333;
+    color: var(--text-primary);
   }
 
   .expand-icon {
@@ -1033,7 +1033,7 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: #3b82f6;
+    background: var(--drop-indicator);
     border-radius: 1px;
   }
 
@@ -1048,12 +1048,12 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: #3b82f6;
+    background: var(--drop-indicator);
     border-radius: 1px;
   }
 
   .outline-item.drop-child .item-row {
-    background: rgba(59, 130, 246, 0.15);
+    background: var(--selection-bg);
     border-radius: 4px;
   }
 </style>

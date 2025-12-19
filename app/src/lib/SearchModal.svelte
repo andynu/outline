@@ -195,13 +195,13 @@
     align-items: center;
     gap: 12px;
     padding: 16px;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--border-primary);
   }
 
   .search-icon {
     width: 20px;
     height: 20px;
-    color: #666;
+    color: var(--text-secondary);
     flex-shrink: 0;
   }
 
@@ -211,14 +211,15 @@
     outline: none;
     font-size: 16px;
     background: transparent;
+    color: var(--text-primary);
   }
 
   .search-input::placeholder {
-    color: #999;
+    color: var(--text-tertiary);
   }
 
   .loading-indicator {
-    color: #666;
+    color: var(--text-secondary);
     font-size: 14px;
   }
 
@@ -231,13 +232,13 @@
   .no-results {
     padding: 24px;
     text-align: center;
-    color: #666;
+    color: var(--text-secondary);
   }
 
   .result {
     padding: 12px 16px;
     cursor: pointer;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-secondary);
   }
 
   .result:last-child {
@@ -246,21 +247,21 @@
 
   .result:hover,
   .result.selected {
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
   }
 
   .result.selected {
-    background: #e3f2fd;
+    background: var(--selection-bg-strong);
   }
 
   .result-content {
     font-size: 14px;
     line-height: 1.5;
-    color: #333;
+    color: var(--text-primary);
   }
 
   .result-content :global(mark) {
-    background: #fff59d;
+    background: var(--highlight-bg);
     color: inherit;
     padding: 0 2px;
     border-radius: 2px;
@@ -268,24 +269,24 @@
 
   .result-note {
     font-size: 12px;
-    color: #666;
+    color: var(--text-secondary);
     margin-top: 4px;
   }
 
   .modal-footer {
     padding: 12px 16px;
-    border-top: 1px solid #e0e0e0;
-    background: #fafafa;
+    border-top: 1px solid var(--border-primary);
+    background: var(--bg-secondary);
     border-radius: 0 0 12px 12px;
   }
 
   .hint {
     font-size: 12px;
-    color: #666;
+    color: var(--text-secondary);
   }
 
   .hint kbd {
-    background: #e0e0e0;
+    background: var(--btn-secondary-bg);
     padding: 2px 6px;
     border-radius: 4px;
     font-family: inherit;

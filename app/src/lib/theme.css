@@ -1,0 +1,179 @@
+/*
+ * Outline Theme System
+ *
+ * 70s Retro NASA Aesthetic Color Palette
+ * Inspired by vintage NASA worm logo era, mission patches, and space program merchandise.
+ * Desaturated, muted colors: dusty teals, muted oranges, mustards, olive greens, dusty reds.
+ */
+
+:root {
+  /* === BASE COLORS (Light Theme) === */
+
+  /* Background layers - warm off-white to cream tones */
+  --bg-primary: #faf8f5;          /* Main content background - warm cream */
+  --bg-secondary: #f5f2ed;        /* Sidebar, panels - slightly darker cream */
+  --bg-tertiary: #eae6df;         /* Hover states, subtle containers */
+  --bg-elevated: #ffffff;         /* Elevated surfaces like cards, modals */
+
+  /* Text colors - warm grays with slight brown undertone */
+  --text-primary: #3d3833;        /* Main text - warm dark brown */
+  --text-secondary: #6b6560;      /* Secondary text, labels */
+  --text-tertiary: #958f88;       /* Placeholder, disabled text */
+  --text-muted: #b5aea6;          /* Very subtle text */
+
+  /* Border colors */
+  --border-primary: #d8d3cb;      /* Main borders */
+  --border-secondary: #e5e1da;    /* Subtle borders */
+  --border-focus: #c49c5c;        /* Focus ring color - muted gold */
+
+  /* === ACCENT COLORS (70s NASA Palette) === */
+
+  /* Primary accent - Muted Teal (vintage space suit/NASA teal) */
+  --accent-primary: #4a7c7c;
+  --accent-primary-hover: #3d6868;
+  --accent-primary-light: #dce8e8;
+  --accent-primary-lighter: #e8f0f0;
+
+  /* Secondary accent - Dusty Orange (vintage safety orange) */
+  --accent-secondary: #c47d4a;
+  --accent-secondary-hover: #a8693d;
+  --accent-secondary-light: #f5e6dc;
+  --accent-secondary-lighter: #faf0e8;
+
+  /* === STATUS COLORS (Desaturated 70s style) === */
+
+  /* Success - Olive Green (vintage equipment green) */
+  --status-success: #5c7c52;
+  --status-success-bg: #e8efe5;
+  --status-success-bg-hover: #dae5d5;
+
+  /* Warning - Mustard Yellow (vintage warning yellow) */
+  --status-warning: #a68f3c;
+  --status-warning-bg: #f5f0dc;
+  --status-warning-bg-hover: #ebe4c8;
+
+  /* Error/Overdue - Dusty Red (vintage alert red) */
+  --status-error: #b85c5c;
+  --status-error-bg: #f5e5e5;
+  --status-error-bg-hover: #ebd5d5;
+
+  /* Info - Muted Blue (vintage instrument blue) */
+  --status-info: #5c7ca3;
+  --status-info-bg: #e5ecf3;
+  --status-info-bg-hover: #d5e0eb;
+
+  /* === SEMANTIC COLORS (for specific UI elements) === */
+
+  /* Date badges - match status colors */
+  --date-overdue: var(--status-error);
+  --date-overdue-bg: var(--status-error-bg);
+  --date-overdue-bg-hover: var(--status-error-bg-hover);
+
+  --date-today: var(--accent-secondary);
+  --date-today-bg: var(--accent-secondary-light);
+  --date-today-bg-hover: #ebd8c5;
+
+  --date-upcoming: var(--status-info);
+  --date-upcoming-bg: var(--status-info-bg);
+  --date-upcoming-bg-hover: var(--status-info-bg-hover);
+
+  --date-future: var(--text-secondary);
+  --date-future-bg: var(--bg-tertiary);
+  --date-future-bg-hover: #ddd8d0;
+
+  --date-completed: var(--status-success);
+  --date-completed-bg: var(--status-success-bg);
+  --date-completed-bg-hover: var(--status-success-bg-hover);
+
+  /* Wiki links - teal accent */
+  --wiki-link-color: var(--accent-primary);
+  --wiki-link-bg: var(--accent-primary-lighter);
+  --wiki-link-bg-hover: var(--accent-primary-light);
+
+  /* Auto links */
+  --auto-link-color: var(--accent-primary);
+  --auto-link-underline: #8fb5b5;
+
+  /* Hashtags - muted purple/mauve (70s style) */
+  --hashtag-color: #7a6b8a;
+  --hashtag-bg: #f0ebf3;
+  --hashtag-bg-hover: #e5dcea;
+
+  /* Checkbox - olive green when checked */
+  --checkbox-checked-bg: var(--status-success);
+  --checkbox-border: var(--text-tertiary);
+  --checkbox-border-hover: var(--text-secondary);
+
+  /* Selection/Focus */
+  --selection-bg: rgba(74, 124, 124, 0.15);
+  --selection-bg-strong: rgba(74, 124, 124, 0.25);
+
+  /* Drop indicator */
+  --drop-indicator: var(--accent-primary);
+
+  /* Highlight (search matches) */
+  --highlight-bg: #e8dca8;  /* Muted yellow highlighter */
+
+  /* Toolbar/Chrome */
+  --chrome-bg: var(--bg-secondary);
+  --chrome-border: var(--border-primary);
+  --toolbar-btn-hover-bg: var(--bg-tertiary);
+
+  /* Button colors */
+  --btn-primary-bg: var(--accent-primary);
+  --btn-primary-bg-hover: var(--accent-primary-hover);
+  --btn-primary-text: #ffffff;
+  --btn-secondary-bg: var(--bg-tertiary);
+  --btn-secondary-bg-hover: #ddd8d0;
+  --btn-secondary-text: var(--text-primary);
+
+  /* Badge */
+  --badge-bg: var(--status-error);
+  --badge-text: #ffffff;
+
+  /* Sidebar */
+  --sidebar-active-bg: var(--accent-primary-lighter);
+  --sidebar-active-text: var(--accent-primary);
+
+  /* Status bar */
+  --statusbar-bg: var(--bg-secondary);
+  --statusbar-text: var(--text-secondary);
+
+  /* Save status */
+  --save-status-saved: var(--status-success);
+  --save-status-saving: var(--text-tertiary);
+
+  /* Modal overlay */
+  --modal-overlay: rgba(61, 56, 51, 0.4);
+  --modal-bg: var(--bg-elevated);
+  --modal-border: var(--border-primary);
+
+  /* Scrollbar (for webkit browsers) */
+  --scrollbar-track: var(--bg-tertiary);
+  --scrollbar-thumb: var(--border-primary);
+  --scrollbar-thumb-hover: var(--text-tertiary);
+}
+
+/* Optional: Scrollbar styling */
+:root {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}

@@ -599,14 +599,16 @@
 />
 
 <style>
+  @import '$lib/theme.css';
+
   :global(html, body) {
     margin: 0;
     padding: 0;
     height: 100%;
     overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #fafafa;
-    color: #333;
+    background: var(--bg-primary);
+    color: var(--text-primary);
   }
 
   /* App Chrome - Full viewport flex layout */
@@ -622,8 +624,8 @@
     display: flex;
     gap: 0;
     padding: 0 8px;
-    background: #f8f8f8;
-    border-bottom: 1px solid #e0e0e0;
+    background: var(--chrome-bg);
+    border-bottom: 1px solid var(--chrome-border);
     flex-shrink: 0;
   }
 
@@ -632,14 +634,14 @@
     background: transparent;
     border: none;
     font-size: 13px;
-    color: #333;
+    color: var(--text-primary);
     cursor: pointer;
     border-radius: 4px;
     margin: 2px 0;
   }
 
   .menu-item:hover {
-    background: #e8e8e8;
+    background: var(--bg-tertiary);
   }
 
   /* Icon Toolbar */
@@ -649,8 +651,8 @@
     justify-content: space-between;
     gap: 8px;
     padding: 6px 12px;
-    background: #fff;
-    border-bottom: 1px solid #e0e0e0;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--chrome-border);
     flex-shrink: 0;
   }
 
@@ -672,14 +674,14 @@
     border: 1px solid transparent;
     border-radius: 6px;
     cursor: pointer;
-    color: #555;
+    color: var(--text-secondary);
     transition: all 0.1s;
   }
 
   .toolbar-btn:hover {
-    background: #f0f0f0;
-    border-color: #ddd;
-    color: #333;
+    background: var(--toolbar-btn-hover-bg);
+    border-color: var(--border-secondary);
+    color: var(--text-primary);
   }
 
   .toolbar-btn svg {
@@ -688,12 +690,12 @@
   }
 
   .toolbar-btn.saving {
-    color: #888;
+    color: var(--save-status-saving);
     cursor: wait;
   }
 
   .toolbar-btn.saved {
-    color: #22c55e;
+    color: var(--save-status-saved);
   }
 
   .toolbar-btn svg.spin {
@@ -712,8 +714,8 @@
     min-width: 14px;
     height: 14px;
     padding: 0 4px;
-    background: #ef4444;
-    color: white;
+    background: var(--badge-bg);
+    color: var(--badge-text);
     font-size: 10px;
     font-weight: 600;
     border-radius: 7px;
@@ -725,7 +727,7 @@
   .toolbar-separator {
     width: 1px;
     height: 24px;
-    background: #e0e0e0;
+    background: var(--border-primary);
     margin: 0 4px;
   }
 
@@ -734,8 +736,8 @@
     align-items: center;
     gap: 8px;
     padding: 6px 10px;
-    background: #f5f5f5;
-    border: 1px solid #ddd;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
     border-radius: 6px;
     width: 200px;
   }
@@ -743,7 +745,7 @@
   .toolbar-search .search-icon {
     width: 16px;
     height: 16px;
-    color: #888;
+    color: var(--text-tertiary);
     flex-shrink: 0;
   }
 
@@ -752,14 +754,14 @@
     border: none;
     background: transparent;
     font-size: 13px;
-    color: #333;
+    color: var(--text-primary);
     outline: none;
     cursor: pointer;
     min-width: 0;
   }
 
   .toolbar-search input::placeholder {
-    color: #888;
+    color: var(--text-tertiary);
   }
 
   /* Main wrapper - holds sidebar and content */
@@ -773,13 +775,13 @@
   .content-area {
     flex: 1;
     overflow-y: auto;
-    background: #fff;
+    background: var(--bg-elevated);
   }
 
   /* Sidebar toggle button active state */
   .toolbar-btn.sidebar-toggle.active {
-    background: #e3f2fd;
-    color: #1976d2;
+    background: var(--sidebar-active-bg);
+    color: var(--sidebar-active-text);
   }
 
   .outline-container {
@@ -789,11 +791,11 @@
   .loading, .error {
     padding: 40px;
     text-align: center;
-    color: #666;
+    color: var(--text-secondary);
   }
 
   .error {
-    color: #dc2626;
+    color: var(--status-error);
   }
 
   /* Status Bar */
@@ -802,10 +804,10 @@
     align-items: center;
     justify-content: space-between;
     padding: 4px 12px;
-    background: #f0f0f0;
-    border-top: 1px solid #e0e0e0;
+    background: var(--statusbar-bg);
+    border-top: 1px solid var(--chrome-border);
     font-size: 12px;
-    color: #666;
+    color: var(--statusbar-text);
     flex-shrink: 0;
   }
 
@@ -823,10 +825,10 @@
   }
 
   .save-status.saving {
-    color: #888;
+    color: var(--save-status-saving);
   }
 
   .save-status.saved {
-    color: #22c55e;
+    color: var(--save-status-saved);
   }
 </style>

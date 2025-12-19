@@ -109,7 +109,7 @@
     background: transparent;
     border: none;
     font-size: 13px;
-    color: #333;
+    color: var(--text-primary);
     cursor: pointer;
     border-radius: 4px;
     margin: 2px 0;
@@ -117,7 +117,7 @@
 
   .menu-trigger:hover,
   .menu-trigger.open {
-    background: #e8e8e8;
+    background: var(--bg-tertiary);
   }
 
   .menu-content {
@@ -125,10 +125,10 @@
     top: 100%;
     left: 0;
     min-width: 200px;
-    background: white;
-    border: 1px solid #e0e0e0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-primary);
     border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px var(--modal-overlay);
     padding: 4px 0;
     z-index: 100;
   }
@@ -142,13 +142,13 @@
     background: transparent;
     border: none;
     font-size: 13px;
-    color: #333;
+    color: var(--text-primary);
     cursor: pointer;
     text-align: left;
   }
 
   .menu-item-btn:hover {
-    background: #f0f0f0;
+    background: var(--bg-tertiary);
   }
 
   .item-label {
@@ -157,13 +157,13 @@
 
   .item-shortcut {
     margin-left: 24px;
-    color: #888;
+    color: var(--text-tertiary);
     font-size: 12px;
   }
 
   .menu-separator {
     height: 1px;
-    background: #e0e0e0;
+    background: var(--border-primary);
     margin: 4px 0;
   }
 </style>
