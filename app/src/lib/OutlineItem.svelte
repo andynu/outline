@@ -7,6 +7,7 @@
   import type { TreeNode } from './types';
   import OutlineItem from './OutlineItem.svelte';
   import { WikiLink } from './WikiLink';
+  import { AutoLink } from './AutoLink';
   import WikiLinkSuggestion from './WikiLinkSuggestion.svelte';
   import BacklinksPanel from './BacklinksPanel.svelte';
   import DateBadge from './DateBadge.svelte';
@@ -147,6 +148,7 @@
             }
           },
         }),
+        AutoLink,
       ],
       content: item.node.content || '',
       editorProps: {
@@ -621,6 +623,17 @@
 
   .editor-wrapper :global(.wiki-link:hover) {
     background: #bbdefb;
+  }
+
+  .editor-wrapper :global(.auto-link) {
+    color: #1976d2;
+    text-decoration: underline;
+    text-decoration-color: #90caf9;
+    cursor: pointer;
+  }
+
+  .editor-wrapper :global(.auto-link:hover) {
+    text-decoration-color: #1976d2;
   }
 
   .children {
