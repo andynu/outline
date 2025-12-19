@@ -8,6 +8,7 @@
   import { WikiLink } from './WikiLink';
   import { AutoLink } from './AutoLink';
   import { Hashtag } from './Hashtag';
+  import { Mention } from './Mention';
   import { DueDate } from './DueDate';
   import WikiLinkSuggestion from './WikiLinkSuggestion.svelte';
   import HashtagSuggestion from './HashtagSuggestion.svelte';
@@ -145,6 +146,12 @@
           onHashtagClick: (tag: string) => {
             // Dispatch custom event for parent to handle search
             window.dispatchEvent(new CustomEvent('hashtag-search', { detail: { tag } }));
+          },
+        }),
+        Mention.configure({
+          onMentionClick: (mention: string) => {
+            // Dispatch custom event for parent to handle search
+            window.dispatchEvent(new CustomEvent('mention-search', { detail: { mention } }));
           },
         }),
         DueDate.configure({
@@ -911,6 +918,18 @@
 
   .editor-wrapper :global(.hashtag:hover) {
     background: var(--hashtag-bg-hover);
+  }
+
+  .editor-wrapper :global(.mention) {
+    color: var(--mention-color);
+    background: var(--mention-bg);
+    padding: 1px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+
+  .editor-wrapper :global(.mention:hover) {
+    background: var(--mention-bg-hover);
   }
 
   /* Inline due dates */

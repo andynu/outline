@@ -118,12 +118,22 @@
     };
     window.addEventListener('hashtag-search', handleHashtagSearch);
 
+    // Handle mention clicks - open search with @mention
+    const handleMentionSearch = (event: Event) => {
+      const { mention } = (event as CustomEvent).detail;
+      searchInitialQuery = `@${mention}`;
+      searchDocumentScope = undefined;
+      showSearchModal = true;
+    };
+    window.addEventListener('mention-search', handleMentionSearch);
+
     return () => {
       clearInterval(inboxInterval);
       clearInterval(syncInterval);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('keydown', handleTabKey, { capture: true });
       window.removeEventListener('hashtag-search', handleHashtagSearch);
+      window.removeEventListener('mention-search', handleMentionSearch);
     };
   });
 

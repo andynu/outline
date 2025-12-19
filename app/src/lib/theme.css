@@ -99,6 +99,11 @@
   --hashtag-bg: #f0ebf3;
   --hashtag-bg-hover: #e5dcea;
 
+  /* Mentions - dusty blue (70s style) */
+  --mention-color: #5c7ca3;
+  --mention-bg: #e5ecf3;
+  --mention-bg-hover: #d5e0eb;
+
   /* Checkbox - olive green when checked */
   --checkbox-checked-bg: var(--status-success);
   --checkbox-border: var(--text-tertiary);
@@ -217,6 +222,11 @@
   --hashtag-color: #9a8aaa;
   --hashtag-bg: #2e2a32;
   --hashtag-bg-hover: #3a3540;
+
+  /* Mentions */
+  --mention-color: #6e90b8;
+  --mention-bg: #283038;
+  --mention-bg-hover: #303a45;
 
   /* Checkbox */
   --checkbox-border: #5a5650;
