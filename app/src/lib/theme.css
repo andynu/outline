@@ -154,6 +154,94 @@
   --scrollbar-thumb-hover: var(--text-tertiary);
 }
 
+/* === DARK THEME === */
+/* Apply with data-theme="dark" on html or body element */
+[data-theme="dark"] {
+  /* Background layers - deep warm grays */
+  --bg-primary: #1e1c1a;           /* Main content background */
+  --bg-secondary: #252320;         /* Sidebar, panels */
+  --bg-tertiary: #2d2b28;          /* Hover states, subtle containers */
+  --bg-elevated: #333130;          /* Elevated surfaces like cards, modals */
+
+  /* Text colors - warm off-whites */
+  --text-primary: #e8e4df;
+  --text-secondary: #b5aea6;
+  --text-tertiary: #7a756e;
+  --text-muted: #5a5650;
+
+  /* Border colors */
+  --border-primary: #3d3a36;
+  --border-secondary: #2f2d2a;
+  --border-focus: #c49c5c;
+
+  /* Accent colors - slightly brighter for dark mode visibility */
+  --accent-primary: #5a9494;
+  --accent-primary-hover: #6aa8a8;
+  --accent-primary-light: #2a3d3d;
+  --accent-primary-lighter: #243434;
+
+  --accent-secondary: #d68b55;
+  --accent-secondary-hover: #e59a64;
+  --accent-secondary-light: #3d2e22;
+  --accent-secondary-lighter: #332820;
+
+  /* Status colors - slightly brighter for dark mode */
+  --status-success: #6e9463;
+  --status-success-bg: #2a3328;
+  --status-success-bg-hover: #344030;
+
+  --status-warning: #b8a048;
+  --status-warning-bg: #3a3428;
+  --status-warning-bg-hover: #453e2e;
+
+  --status-error: #c86e6e;
+  --status-error-bg: #3a2828;
+  --status-error-bg-hover: #453030;
+
+  --status-info: #6e90b8;
+  --status-info-bg: #283038;
+  --status-info-bg-hover: #303a45;
+
+  /* Date badges */
+  --date-today-bg-hover: #4a3a2a;
+  --date-future-bg-hover: #3a3835;
+
+  /* Wiki links */
+  --wiki-link-bg: #243434;
+  --wiki-link-bg-hover: #2a3d3d;
+
+  /* Auto links */
+  --auto-link-underline: #4a7070;
+
+  /* Hashtags */
+  --hashtag-color: #9a8aaa;
+  --hashtag-bg: #2e2a32;
+  --hashtag-bg-hover: #3a3540;
+
+  /* Checkbox */
+  --checkbox-border: #5a5650;
+  --checkbox-border-hover: #7a756e;
+
+  /* Selection/Focus */
+  --selection-bg: rgba(90, 148, 148, 0.2);
+  --selection-bg-strong: rgba(90, 148, 148, 0.35);
+
+  /* Highlight (search matches) */
+  --highlight-bg: #4a4428;
+
+  /* Button colors */
+  --btn-secondary-bg: #3a3735;
+  --btn-secondary-bg-hover: #454240;
+
+  /* Modal overlay */
+  --modal-overlay: rgba(0, 0, 0, 0.6);
+
+  /* Scrollbar */
+  --scrollbar-track: #252320;
+  --scrollbar-thumb: #3d3a36;
+  --scrollbar-thumb-hover: #5a5650;
+}
+
 /* Optional: Scrollbar styling */
 :root {
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
