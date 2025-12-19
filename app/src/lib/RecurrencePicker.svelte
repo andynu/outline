@@ -216,22 +216,23 @@
   .recurrence-picker {
     position: fixed;
     z-index: 1000;
-    background: white;
-    border: 1px solid #ddd;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-primary);
     border-radius: 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 16px var(--modal-overlay);
     min-width: 280px;
   }
 
   .picker-header {
     padding: 12px 16px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border-secondary);
   }
 
   .picker-header h3 {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
+    color: var(--text-primary);
   }
 
   .picker-body {
@@ -246,17 +247,18 @@
     display: block;
     font-size: 12px;
     font-weight: 500;
-    color: #666;
+    color: var(--text-secondary);
     margin-bottom: 4px;
   }
 
   .frequency-select {
     width: 100%;
     padding: 8px 12px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-primary);
     border-radius: 6px;
     font-size: 14px;
-    background: white;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
     cursor: pointer;
   }
 
@@ -269,15 +271,17 @@
   .interval-input {
     width: 60px;
     padding: 8px 12px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-primary);
     border-radius: 6px;
     font-size: 14px;
     text-align: center;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
   }
 
   .interval-unit {
     font-size: 14px;
-    color: #666;
+    color: var(--text-secondary);
   }
 
   .weekday-grid {
@@ -288,30 +292,31 @@
 
   .weekday-btn {
     padding: 6px 10px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-primary);
     border-radius: 4px;
-    background: white;
+    background: var(--bg-elevated);
     font-size: 12px;
     cursor: pointer;
     transition: all 0.1s;
+    color: var(--text-primary);
   }
 
   .weekday-btn:hover {
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
   }
 
   .weekday-btn.selected {
-    background: #2196f3;
-    border-color: #2196f3;
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
     color: white;
   }
 
   .preview {
     padding: 8px 12px;
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
     border-radius: 6px;
     font-size: 13px;
-    color: #666;
+    color: var(--text-secondary);
     margin-top: 8px;
   }
 
@@ -320,33 +325,34 @@
     justify-content: flex-end;
     gap: 8px;
     padding: 12px 16px;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--border-secondary);
   }
 
   .btn-clear {
     padding: 8px 16px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-primary);
     border-radius: 6px;
-    background: white;
+    background: var(--bg-elevated);
     font-size: 13px;
     cursor: pointer;
+    color: var(--text-primary);
   }
 
   .btn-clear:hover {
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
   }
 
   .btn-apply {
     padding: 8px 16px;
     border: none;
     border-radius: 6px;
-    background: #2196f3;
-    color: white;
+    background: var(--btn-primary-bg);
+    color: var(--btn-primary-text);
     font-size: 13px;
     cursor: pointer;
   }
 
   .btn-apply:hover {
-    background: #1976d2;
+    background: var(--btn-primary-bg-hover);
   }
 </style>

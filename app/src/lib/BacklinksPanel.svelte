@@ -83,9 +83,9 @@
     margin-top: 8px;
     margin-left: 20px;
     font-size: 12px;
-    background: #f8f9fa;
+    background: var(--bg-secondary);
     border-radius: 6px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--border-primary);
   }
 
   .panel-header {
@@ -98,18 +98,18 @@
     border: none;
     cursor: pointer;
     text-align: left;
-    color: #666;
+    color: var(--text-secondary);
     font-size: 12px;
   }
 
   .panel-header:hover {
-    background: #f0f0f0;
+    background: var(--bg-tertiary);
     border-radius: 6px 6px 0 0;
   }
 
   .expand-icon {
     font-size: 10px;
-    color: #999;
+    color: var(--text-tertiary);
   }
 
   .panel-title {
@@ -117,21 +117,21 @@
   }
 
   .backlinks-list {
-    border-top: 1px solid #e0e0e0;
+    border-top: 1px solid var(--border-primary);
     padding: 4px 0;
   }
 
   .backlink-item {
     padding: 6px 12px 6px 24px;
     cursor: pointer;
-    color: #555;
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .backlink-item:hover {
-    background: #e8f4fd;
-    color: #1976d2;
+    background: var(--accent-primary-lighter);
+    color: var(--accent-primary);
   }
 </style>

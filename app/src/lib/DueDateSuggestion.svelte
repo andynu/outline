@@ -149,10 +149,10 @@
 <style>
   .suggestion-popup {
     position: fixed;
-    background: white;
-    border: 1px solid #e0e0e0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-primary);
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px var(--modal-overlay);
     width: 220px;
     max-height: 280px;
     overflow-y: auto;
@@ -161,7 +161,7 @@
 
   .hint {
     padding: 12px 16px;
-    color: #666;
+    color: var(--text-secondary);
     font-size: 13px;
   }
 
@@ -171,7 +171,7 @@
     justify-content: space-between;
     padding: 8px 12px;
     cursor: pointer;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-secondary);
   }
 
   .suggestion-item:last-child {
@@ -180,19 +180,19 @@
 
   .suggestion-item:hover,
   .suggestion-item.selected {
-    background: #fff3e0;
+    background: var(--date-today-bg);
   }
 
   .date-label {
     font-size: 13px;
     font-weight: 500;
-    color: #e65100;
+    color: var(--date-today);
   }
 
   .date-preview {
     font-size: 11px;
-    color: #888;
-    background: #f5f5f5;
+    color: var(--text-tertiary);
+    background: var(--bg-tertiary);
     padding: 2px 8px;
     border-radius: 10px;
   }
@@ -201,14 +201,14 @@
     display: flex;
     gap: 6px;
     padding: 8px 12px;
-    border-top: 1px solid #e0e0e0;
+    border-top: 1px solid var(--border-primary);
     flex-wrap: wrap;
   }
 
   .hints span {
     font-size: 10px;
-    color: #999;
-    background: #f5f5f5;
+    color: var(--text-tertiary);
+    background: var(--bg-tertiary);
     padding: 2px 6px;
     border-radius: 3px;
   }

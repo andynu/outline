@@ -104,10 +104,10 @@
   .date-picker {
     position: fixed;
     z-index: 1000;
-    background: white;
-    border: 1px solid #ddd;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-primary);
     border-radius: 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 16px var(--modal-overlay);
     padding: 12px;
     min-width: 240px;
   }
@@ -119,28 +119,30 @@
   .date-input {
     width: 100%;
     padding: 8px 12px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-primary);
     border-radius: 6px;
     font-size: 14px;
     outline: none;
     box-sizing: border-box;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
   }
 
   .date-input:focus {
-    border-color: #2196f3;
-    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 2px rgba(196, 156, 92, 0.2);
   }
 
   .date-input.invalid {
-    border-color: #f44336;
+    border-color: var(--status-error);
   }
 
   .preview {
     padding: 8px 12px;
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
     border-radius: 6px;
     font-size: 13px;
-    color: #666;
+    color: var(--text-secondary);
     margin-bottom: 8px;
   }
 
@@ -153,28 +155,29 @@
 
   .quick-date {
     padding: 4px 10px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-primary);
     border-radius: 4px;
-    background: white;
+    background: var(--bg-elevated);
     font-size: 12px;
     cursor: pointer;
     transition: all 0.1s;
+    color: var(--text-primary);
   }
 
   .quick-date:hover {
-    background: #f5f5f5;
-    border-color: #ccc;
+    background: var(--bg-tertiary);
+    border-color: var(--text-tertiary);
   }
 
   .hints {
     display: flex;
     gap: 8px;
     font-size: 11px;
-    color: #999;
+    color: var(--text-tertiary);
   }
 
   .hints span {
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
     padding: 2px 6px;
     border-radius: 3px;
   }

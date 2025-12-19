@@ -117,10 +117,10 @@
 <style>
   .suggestion-popup {
     position: fixed;
-    background: white;
-    border: 1px solid #e0e0e0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-primary);
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px var(--modal-overlay);
     width: 320px;
     max-height: 250px;
     overflow-y: auto;
@@ -129,14 +129,14 @@
 
   .loading, .no-results, .hint {
     padding: 12px 16px;
-    color: #666;
+    color: var(--text-secondary);
     font-size: 13px;
   }
 
   .suggestion-item {
     padding: 8px 12px;
     cursor: pointer;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-secondary);
   }
 
   .suggestion-item:last-child {
@@ -145,24 +145,24 @@
 
   .suggestion-item:hover,
   .suggestion-item.selected {
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
   }
 
   .suggestion-item.selected {
-    background: #e3f2fd;
+    background: var(--selection-bg-strong);
   }
 
   .suggestion-text {
     font-size: 13px;
     line-height: 1.4;
-    color: #333;
+    color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .suggestion-text :global(mark) {
-    background: #fff59d;
+    background: var(--highlight-bg);
     color: inherit;
     padding: 0 2px;
     border-radius: 2px;

@@ -141,13 +141,14 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--border-primary);
   }
 
   .modal-header h2 {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
+    color: var(--text-primary);
   }
 
   .close-btn {
@@ -161,12 +162,12 @@
     border: none;
     border-radius: 6px;
     cursor: pointer;
-    color: #666;
+    color: var(--text-secondary);
   }
 
   .close-btn:hover {
-    background: #f0f0f0;
-    color: #333;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
   }
 
   .close-btn svg {
@@ -186,7 +187,7 @@
     margin: 0 0 10px;
     font-size: 12px;
     font-weight: 600;
-    color: #666;
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -203,12 +204,12 @@
     gap: 8px;
     margin-bottom: 6px;
     font-size: 13px;
-    color: #333;
+    color: var(--text-primary);
   }
 
   kbd {
-    background: #f0f0f0;
-    border: 1px solid #d0d0d0;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
     border-radius: 4px;
     padding: 2px 6px;
     font-family: 'SF Mono', Monaco, monospace;
@@ -218,18 +219,18 @@
 
   .modal-footer {
     padding: 12px 20px;
-    border-top: 1px solid #e0e0e0;
-    background: #fafafa;
+    border-top: 1px solid var(--border-primary);
+    background: var(--bg-secondary);
     border-radius: 0 0 12px 12px;
   }
 
   .hint {
     font-size: 12px;
-    color: #666;
+    color: var(--text-secondary);
   }
 
   .hint kbd {
-    background: #e0e0e0;
+    background: var(--btn-secondary-bg);
     margin-right: 4px;
   }
 </style>
