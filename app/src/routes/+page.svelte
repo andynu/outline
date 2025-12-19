@@ -507,7 +507,6 @@
 
   .outline-container {
     padding: 16px;
-    min-height: 100%;
   }
 
   .loading, .error {
