@@ -502,18 +502,12 @@
   .content-area {
     flex: 1;
     overflow-y: auto;
-    padding: 16px;
-    background: #fafafa;
+    background: #fff;
   }
 
   .outline-container {
-    max-width: 900px;
-    margin: 0 auto;
-    background: #fff;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
     padding: 16px;
-    min-height: 200px;
+    min-height: 100%;
   }
 
   .loading, .error {
