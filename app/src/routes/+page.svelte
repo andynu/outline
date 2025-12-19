@@ -369,6 +369,15 @@
     { label: 'Quit', shortcut: 'Ctrl+Q', action: handleQuit, separator: false as const },
   ];
 
+  // View menu items
+  const viewMenuItems = $derived([
+    {
+      label: theme.isDark ? 'Light Mode' : 'Dark Mode',
+      action: () => theme.toggle(),
+      separator: false as const
+    },
+  ]);
+
   // Help menu items
   const helpMenuItems = [
     { label: 'Keyboard Shortcuts', shortcut: 'Ctrl+/', action: () => { showKeyboardShortcuts = true; }, separator: false as const },
@@ -392,7 +401,13 @@
       onClose={closeMenuDropdown}
     />
     <button class="menu-item">Edit</button>
-    <button class="menu-item">View</button>
+    <MenuDropdown
+      label="View"
+      items={viewMenuItems}
+      isOpen={openMenu === 'view'}
+      onOpen={() => openMenuDropdown('view')}
+      onClose={closeMenuDropdown}
+    />
     <MenuDropdown
       label="Help"
       items={helpMenuItems}
@@ -625,8 +640,6 @@
 />
 
 <style>
-  @import '$lib/theme.css';
-
   :global(html, body) {
     margin: 0;
     padding: 0;
