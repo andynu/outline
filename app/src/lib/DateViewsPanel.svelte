@@ -209,9 +209,9 @@
   }
 
   .modal {
-    background: white;
+    background: var(--bg-elevated);
     border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 8px 32px var(--modal-overlay);
     width: 100%;
     max-width: 500px;
     max-height: calc(100vh - 160px);
@@ -224,35 +224,36 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--border-primary);
   }
 
   .modal-header h2 {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
+    color: var(--text-primary);
   }
 
   .close-btn {
     background: none;
     border: none;
     font-size: 24px;
-    color: #666;
+    color: var(--text-secondary);
     cursor: pointer;
     padding: 0;
     line-height: 1;
   }
 
   .close-btn:hover {
-    color: #333;
+    color: var(--text-primary);
   }
 
   .view-tabs {
     display: flex;
     gap: 4px;
     padding: 12px 20px;
-    border-bottom: 1px solid #e0e0e0;
-    background: #f5f5f5;
+    border-bottom: 1px solid var(--border-primary);
+    background: var(--bg-tertiary);
   }
 
   .view-tab {
@@ -263,7 +264,7 @@
     cursor: pointer;
     font-size: 13px;
     font-weight: 500;
-    color: #666;
+    color: var(--text-secondary);
     display: flex;
     align-items: center;
     gap: 6px;
@@ -275,14 +276,14 @@
   }
 
   .view-tab.active {
-    background: white;
-    color: #333;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
 
   .count {
-    background: #e0e0e0;
-    color: #666;
+    background: var(--btn-secondary-bg);
+    color: var(--text-secondary);
     padding: 1px 6px;
     border-radius: 10px;
     font-size: 11px;
@@ -290,8 +291,8 @@
   }
 
   .count.overdue {
-    background: #ffebee;
-    color: #c62828;
+    background: var(--date-overdue-bg);
+    color: var(--date-overdue);
   }
 
   .results {
@@ -303,7 +304,7 @@
   .empty-state {
     padding: 40px 20px;
     text-align: center;
-    color: #888;
+    color: var(--text-tertiary);
     font-size: 14px;
   }
 
@@ -322,7 +323,7 @@
   }
 
   .result-item:hover {
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
   }
 
   .result-content {
@@ -336,7 +337,7 @@
   .checkbox-indicator {
     width: 16px;
     height: 16px;
-    border: 2px solid #999;
+    border: 2px solid var(--checkbox-border);
     border-radius: 3px;
     display: flex;
     align-items: center;
@@ -347,8 +348,8 @@
   }
 
   .checkbox-indicator.checked {
-    background: #4caf50;
-    border-color: #4caf50;
+    background: var(--checkbox-checked-bg);
+    border-color: var(--checkbox-checked-bg);
     color: white;
   }
 
@@ -359,21 +360,22 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 14px;
+    color: var(--text-primary);
   }
 
   .content-text.strikethrough {
     text-decoration: line-through;
-    color: #888;
+    color: var(--text-tertiary);
   }
 
   .modal-footer {
     padding: 12px 20px;
-    border-top: 1px solid #e0e0e0;
+    border-top: 1px solid var(--border-primary);
     text-align: center;
   }
 
   .hint {
     font-size: 12px;
-    color: #888;
+    color: var(--text-tertiary);
   }
 </style>

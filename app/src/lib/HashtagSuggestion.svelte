@@ -135,10 +135,10 @@
 <style>
   .suggestion-popup {
     position: fixed;
-    background: white;
-    border: 1px solid #e0e0e0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-primary);
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px var(--modal-overlay);
     width: 200px;
     max-height: 250px;
     overflow-y: auto;
@@ -147,7 +147,7 @@
 
   .hint {
     padding: 12px 16px;
-    color: #666;
+    color: var(--text-secondary);
     font-size: 13px;
   }
 
@@ -157,7 +157,7 @@
     justify-content: space-between;
     padding: 8px 12px;
     cursor: pointer;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-secondary);
   }
 
   .suggestion-item:last-child {
@@ -166,34 +166,34 @@
 
   .suggestion-item:hover,
   .suggestion-item.selected {
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
   }
 
   .suggestion-item.selected {
-    background: #f3e8ff;
+    background: var(--hashtag-bg);
   }
 
   .tag-name {
     font-size: 13px;
     font-weight: 500;
-    color: #7c3aed;
+    color: var(--hashtag-color);
   }
 
   .tag-count {
     font-size: 11px;
-    color: #888;
-    background: #f0f0f0;
+    color: var(--text-tertiary);
+    background: var(--bg-tertiary);
     padding: 1px 6px;
     border-radius: 10px;
   }
 
   .new-tag-label {
     font-size: 12px;
-    color: #888;
+    color: var(--text-tertiary);
     margin-right: 4px;
   }
 
   .create-new {
-    border-top: 1px solid #e0e0e0;
+    border-top: 1px solid var(--border-primary);
   }
 </style>

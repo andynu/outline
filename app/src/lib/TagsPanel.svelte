@@ -189,7 +189,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--border-primary);
     gap: 12px;
   }
 
@@ -198,6 +198,7 @@
     font-size: 18px;
     font-weight: 600;
     flex: 1;
+    color: var(--text-primary);
   }
 
   .back-btn {
@@ -205,7 +206,7 @@
     border: none;
     padding: 4px;
     cursor: pointer;
-    color: #666;
+    color: var(--text-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -213,8 +214,8 @@
   }
 
   .back-btn:hover {
-    background: #f0f0f0;
-    color: #333;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
   }
 
   .back-btn svg {
@@ -226,14 +227,14 @@
     background: none;
     border: none;
     font-size: 24px;
-    color: #666;
+    color: var(--text-secondary);
     cursor: pointer;
     padding: 0;
     line-height: 1;
   }
 
   .close-btn:hover {
-    color: #333;
+    color: var(--text-primary);
   }
 
   .results {
@@ -245,7 +246,7 @@
   .empty-state {
     padding: 40px 20px;
     text-align: center;
-    color: #888;
+    color: var(--text-tertiary);
     font-size: 14px;
   }
 
@@ -259,7 +260,7 @@
 
   .tag-count {
     font-size: 13px;
-    color: #666;
+    color: var(--text-secondary);
   }
 
   .search-btn {
@@ -267,19 +268,19 @@
     align-items: center;
     gap: 6px;
     padding: 6px 10px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-primary);
     border-radius: 6px;
-    background: white;
+    background: var(--bg-elevated);
     cursor: pointer;
     font-size: 12px;
-    color: #666;
+    color: var(--text-secondary);
     transition: all 0.15s;
   }
 
   .search-btn:hover {
-    background: #f5f5f5;
-    border-color: #ccc;
-    color: #333;
+    background: var(--bg-tertiary);
+    border-color: var(--text-tertiary);
+    color: var(--text-primary);
   }
 
   .search-btn svg {
@@ -302,18 +303,18 @@
   }
 
   .tag-item:hover {
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
   }
 
   .tag-name {
     font-size: 14px;
     font-weight: 500;
-    color: #7c3aed;
+    color: var(--hashtag-color);
   }
 
   .tag-count-badge {
-    background: #f3e8ff;
-    color: #7c3aed;
+    background: var(--hashtag-bg);
+    color: var(--hashtag-color);
     padding: 2px 8px;
     border-radius: 10px;
     font-size: 12px;
@@ -334,7 +335,7 @@
   }
 
   .result-item:hover {
-    background: #f5f5f5;
+    background: var(--bg-tertiary);
   }
 
   .result-content {
@@ -348,7 +349,7 @@
   .checkbox-indicator {
     width: 16px;
     height: 16px;
-    border: 2px solid #999;
+    border: 2px solid var(--checkbox-border);
     border-radius: 3px;
     display: flex;
     align-items: center;
@@ -359,8 +360,8 @@
   }
 
   .checkbox-indicator.checked {
-    background: #4caf50;
-    border-color: #4caf50;
+    background: var(--checkbox-checked-bg);
+    border-color: var(--checkbox-checked-bg);
     color: white;
   }
 
@@ -371,21 +372,22 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 14px;
+    color: var(--text-primary);
   }
 
   .content-text.strikethrough {
     text-decoration: line-through;
-    color: #888;
+    color: var(--text-tertiary);
   }
 
   .modal-footer {
     padding: 12px 20px;
-    border-top: 1px solid #e0e0e0;
+    border-top: 1px solid var(--border-primary);
     text-align: center;
   }
 
   .hint {
     font-size: 12px;
-    color: #888;
+    color: var(--text-tertiary);
   }
 </style>

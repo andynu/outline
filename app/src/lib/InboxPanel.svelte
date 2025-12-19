@@ -230,17 +230,18 @@
     align-items: center;
     gap: 12px;
     padding: 16px 20px;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--border-primary);
   }
 
   .modal-header h2 {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
+    color: var(--text-primary);
   }
 
   .badge {
-    background: #2563eb;
+    background: var(--accent-primary);
     color: white;
     font-size: 12px;
     font-weight: 600;
@@ -257,25 +258,25 @@
   .loading, .empty {
     padding: 40px 20px;
     text-align: center;
-    color: #666;
+    color: var(--text-secondary);
   }
 
   .empty .hint {
     font-size: 13px;
-    color: #999;
+    color: var(--text-tertiary);
     margin-top: 8px;
   }
 
   .date-group {
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-secondary);
   }
 
   .date-header {
     padding: 8px 20px;
     font-size: 12px;
     font-weight: 600;
-    color: #666;
-    background: #fafafa;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -283,7 +284,7 @@
   .inbox-item {
     padding: 12px 20px;
     cursor: pointer;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--border-secondary);
   }
 
   .inbox-item:last-child {
@@ -291,22 +292,22 @@
   }
 
   .inbox-item:hover {
-    background: #f9f9f9;
+    background: var(--bg-tertiary);
   }
 
   .inbox-item.selected {
-    background: #e3f2fd;
+    background: var(--selection-bg-strong);
   }
 
   .item-content {
     font-size: 14px;
     line-height: 1.5;
-    color: #333;
+    color: var(--text-primary);
   }
 
   .item-note {
     font-size: 13px;
-    color: #666;
+    color: var(--text-secondary);
     margin-top: 4px;
   }
 
@@ -316,11 +317,11 @@
     gap: 8px;
     margin-top: 6px;
     font-size: 12px;
-    color: #999;
+    color: var(--text-tertiary);
   }
 
   .item-source {
-    background: #f0f0f0;
+    background: var(--bg-tertiary);
     padding: 1px 6px;
     border-radius: 3px;
   }
@@ -330,7 +331,7 @@
     background: none;
     border: none;
     cursor: pointer;
-    color: #999;
+    color: var(--text-tertiary);
     font-size: 16px;
     padding: 0 4px;
     opacity: 0.5;
@@ -338,23 +339,23 @@
 
   .dismiss-btn:hover {
     opacity: 1;
-    color: #f44336;
+    color: var(--status-error);
   }
 
   .modal-footer {
     padding: 12px 20px;
-    border-top: 1px solid #e0e0e0;
-    background: #fafafa;
+    border-top: 1px solid var(--border-primary);
+    background: var(--bg-secondary);
     border-radius: 0 0 12px 12px;
   }
 
   .hint {
     font-size: 12px;
-    color: #666;
+    color: var(--text-secondary);
   }
 
   .hint kbd {
-    background: #e0e0e0;
+    background: var(--btn-secondary-bg);
     padding: 2px 6px;
     border-radius: 4px;
     font-family: inherit;
