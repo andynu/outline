@@ -40,9 +40,11 @@
 
       <div class="shortcut-grid">
         <div class="shortcut-group">
-          <h4>File</h4>
+          <h4>Application</h4>
           <ul>
             <li><kbd>Ctrl+S</kbd> Save</li>
+            <li><kbd>Ctrl+Q</kbd> Quit</li>
+            <li><kbd>Ctrl+/</kbd> This help</li>
           </ul>
         </div>
         <div class="shortcut-group">
@@ -74,9 +76,10 @@
           </ul>
         </div>
         <div class="shortcut-group">
-          <h4>Collapse</h4>
+          <h4>Structure</h4>
           <ul>
-            <li><kbd>Ctrl+.</kbd> Toggle collapse</li>
+            <li><kbd>Ctrl+,</kbd> Outdent</li>
+            <li><kbd>Ctrl+.</kbd> Indent</li>
           </ul>
         </div>
         <div class="shortcut-group">

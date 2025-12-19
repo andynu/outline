@@ -151,6 +151,25 @@
     }
   }
 
+  async function handleQuit() {
+    // Compact before quitting to ensure changes are saved
+    try {
+      await outline.compact();
+    } catch (e) {
+      console.error('Failed to save before quit:', e);
+    }
+
+    // Use Tauri API to close window if available
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      const currentWindow = getCurrentWindow();
+      await currentWindow.close();
+    } catch (e) {
+      // Not in Tauri, or API not available - just close the browser tab
+      window.close();
+    }
+  }
+
   function handleGlobalKeydown(event: KeyboardEvent) {
     // Ctrl+S / Cmd+S: Save (compact)
     if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key === 's') {
@@ -207,10 +226,15 @@
       event.preventDefault();
       showTags = true;
     }
-    // ?: Show keyboard shortcuts
-    else if (event.key === '?' && !event.ctrlKey && !event.altKey) {
+    // Ctrl+/ or ?: Show keyboard shortcuts
+    else if ((event.ctrlKey && event.key === '/') || (event.key === '?' && !event.ctrlKey && !event.altKey)) {
       event.preventDefault();
       showKeyboardShortcuts = true;
+    }
+    // Ctrl+Q: Quit application
+    else if (event.ctrlKey && !event.shiftKey && event.key === 'q') {
+      event.preventDefault();
+      handleQuit();
     }
   }
 
