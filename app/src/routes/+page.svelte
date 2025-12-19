@@ -198,45 +198,123 @@
   <title>Outline</title>
 </svelte:head>
 
-<main>
-  <header>
-    <h1>Outline</h1>
-    <div class="header-buttons">
+<div class="app-chrome">
+  <!-- Menu Bar -->
+  <nav class="menu-bar">
+    <button class="menu-item">File</button>
+    <button class="menu-item">Edit</button>
+    <button class="menu-item">View</button>
+    <button class="menu-item">Help</button>
+  </nav>
+
+  <!-- Icon Toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-left">
       <button
-        class="header-btn inbox-btn"
+        class="toolbar-btn"
+        onclick={() => outline.compact()}
+        title="Save (Compact)"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 8 15 8"/>
+        </svg>
+      </button>
+      <button
+        class="toolbar-btn"
         onclick={() => showInbox = true}
         title="Inbox (Ctrl+I)"
       >
-        Inbox
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+          <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+        </svg>
         {#if inboxCount > 0}
-          <span class="inbox-badge">{inboxCount}</span>
+          <span class="toolbar-badge">{inboxCount}</span>
         {/if}
       </button>
-      <button class="header-btn" onclick={handleExportCalendar} title="Export iCalendar">
-        Export
+      <button
+        class="toolbar-btn"
+        onclick={() => { showDateViews = true; }}
+        title="Date Views (Ctrl+Shift+T)"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
       </button>
-      <button class="header-btn" onclick={() => showKeyboardShortcuts = true} title="Keyboard Shortcuts (?)">
-        ?
+      <button
+        class="toolbar-btn"
+        onclick={handleExportCalendar}
+        title="Export iCalendar"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
       </button>
-      <button class="compact-btn" onclick={() => outline.compact()}>
-        Save
+      <div class="toolbar-separator"></div>
+      <button
+        class="toolbar-btn"
+        onclick={() => showKeyboardShortcuts = true}
+        title="Keyboard Shortcuts (?)"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
       </button>
     </div>
-  </header>
-
-  {#if outline.loading}
-    <div class="loading">Loading...</div>
-  {:else if outline.error}
-    <div class="error">Error: {outline.error}</div>
-  {:else}
-    <div class="outline-container">
-      {#each outline.getTree() as item (item.node.id)}
-        <OutlineItem {item} />
-      {/each}
+    <div class="toolbar-right">
+      <div class="toolbar-search">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input
+          type="text"
+          placeholder="Search (Ctrl+F)"
+          readonly
+          onclick={() => { searchDocumentScope = undefined; showSearchModal = true; }}
+        />
+      </div>
     </div>
-  {/if}
+  </div>
 
-</main>
+  <!-- Main Content Area -->
+  <main class="content-area">
+    {#if outline.loading}
+      <div class="loading">Loading...</div>
+    {:else if outline.error}
+      <div class="error">Error: {outline.error}</div>
+    {:else}
+      <div class="outline-container">
+        {#each outline.getTree() as item (item.node.id)}
+          <OutlineItem {item} />
+        {/each}
+      </div>
+    {/if}
+  </main>
+
+  <!-- Status Bar -->
+  <footer class="status-bar">
+    <span class="status-left">
+      {#if outline.loading}
+        Loading...
+      {:else}
+        {Object.keys(outline.nodes).length} items
+      {/if}
+    </span>
+    <span class="status-right">
+      Outline
+    </span>
+  </footer>
+</div>
 
 <SearchModal
   isOpen={showSearchModal}
@@ -275,86 +353,167 @@
 />
 
 <style>
-  :global(body) {
+  :global(html, body) {
     margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: #fafafa;
     color: #333;
   }
 
-  main {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 20px;
+  /* App Chrome - Full viewport flex layout */
+  .app-chrome {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
   }
 
-  header {
+  /* Menu Bar */
+  .menu-bar {
+    display: flex;
+    gap: 0;
+    padding: 0 8px;
+    background: #f8f8f8;
+    border-bottom: 1px solid #e0e0e0;
+    flex-shrink: 0;
+  }
+
+  .menu-item {
+    padding: 6px 12px;
+    background: transparent;
+    border: none;
+    font-size: 13px;
+    color: #333;
+    cursor: pointer;
+    border-radius: 4px;
+    margin: 2px 0;
+  }
+
+  .menu-item:hover {
+    background: #e8e8e8;
+  }
+
+  /* Icon Toolbar */
+  .toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 24px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid #e0e0e0;
-  }
-
-  h1 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 600;
-  }
-
-  .header-buttons {
-    display: flex;
     gap: 8px;
+    padding: 6px 12px;
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    flex-shrink: 0;
   }
 
-  .header-btn {
-    padding: 8px 16px;
-    background: #f5f5f5;
-    color: #333;
-    border: 1px solid #ddd;
+  .toolbar-left, .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .toolbar-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid transparent;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 14px;
+    color: #555;
     transition: all 0.1s;
   }
 
-  .header-btn:hover {
-    background: #e0e0e0;
-    border-color: #ccc;
+  .toolbar-btn:hover {
+    background: #f0f0f0;
+    border-color: #ddd;
+    color: #333;
   }
 
-  .inbox-btn {
-    position: relative;
-  }
-
-  .inbox-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 18px;
+  .toolbar-btn svg {
+    width: 18px;
     height: 18px;
-    padding: 0 5px;
-    margin-left: 6px;
+  }
+
+  .toolbar-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 4px;
     background: #ef4444;
     color: white;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
-    border-radius: 9px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  .compact-btn {
-    padding: 8px 16px;
-    background: #2563eb;
-    color: white;
-    border: none;
+  .toolbar-separator {
+    width: 1px;
+    height: 24px;
+    background: #e0e0e0;
+    margin: 0 4px;
+  }
+
+  .toolbar-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
     border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
+    width: 200px;
   }
 
-  .compact-btn:hover {
-    background: #1d4ed8;
+  .toolbar-search .search-icon {
+    width: 16px;
+    height: 16px;
+    color: #888;
+    flex-shrink: 0;
+  }
+
+  .toolbar-search input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    color: #333;
+    outline: none;
+    cursor: pointer;
+    min-width: 0;
+  }
+
+  .toolbar-search input::placeholder {
+    color: #888;
+  }
+
+  /* Main Content Area - Flex grow and scroll */
+  .content-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    background: #fafafa;
+  }
+
+  .outline-container {
+    max-width: 900px;
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 16px;
+    min-height: 200px;
   }
 
   .loading, .error {
@@ -367,11 +526,22 @@
     color: #dc2626;
   }
 
-  .outline-container {
-    background: #fff;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    padding: 16px;
-    min-height: 300px;
+  /* Status Bar */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 12px;
+    background: #f0f0f0;
+    border-top: 1px solid #e0e0e0;
+    font-size: 12px;
+    color: #666;
+    flex-shrink: 0;
+  }
+
+  .status-left, .status-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
 </style>
