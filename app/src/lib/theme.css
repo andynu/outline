@@ -64,24 +64,28 @@
 
   /* === SEMANTIC COLORS (for specific UI elements) === */
 
-  /* Date badges - match status colors */
-  --date-overdue: var(--status-error);
+  /* Date badges - urgency-based colors */
+  --date-overdue: var(--status-error);          /* Red - past due */
   --date-overdue-bg: var(--status-error-bg);
   --date-overdue-bg-hover: var(--status-error-bg-hover);
 
-  --date-today: var(--accent-secondary);
+  --date-today: var(--accent-secondary);        /* Orange - today */
   --date-today-bg: var(--accent-secondary-light);
   --date-today-bg-hover: #ebd8c5;
 
-  --date-upcoming: var(--status-info);
-  --date-upcoming-bg: var(--status-info-bg);
-  --date-upcoming-bg-hover: var(--status-info-bg-hover);
+  --date-urgent: var(--accent-secondary);       /* Orange - within 1 week */
+  --date-urgent-bg: var(--accent-secondary-light);
+  --date-urgent-bg-hover: #ebd8c5;
 
-  --date-future: var(--text-secondary);
+  --date-soon: var(--status-warning);           /* Yellow - within 2 weeks */
+  --date-soon-bg: var(--status-warning-bg);
+  --date-soon-bg-hover: var(--status-warning-bg-hover);
+
+  --date-future: var(--text-secondary);         /* Neutral - more than 2 weeks */
   --date-future-bg: var(--bg-tertiary);
   --date-future-bg-hover: #ddd8d0;
 
-  --date-completed: var(--status-success);
+  --date-completed: var(--status-success);      /* Green - completed */
   --date-completed-bg: var(--status-success-bg);
   --date-completed-bg-hover: var(--status-success-bg-hover);
 
@@ -207,8 +211,10 @@
   --status-info-bg: #283038;
   --status-info-bg-hover: #303a45;
 
-  /* Date badges */
+  /* Date badges - dark theme overrides */
   --date-today-bg-hover: #4a3a2a;
+  --date-urgent-bg-hover: #4a3a2a;
+  --date-soon-bg-hover: var(--status-warning-bg-hover);
   --date-future-bg-hover: #3a3835;
 
   /* Wiki links */

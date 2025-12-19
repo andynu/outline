@@ -38,7 +38,7 @@
         case 'today':
           return status === 'today';
         case 'upcoming':
-          return status === 'today' || status === 'upcoming';
+          return status === 'today' || status === 'urgent' || status === 'soon';
         case 'overdue':
           return status === 'overdue';
         case 'all':
@@ -87,7 +87,7 @@
 
   const viewCounts = $derived({
     today: nodesWithDates.filter(n => n.date && getDateStatus(n.date, n.is_checked) === 'today').length,
-    upcoming: nodesWithDates.filter(n => n.date && ['today', 'upcoming'].includes(getDateStatus(n.date, n.is_checked))).length,
+    upcoming: nodesWithDates.filter(n => n.date && ['today', 'urgent', 'soon'].includes(getDateStatus(n.date, n.is_checked))).length,
     overdue: nodesWithDates.filter(n => n.date && getDateStatus(n.date, n.is_checked) === 'overdue').length,
     all: nodesWithDates.length,
   });

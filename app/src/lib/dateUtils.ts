@@ -1,6 +1,6 @@
 // Date utilities for task management
 
-export type DateStatus = 'overdue' | 'today' | 'upcoming' | 'future' | 'completed';
+export type DateStatus = 'overdue' | 'today' | 'urgent' | 'soon' | 'future' | 'completed';
 
 /**
  * Get the status of a date relative to today
@@ -18,7 +18,8 @@ export function getDateStatus(dateStr: string, isChecked: boolean): DateStatus {
 
   if (diffDays < 0) return 'overdue';
   if (diffDays === 0) return 'today';
-  if (diffDays <= 7) return 'upcoming';
+  if (diffDays <= 7) return 'urgent';    // Within 1 week - orange
+  if (diffDays <= 14) return 'soon';     // Within 2 weeks - yellow
   return 'future';
 }
 

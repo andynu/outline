@@ -17,7 +17,8 @@
   class="date-badge"
   class:overdue={status === 'overdue'}
   class:today={status === 'today'}
-  class:upcoming={status === 'upcoming'}
+  class:urgent={status === 'urgent'}
+  class:soon={status === 'soon'}
   class:future={status === 'future'}
   class:completed={status === 'completed'}
   onclick={onclick}
@@ -60,13 +61,22 @@
     background: var(--date-today-bg-hover);
   }
 
-  .date-badge.upcoming {
-    background: var(--date-upcoming-bg);
-    color: var(--date-upcoming);
+  .date-badge.urgent {
+    background: var(--date-urgent-bg);
+    color: var(--date-urgent);
   }
 
-  .date-badge.upcoming:hover {
-    background: var(--date-upcoming-bg-hover);
+  .date-badge.urgent:hover {
+    background: var(--date-urgent-bg-hover);
+  }
+
+  .date-badge.soon {
+    background: var(--date-soon-bg);
+    color: var(--date-soon);
+  }
+
+  .date-badge.soon:hover {
+    background: var(--date-soon-bg-hover);
   }
 
   .date-badge.future {
