@@ -18,6 +18,7 @@ let nodes = $state<Node[]>([]);
 let focusedId = $state<string | null>(null);
 let loading = $state(true);
 let error = $state<string | null>(null);
+let draggedId = $state<string | null>(null);
 
 // Derived: nodes indexed by ID
 function nodesById(): Map<string, Node> {
@@ -91,6 +92,7 @@ export const outline = {
   get focusedId() { return focusedId; },
   get loading() { return loading; },
   get error() { return error; },
+  get draggedId() { return draggedId; },
 
   // Build tree for rendering
   getTree(): TreeNode[] {
@@ -479,5 +481,78 @@ export const outline = {
       const tags = extractHashtags(plainText);
       return tags.includes(tag);
     });
+  },
+
+  // Drag and drop support
+  startDrag(nodeId: string) {
+    draggedId = nodeId;
+  },
+
+  endDrag() {
+    draggedId = null;
+  },
+
+  // Drop a node onto a target (as sibling after target, or as child)
+  async dropOnNode(targetId: string, asChild: boolean = false): Promise<boolean> {
+    if (!draggedId || draggedId === targetId) {
+      draggedId = null;
+      return false;
+    }
+
+    const draggedNode = nodesById().get(draggedId);
+    const targetNode = nodesById().get(targetId);
+
+    if (!draggedNode || !targetNode) {
+      draggedId = null;
+      return false;
+    }
+
+    // Prevent dropping a node onto its own descendant
+    let checkId: string | null = targetId;
+    while (checkId) {
+      if (checkId === draggedId) {
+        draggedId = null;
+        return false;
+      }
+      const node = nodesById().get(checkId);
+      checkId = node?.parent_id ?? null;
+    }
+
+    try {
+      let newParentId: string | null;
+      let newPosition: number;
+
+      if (asChild) {
+        // Drop as first child of target
+        newParentId = targetId;
+        newPosition = 0;
+        // Shift existing children down
+        const existingChildren = childrenOf(targetId);
+        for (const child of existingChildren) {
+          await api.moveNode(child.id, newParentId, child.position + 1);
+        }
+      } else {
+        // Drop as sibling after target
+        newParentId = targetNode.parent_id;
+        const siblings = newParentId === null ? rootNodes() : childrenOf(newParentId);
+        const targetIdx = siblings.findIndex(n => n.id === targetId);
+        newPosition = targetIdx + 1;
+        // Shift siblings after insertion point
+        for (let i = targetIdx + 1; i < siblings.length; i++) {
+          if (siblings[i].id !== draggedId) {
+            await api.moveNode(siblings[i].id, newParentId, siblings[i].position + 1);
+          }
+        }
+      }
+
+      const state = await api.moveNode(draggedId, newParentId, newPosition);
+      updateFromState(state);
+      draggedId = null;
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      draggedId = null;
+      return false;
+    }
   }
 };

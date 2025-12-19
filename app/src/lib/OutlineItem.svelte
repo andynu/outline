@@ -471,46 +471,139 @@
   function handleRowClick(e: MouseEvent) {
     // Don't handle if clicking on buttons or the editor itself
     const target = e.target as HTMLElement;
-    if (target.closest('button') || target.closest('.outline-editor')) {
+    if (target.closest('button') || target.closest('.outline-editor') || target.closest('.drag-handle')) {
       return;
     }
     // Focus the editor at the end when clicking on empty space in the row
     editor?.commands.focus('end');
   }
+
+  // Drag and drop handlers
+  let isDragOver = $state(false);
+  let dropPosition: 'before' | 'after' | 'child' | null = $state(null);
+
+  function handleDragStart(e: DragEvent) {
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', item.node.id);
+    }
+    outline.startDrag(item.node.id);
+  }
+
+  function handleDragEnd(e: DragEvent) {
+    e.stopPropagation();
+    outline.endDrag();
+    isDragOver = false;
+    dropPosition = null;
+  }
+
+  function handleDragOver(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Don't allow dropping on self
+    if (outline.draggedId === item.node.id) {
+      return;
+    }
+
+    isDragOver = true;
+
+    // Determine drop position based on mouse Y position
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const height = rect.height;
+
+    if (y < height * 0.25) {
+      dropPosition = 'before';
+    } else if (y > height * 0.75) {
+      dropPosition = 'after';
+    } else {
+      dropPosition = 'child';
+    }
+
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+  }
+
+  function handleDragLeave(e: DragEvent) {
+    e.stopPropagation();
+    isDragOver = false;
+    dropPosition = null;
+  }
+
+  function handleDrop(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (outline.draggedId && outline.draggedId !== item.node.id) {
+      if (dropPosition === 'child') {
+        outline.dropOnNode(item.node.id, true);
+      } else {
+        outline.dropOnNode(item.node.id, false);
+      }
+    }
+
+    isDragOver = false;
+    dropPosition = null;
+  }
 </script>
 
-<div class="outline-item" class:focused={isFocused} class:checked={item.node.is_checked} style="margin-left: {item.depth * 24}px">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="outline-item"
+  class:focused={isFocused}
+  class:checked={item.node.is_checked}
+  class:drag-over={isDragOver}
+  class:drop-before={dropPosition === 'before'}
+  class:drop-after={dropPosition === 'after'}
+  class:drop-child={dropPosition === 'child'}
+  class:dragging={outline.draggedId === item.node.id}
+  style="margin-left: {item.depth * 24}px"
+  ondragover={handleDragOver}
+  ondragleave={handleDragLeave}
+  ondrop={handleDrop}
+>
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="item-row" onclick={handleRowClick}>
-    {#if item.node.node_type === 'checkbox'}
+    {#if item.hasChildren && item.node.node_type !== 'checkbox'}
       <button
-        class="checkbox-btn"
-        class:checked={item.node.is_checked}
-        onclick={handleCheckboxClick}
-        tabindex="-1"
-        aria-label={item.node.is_checked ? 'Mark incomplete' : 'Mark complete'}
-      >
-        {#if item.node.is_checked}
-          <span class="checkbox-icon checked">✓</span>
-        {:else}
-          <span class="checkbox-icon"></span>
-        {/if}
-      </button>
-    {:else}
-      <button
-        class="collapse-btn"
-        class:has-children={item.hasChildren}
+        class="expand-btn"
         class:collapsed={item.node.collapsed}
         onclick={handleCollapseClick}
         tabindex="-1"
+        aria-label={item.node.collapsed ? 'Expand' : 'Collapse'}
       >
-        {#if item.hasChildren}
-          <span class="collapse-icon">{item.node.collapsed ? '▶' : '▼'}</span>
-        {:else}
-          <span class="bullet">•</span>
-        {/if}
+        <span class="expand-icon">{item.node.collapsed ? '▶' : '▼'}</span>
       </button>
     {/if}
+
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <span
+      class="drag-handle"
+      draggable="true"
+      ondragstart={handleDragStart}
+      ondragend={handleDragEnd}
+    >
+      {#if item.node.node_type === 'checkbox'}
+        <button
+          class="checkbox-btn"
+          class:checked={item.node.is_checked}
+          onclick={handleCheckboxClick}
+          tabindex="-1"
+          aria-label={item.node.is_checked ? 'Mark incomplete' : 'Mark complete'}
+        >
+          {#if item.node.is_checked}
+            <span class="checkbox-icon checked">✓</span>
+          {:else}
+            <span class="checkbox-icon"></span>
+          {/if}
+        </button>
+      {:else}
+        <span class="bullet">•</span>
+      {/if}
+    </span>
 
     <div class="editor-wrapper" bind:this={editorElement}></div>
 
@@ -591,33 +684,6 @@
 
   .focused .item-row {
     background-color: rgba(59, 130, 246, 0.1);
-  }
-
-  .collapse-btn {
-    width: 20px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #666;
-    font-size: 10px;
-    flex-shrink: 0;
-    padding: 0;
-  }
-
-  .collapse-btn:hover {
-    color: #333;
-  }
-
-  .collapse-btn.has-children {
-    cursor: pointer;
-  }
-
-  .collapse-icon {
-    transition: transform 0.15s;
   }
 
   .bullet {
@@ -751,6 +817,87 @@
   }
 
   .children {
-    /* Children indentation handled by --indent on each item */
+    display: block;
+  }
+
+  /* Expand/collapse button */
+  .expand-btn {
+    width: 16px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #999;
+    font-size: 8px;
+    flex-shrink: 0;
+    padding: 0;
+    margin-right: 2px;
+  }
+
+  .expand-btn:hover {
+    color: #333;
+  }
+
+  .expand-icon {
+    transition: transform 0.15s;
+  }
+
+  /* Drag handle (wraps bullet) */
+  .drag-handle {
+    width: 20px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    flex-shrink: 0;
+  }
+
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+
+  /* Drag and drop states */
+  .outline-item.dragging {
+    opacity: 0.4;
+  }
+
+
+  .outline-item.drop-before {
+    position: relative;
+  }
+
+  .outline-item.drop-before::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #3b82f6;
+    border-radius: 1px;
+  }
+
+  .outline-item.drop-after {
+    position: relative;
+  }
+
+  .outline-item.drop-after::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #3b82f6;
+    border-radius: 1px;
+  }
+
+  .outline-item.drop-child .item-row {
+    background: rgba(59, 130, 246, 0.15);
+    border-radius: 4px;
   }
 </style>
