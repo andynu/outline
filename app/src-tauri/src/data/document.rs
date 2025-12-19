@@ -147,16 +147,19 @@ impl Document {
     /// Append an operation to the pending file
     pub fn append_op(&self, op: &Operation) -> Result<(), String> {
         let pending_path = self.pending_path();
+        log::info!("append_op: writing to {:?}", pending_path);
 
         let mut file = OpenOptions::new()
             .create(true)
             .append(true)
             .open(&pending_path)
-            .map_err(|e| format!("Open pending file: {}", e))?;
+            .map_err(|e| format!("Open pending file {:?}: {}", pending_path, e))?;
 
         let json = serde_json::to_string(op).map_err(|e| format!("Serialize op: {}", e))?;
         writeln!(file, "{}", json).map_err(|e| format!("Write op: {}", e))?;
+        file.flush().map_err(|e| format!("Flush pending file: {}", e))?;
 
+        log::info!("append_op: wrote {} bytes", json.len());
         Ok(())
     }
 

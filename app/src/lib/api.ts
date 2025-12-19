@@ -6,18 +6,20 @@ let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unkno
 async function initTauri() {
   if (tauriInvoke !== undefined) return; // Already checked
   try {
-    // Check if we're in a Tauri environment
-    if (typeof window !== 'undefined' && '__TAURI__' in window) {
+    // Check if we're in a Tauri environment (Tauri 2 uses __TAURI_INTERNALS__)
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
       const { invoke } = await import('@tauri-apps/api/core');
       if (invoke) {
         tauriInvoke = invoke;
+        console.log('[API] Tauri mode enabled');
         return;
       }
     }
-  } catch {
-    // Ignore import errors
+  } catch (e) {
+    console.error('[API] Failed to init Tauri:', e);
   }
   // Not in Tauri - use mock mode
+  console.log('[API] Browser-only mock mode');
   tauriInvoke = null;
 }
 
@@ -144,8 +146,12 @@ function createMockData(): DocumentState {
 export async function loadDocument(docId?: string): Promise<DocumentState> {
   await initTauri();
   if (tauriInvoke) {
-    return tauriInvoke('load_document', { docId }) as Promise<DocumentState>;
+    console.log('[API] load_document via Tauri');
+    const result = await tauriInvoke('load_document', { docId }) as DocumentState;
+    console.log('[API] loaded', result.nodes.length, 'nodes');
+    return result;
   }
+  console.log('[API] load_document via mock');
   // Browser-only mode: use mock data
   if (mockState.nodes.length === 0) {
     mockState = createMockData();
@@ -201,8 +207,17 @@ export async function createNode(
 export async function updateNode(id: string, changes: NodeChanges): Promise<DocumentState> {
   await initTauri();
   if (tauriInvoke) {
-    return tauriInvoke('update_node', { id, changes }) as Promise<DocumentState>;
+    console.log('[API] update_node via Tauri:', id, changes);
+    try {
+      const result = await tauriInvoke('update_node', { id, changes }) as DocumentState;
+      console.log('[API] update_node success');
+      return result;
+    } catch (e) {
+      console.error('[API] update_node ERROR:', e);
+      throw e;
+    }
   }
+  console.log('[API] update_node via mock:', id, changes);
 
   // Browser-only mode: update in memory
   const node = mockState.nodes.find(n => n.id === id);
