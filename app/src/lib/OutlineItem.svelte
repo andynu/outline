@@ -357,12 +357,19 @@
             return true;
           }
 
-          // === COLLAPSE ===
+          // === INDENT/DEDENT (alternative shortcuts) ===
 
-          // Ctrl+. : toggle collapse
+          // Ctrl+, : dedent (< without shift)
+          if (event.key === ',' && mod) {
+            event.preventDefault();
+            outline.outdentNode(nodeId);
+            return true;
+          }
+
+          // Ctrl+. : indent (> without shift)
           if (event.key === '.' && mod) {
             event.preventDefault();
-            outline.toggleCollapse(nodeId);
+            outline.indentNode(nodeId);
             return true;
           }
 
