@@ -8,9 +8,10 @@ test.describe('Keyboard shortcuts', () => {
   });
 
   test('Tab indents the current item', async ({ page }) => {
-    // Find "Press Tab to indent" and click it
-    const editor = page.locator('.outline-editor').filter({ hasText: /^Press Tab to indent$/ });
+    // Find "Press Tab to indent" and click it (use editor-wrapper which works for both static and focused)
+    const editor = page.locator('.editor-wrapper').filter({ hasText: /^Press Tab to indent$/ });
     await editor.click();
+    await page.waitForTimeout(100); // Wait for editor to initialize
 
     // Get the focused outline-item (the one with .focused class directly)
     const focusedItem = page.locator('.outline-item.focused');
@@ -30,8 +31,9 @@ test.describe('Keyboard shortcuts', () => {
 
   test('Shift+Tab outdents the current item', async ({ page }) => {
     // Find "Press Shift+Tab to outdent" and click it (it should be at depth 2 initially)
-    const editor = page.locator('.outline-editor').filter({ hasText: /^Press Shift\+Tab to outdent$/ });
+    const editor = page.locator('.editor-wrapper').filter({ hasText: /^Press Shift\+Tab to outdent$/ });
     await editor.click();
+    await page.waitForTimeout(100); // Wait for editor to initialize
 
     // Get the focused outline-item
     const focusedItem = page.locator('.outline-item.focused');
@@ -63,8 +65,9 @@ test.describe('Keyboard shortcuts', () => {
     const initialCount = await page.locator('.outline-item').count();
 
     // Click on first root item to focus it
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
+    await page.waitForTimeout(100); // Wait for editor to initialize
 
     // Press Enter to create new sibling
     await page.keyboard.press('Enter');
@@ -77,19 +80,19 @@ test.describe('Keyboard shortcuts', () => {
 
   test('Arrow keys navigate between items', async ({ page }) => {
     // Click on first item to focus it
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
-    await page.waitForTimeout(50);
+    await page.waitForTimeout(100); // Wait for editor to initialize
 
-    // Get the focused item's text (use first() to avoid strict mode issues)
-    const focusedBefore = await page.locator('.outline-item.focused .outline-editor').first().textContent();
+    // Get the focused item's text (use editor-wrapper which works for both static and focused)
+    const focusedBefore = await page.locator('.outline-item.focused .editor-wrapper').first().textContent();
 
     // Press Down to move to next item
     await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(50);
+    await page.waitForTimeout(100); // Wait for editor to initialize on new item
 
     // Check that focus moved to a different item
-    const focusedAfter = await page.locator('.outline-item.focused .outline-editor').first().textContent();
+    const focusedAfter = await page.locator('.outline-item.focused .editor-wrapper').first().textContent();
     expect(focusedAfter).not.toBe(focusedBefore);
   });
 });

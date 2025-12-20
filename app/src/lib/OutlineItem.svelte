@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onDestroy } from 'svelte';
   import { Editor } from '@tiptap/core';
   import StarterKit from '@tiptap/starter-kit';
   import { outline } from './outline.svelte';
@@ -28,6 +28,7 @@
 
   let editor: Editor | undefined = $state();
   let editorElement: HTMLDivElement | undefined = $state();
+  let staticElement: HTMLDivElement | undefined = $state();
   let tabHandler: ((e: KeyboardEvent) => void) | undefined;
 
   // Wiki link suggestion state
@@ -73,18 +74,29 @@
     }
   });
 
-  // Focus editor when this node becomes focused
+  // Lazy editor creation - only create TipTap when focused
   $effect(() => {
-    if (isFocused && editor) {
-      // Small delay to ensure editor is ready
-      setTimeout(() => {
-        editor?.commands.focus('end');
-      }, 0);
+    if (!isFocused) {
+      // Destroy editor when losing focus to free memory
+      if (editor) {
+        editor.destroy();
+        editor = undefined;
+      }
+      if (editorElement && tabHandler) {
+        editorElement.removeEventListener('keydown', tabHandler, { capture: true });
+        tabHandler = undefined;
+      }
+      return;
     }
-  });
 
-  onMount(() => {
+    // Wait for editorElement to be available
     if (!editorElement) return;
+
+    // Already have editor
+    if (editor) {
+      editor.commands.focus('end');
+      return;
+    }
 
     // Capture Tab before browser focus navigation - must use capture phase
     tabHandler = (event: KeyboardEvent) => {
@@ -469,6 +481,11 @@
         outline.focus(item.node.id);
       }
     });
+
+    // Focus the newly created editor
+    setTimeout(() => {
+      editor?.commands.focus('end');
+    }, 0);
   });
 
   onDestroy(() => {
@@ -595,11 +612,80 @@
   function handleRowClick(e: MouseEvent) {
     // Don't handle if clicking on buttons or the editor itself
     const target = e.target as HTMLElement;
-    if (target.closest('button') || target.closest('.outline-editor') || target.closest('.drag-handle')) {
+    if (target.closest('button') || target.closest('.outline-editor') || target.closest('.drag-handle') || target.closest('.static-content')) {
       return;
     }
     // Focus the editor at the end when clicking on empty space in the row
     editor?.commands.focus('end');
+  }
+
+  function handleStaticClick(e: MouseEvent) {
+    const target = e.target as HTMLElement;
+
+    // Handle wiki link clicks
+    const wikiLink = target.closest('.wiki-link');
+    if (wikiLink) {
+      e.preventDefault();
+      e.stopPropagation();
+      const nodeId = wikiLink.getAttribute('data-node-id');
+      if (nodeId) {
+        if (onNavigateToNode) {
+          onNavigateToNode(nodeId);
+        } else {
+          outline.focus(nodeId);
+        }
+      }
+      return;
+    }
+
+    // Handle hashtag clicks
+    const hashtag = target.closest('.hashtag');
+    if (hashtag) {
+      e.preventDefault();
+      e.stopPropagation();
+      const tag = hashtag.getAttribute('data-tag');
+      if (tag) {
+        window.dispatchEvent(new CustomEvent('hashtag-search', { detail: { tag } }));
+      }
+      return;
+    }
+
+    // Handle mention clicks
+    const mention = target.closest('.mention');
+    if (mention) {
+      e.preventDefault();
+      e.stopPropagation();
+      const mentionName = mention.getAttribute('data-mention');
+      if (mentionName) {
+        window.dispatchEvent(new CustomEvent('mention-search', { detail: { mention: mentionName } }));
+      }
+      return;
+    }
+
+    // Handle auto-link clicks
+    const autoLink = target.closest('.auto-link');
+    if (autoLink) {
+      e.preventDefault();
+      e.stopPropagation();
+      const href = autoLink.getAttribute('href');
+      if (href) {
+        window.open(href, '_blank');
+      }
+      return;
+    }
+
+    // Handle due-date clicks
+    const dueDate = target.closest('.due-date');
+    if (dueDate) {
+      e.preventDefault();
+      e.stopPropagation();
+      // Focus first, then open date picker
+      outline.focus(item.node.id);
+      return;
+    }
+
+    // Default: focus this node to enter edit mode
+    outline.focus(item.node.id);
   }
 
   // Drag and drop handlers
@@ -802,7 +888,18 @@
       {/if}
     </span>
 
-    <div class="editor-wrapper" bind:this={editorElement}></div>
+    {#if isFocused}
+      <div class="editor-wrapper" bind:this={editorElement}></div>
+    {:else}
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+      <div
+        class="editor-wrapper static-content"
+        bind:this={staticElement}
+        onclick={handleStaticClick}
+      >
+        {@html item.node.content || '<p></p>'}
+      </div>
+    {/if}
 
     {#if item.node.date_recurrence}
       <span class="recurrence-indicator" title="Recurring: {item.node.date_recurrence}">🔄</span>
@@ -951,9 +1048,37 @@
   }
 
   /* Strikethrough for checked items */
-  .outline-item.checked .editor-wrapper :global(.outline-editor) {
+  .outline-item.checked .editor-wrapper :global(.outline-editor),
+  .outline-item.checked .editor-wrapper.static-content {
     text-decoration: line-through;
     color: var(--text-tertiary);
+  }
+
+  /* Static content (non-focused items) - matches editor styling */
+  .static-content {
+    cursor: text;
+    min-height: 24px;
+    line-height: 24px;
+  }
+
+  .static-content :global(p) {
+    margin: 0;
+  }
+
+  .static-content :global(strong) {
+    font-weight: 600;
+  }
+
+  .static-content :global(em) {
+    font-style: italic;
+  }
+
+  .static-content :global(code) {
+    background: var(--bg-tertiary);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 0.9em;
   }
 
   .recurrence-indicator {
