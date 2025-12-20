@@ -434,8 +434,8 @@
             return true;
           }
 
-          // Ctrl+Shift+C: toggle node type (bullet <-> checkbox)
-          if (event.key === 'c' && mod && event.shiftKey) {
+          // Ctrl+Shift+X: toggle node type (bullet <-> checkbox)
+          if (event.key.toLowerCase() === 'x' && mod && event.shiftKey) {
             event.preventDefault();
             outline.toggleNodeType(nodeId);
             return true;
@@ -451,7 +451,7 @@
           }
 
           // Ctrl+Shift+D: clear date
-          if (event.key === 'd' && mod && event.shiftKey) {
+          if (event.key.toLowerCase() === 'd' && mod && event.shiftKey) {
             event.preventDefault();
             outline.clearDate(nodeId);
             return true;
@@ -789,7 +789,7 @@
     {
       label: item.node.node_type === 'checkbox' ? 'Convert to Bullet' : 'Convert to Checkbox',
       action: () => outline.toggleNodeType(item.node.id),
-      shortcut: 'Ctrl+Shift+C',
+      shortcut: 'Ctrl+Shift+X',
     },
     { separator: true as const },
     {

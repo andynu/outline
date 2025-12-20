@@ -86,7 +86,7 @@
         <div class="shortcut-group">
           <h4>Tasks & Dates</h4>
           <ul>
-            <li><kbd>Ctrl+Shift+C</kbd> Toggle checkbox</li>
+            <li><kbd>Ctrl+Shift+X</kbd> Toggle checkbox</li>
             <li><kbd>Ctrl+Enter</kbd> Check/uncheck</li>
             <li><kbd>Ctrl+D</kbd> Set date</li>
             <li><kbd>Ctrl+Shift+D</kbd> Clear date</li>
