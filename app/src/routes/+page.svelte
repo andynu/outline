@@ -263,6 +263,11 @@
       event.preventDefault();
       showTags = true;
     }
+    // Ctrl+Shift+H: Toggle hide completed items
+    else if (event.ctrlKey && event.shiftKey && event.key === 'H') {
+      event.preventDefault();
+      outline.toggleHideCompleted();
+    }
     // Ctrl+/ or ?: Show keyboard shortcuts
     else if ((event.ctrlKey && event.key === '/') || (event.key === '?' && !event.ctrlKey && !event.altKey)) {
       event.preventDefault();
@@ -679,7 +684,12 @@
       {#if outline.loading}
         Loading...
       {:else}
-        {outline.nodes.length} items
+        {@const total = outline.nodes.length}
+        {@const incomplete = outline.nodes.filter(n => !n.is_checked).length}
+        {incomplete} incomplete / {total} total
+        {#if outline.hideCompleted}
+          <span class="filter-indicator">(hiding completed)</span>
+        {/if}
       {/if}
     </span>
     <span class="status-right">
@@ -1028,5 +1038,11 @@
     background: var(--bg-tertiary);
     padding: 2px 6px;
     border-radius: 3px;
+  }
+
+  .filter-indicator {
+    color: var(--text-tertiary);
+    font-style: italic;
+    margin-left: 4px;
   }
 </style>

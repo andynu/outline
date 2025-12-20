@@ -68,11 +68,12 @@
           </ul>
         </div>
         <div class="shortcut-group">
-          <h4>Search</h4>
+          <h4>Search & View</h4>
           <ul>
             <li><kbd>Ctrl+F</kbd> Search document</li>
             <li><kbd>Ctrl+Shift+F</kbd> Global search</li>
             <li><kbd>Ctrl+I</kbd> Inbox</li>
+            <li><kbd>Ctrl+Shift+H</kbd> Hide completed</li>
           </ul>
         </div>
         <div class="shortcut-group">
