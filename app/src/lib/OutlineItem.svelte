@@ -170,6 +170,28 @@
           const state = view.state;
           const prevChar = from > 0 ? state.doc.textBetween(from - 1, from) : '';
 
+          // Auto-convert [ ] and [x] to checkboxes when followed by space
+          if (text === ' ' && from >= 3) {
+            const prefix = state.doc.textBetween(1, from);
+            // Match [ ] or [x] or [X] at start of line
+            if (prefix === '[ ]' || prefix === '[x]' || prefix === '[X]') {
+              const isChecked = prefix !== '[ ]';
+              // Delete the prefix text
+              view.dispatch(
+                state.tr.delete(1, from)
+              );
+              // Convert to checkbox via outline
+              if (item.node.node_type !== 'checkbox') {
+                outline.toggleNodeType(item.node.id);
+              }
+              // Set checked state if [x]
+              if (isChecked && !item.node.is_checked) {
+                outline.toggleCheckbox(item.node.id);
+              }
+              return true;
+            }
+          }
+
           // Detect [[ trigger for wiki links
           if (text === '[' && prevChar === '[') {
             showWikiLinkSuggestion = true;
