@@ -56,6 +56,16 @@
     }
   }
 
+  // Initialize hide completed state from localStorage
+  function initHideCompletedState() {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('outline-hide-completed');
+      if (stored === 'true') {
+        outline.setHideCompleted(true);
+      }
+    }
+  }
+
   async function handleSelectDocument(docId: string) {
     currentDocumentId = docId;
     await outline.load(docId);
@@ -75,6 +85,7 @@
     theme.init();
     zoom.init();
     initSidebarState();
+    initHideCompletedState();
     outline.load();
     refreshInboxCount();
     // Poll inbox count every 30 seconds
@@ -413,6 +424,12 @@
 
   // View menu items
   const viewMenuItems = $derived([
+    {
+      label: outline.hideCompleted ? 'Show Completed Items' : 'Hide Completed Items',
+      action: () => outline.toggleHideCompleted(),
+      separator: false as const
+    },
+    { separator: true as const },
     {
       label: theme.isDark ? 'Light Mode' : 'Dark Mode',
       action: () => theme.toggle(),

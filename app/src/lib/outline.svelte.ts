@@ -47,6 +47,7 @@ let draggedId = $state<string | null>(null);
 let pendingOperations = $state(0);
 let lastSavedAt = $state<Date | null>(null);
 let filterQuery = $state<string | null>(null);  // e.g., "#tag" or "@mention"
+let hideCompleted = $state(false);  // Hide completed items from view
 
 // Lock to prevent concurrent position-changing operations
 let isMoving = false;
@@ -101,27 +102,39 @@ function getFilteredNodeIds(filter: string): Set<string> {
 }
 
 // Build tree structure for rendering
-function buildTree(parentId: string | null, depth: number, filteredIds?: Set<string>): TreeNode[] {
+function buildTree(parentId: string | null, depth: number, filteredIds?: Set<string>, excludeCompleted: boolean = false): TreeNode[] {
   const children = parentId === null ? rootNodes() : childrenOf(parentId);
 
-  // Filter children if we have a filter active
-  const visibleChildren = filteredIds
-    ? children.filter(n => filteredIds.has(n.id))
-    : children;
+  // Filter children based on active filters
+  let visibleChildren = children;
+
+  // Filter by ID set if provided
+  if (filteredIds) {
+    visibleChildren = visibleChildren.filter(n => filteredIds.has(n.id));
+  }
+
+  // Filter out completed items if hideCompleted is active
+  if (excludeCompleted) {
+    visibleChildren = visibleChildren.filter(n => !n.is_checked);
+  }
 
   return visibleChildren.map(node => {
     const nodeChildren = childrenOf(node.id);
-    // When filtering, check if any children are in the filtered set
-    const hasVisibleChildren = filteredIds
-      ? nodeChildren.some(c => filteredIds.has(c.id))
-      : nodeChildren.length > 0;
+    // When filtering, check if any children are visible
+    let hasVisibleChildren = nodeChildren.length > 0;
+    if (filteredIds) {
+      hasVisibleChildren = nodeChildren.some(c => filteredIds.has(c.id));
+    }
+    if (excludeCompleted) {
+      hasVisibleChildren = hasVisibleChildren && nodeChildren.some(c => !c.is_checked);
+    }
 
     return {
       node,
       depth,
       hasChildren: hasVisibleChildren,
       // When filtering, expand all nodes to show matches; otherwise respect collapsed state
-      children: (filteredIds || !node.collapsed) ? buildTree(node.id, depth + 1, filteredIds) : []
+      children: (filteredIds || !node.collapsed) ? buildTree(node.id, depth + 1, filteredIds, excludeCompleted) : []
     };
   });
 }
@@ -179,6 +192,7 @@ export const outline = {
   get isSaving() { return pendingOperations > 0; },
   get lastSavedAt() { return lastSavedAt; },
   get filterQuery() { return filterQuery; },
+  get hideCompleted() { return hideCompleted; },
 
   // Set filter (e.g., "#tag" or "@mention")
   setFilter(query: string | null) {
@@ -190,16 +204,29 @@ export const outline = {
     filterQuery = null;
   },
 
-  // Build tree for rendering (respects active filter)
-  getTree(): TreeNode[] {
-    const filteredIds = filterQuery ? getFilteredNodeIds(filterQuery) : undefined;
-    return buildTree(null, 0, filteredIds);
+  // Toggle hiding completed items
+  toggleHideCompleted() {
+    hideCompleted = !hideCompleted;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('outline-hide-completed', String(hideCompleted));
+    }
   },
 
-  // Get visible nodes in order (respects active filter)
+  // Set hideCompleted state (used during initialization)
+  setHideCompleted(value: boolean) {
+    hideCompleted = value;
+  },
+
+  // Build tree for rendering (respects active filter and hideCompleted)
+  getTree(): TreeNode[] {
+    const filteredIds = filterQuery ? getFilteredNodeIds(filterQuery) : undefined;
+    return buildTree(null, 0, filteredIds, hideCompleted);
+  },
+
+  // Get visible nodes in order (respects active filter and hideCompleted)
   getVisibleNodes(): Node[] {
     const filteredIds = filterQuery ? getFilteredNodeIds(filterQuery) : undefined;
-    return flattenTree(buildTree(null, 0, filteredIds));
+    return flattenTree(buildTree(null, 0, filteredIds, hideCompleted));
   },
 
   // Get a node by ID
