@@ -10,11 +10,35 @@ export interface AutoLinkOptions {
 // URL regex pattern - matches http(s), ftp, and www URLs
 const URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.)[^\s<>[\]{}|\\^`"']+/g;
 
+// Markdown link pattern - used to exclude URLs inside markdown syntax
+const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\(((?:https?:\/\/|ftp:\/\/|www\.)[^\s)]+)\)/g;
+
 // Find all URLs in text and return their positions
+// Excludes URLs that are part of markdown link syntax [text](url)
 function findUrls(text: string, startPos: number): Array<{ from: number; to: number; url: string }> {
   const matches: Array<{ from: number; to: number; url: string }> = [];
 
+  // First, find all markdown links to exclude their URLs
+  const markdownLinkRanges: Array<{ start: number; end: number }> = [];
+  for (const match of text.matchAll(MARKDOWN_LINK_PATTERN)) {
+    markdownLinkRanges.push({
+      start: match.index!,
+      end: match.index! + match[0].length,
+    });
+  }
+
+  // Find URLs and exclude those inside markdown links
   for (const match of text.matchAll(URL_PATTERN)) {
+    const urlStart = match.index!;
+
+    // Check if this URL is inside a markdown link
+    const isInsideMarkdownLink = markdownLinkRanges.some(
+      range => urlStart >= range.start && urlStart < range.end
+    );
+    if (isInsideMarkdownLink) {
+      continue; // Skip URLs inside markdown links
+    }
+
     let url = match[0];
     // Clean trailing punctuation that's likely not part of URL
     const trailingPunct = /[.,;:!?)]+$/;

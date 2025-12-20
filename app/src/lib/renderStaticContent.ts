@@ -10,6 +10,7 @@ import { getDateStatus } from './dateUtils';
 const HASHTAG_PATTERN = /(?:^|(?<=\s))#([a-zA-Z][a-zA-Z0-9_-]*)/g;
 const MENTION_PATTERN = /(?:^|(?<=\s))@([a-zA-Z][a-zA-Z0-9_-]*)/g;
 const DUE_DATE_PATTERN = /!\((\d{4}-\d{2}-\d{2})\)/g;
+const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\(((?:https?:\/\/|ftp:\/\/|www\.)[^\s)]+)\)/g;
 const URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.)[^\s<>[\]{}|\\^`"']+/g;
 
 /**
@@ -101,6 +102,34 @@ function processTextNode(textNode: Text): Node[] | null {
         span.dataset.date = date;
         span.textContent = `!(${date})`;
         return [span];
+      }
+    });
+  }
+
+  // Find markdown links: [text](url) - must come before plain URLs
+  for (const match of text.matchAll(MARKDOWN_LINK_PATTERN)) {
+    const displayText = match[1];
+    let url = match[2];
+    const start = match.index!;
+    const end = start + match[0].length;
+
+    // Add https:// prefix to www URLs
+    if (url.startsWith('www.')) {
+      url = `https://${url}`;
+    }
+
+    replacements.push({
+      start,
+      end,
+      createNodes: () => {
+        const link = document.createElement('a');
+        link.className = 'markdown-link';
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = displayText;
+        link.dataset.markdownLink = '';
+        return [link];
       }
     });
   }

@@ -7,6 +7,7 @@
   import OutlineItem from './OutlineItem.svelte';
   import { WikiLink } from './WikiLink';
   import { AutoLink } from './AutoLink';
+  import { MarkdownLink } from './MarkdownLink';
   import { Hashtag } from './Hashtag';
   import { Mention } from './Mention';
   import { DueDate } from './DueDate';
@@ -164,6 +165,7 @@
           },
         }),
         AutoLink,
+        MarkdownLink,
         Hashtag.configure({
           onHashtagClick: (tag: string) => {
             // Dispatch custom event for parent to handle search
@@ -1171,6 +1173,17 @@
 
   .editor-wrapper :global(.auto-link:hover) {
     text-decoration-color: var(--auto-link-color);
+  }
+
+  /* Markdown links: [text](url) - subtle styling while editing, rendered as link when unfocused */
+  .editor-wrapper :global(.markdown-link-syntax) {
+    color: var(--auto-link-color);
+    cursor: pointer;
+    border-bottom: 1px dashed var(--auto-link-underline);
+  }
+
+  .editor-wrapper :global(.markdown-link-syntax:hover) {
+    border-bottom-color: var(--auto-link-color);
   }
 
   .editor-wrapper :global(.hashtag) {
