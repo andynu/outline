@@ -125,6 +125,19 @@
     };
     window.addEventListener('mention-search', handleMentionSearch);
 
+    // Handle Ctrl+mousewheel for zoom
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) {
+        event.preventDefault();
+        if (event.deltaY < 0) {
+          zoom.zoomIn();
+        } else if (event.deltaY > 0) {
+          zoom.zoomOut();
+        }
+      }
+    };
+    document.addEventListener('wheel', handleWheel, { passive: false });
+
     return () => {
       clearInterval(inboxInterval);
       clearInterval(syncInterval);
@@ -132,6 +145,7 @@
       document.removeEventListener('keydown', handleTabKey, { capture: true });
       window.removeEventListener('hashtag-search', handleHashtagSearch);
       window.removeEventListener('mention-search', handleMentionSearch);
+      document.removeEventListener('wheel', handleWheel);
     };
   });
 
