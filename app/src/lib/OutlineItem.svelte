@@ -825,10 +825,13 @@
   {/if}
 
   {#if item.hasChildren && !item.node.collapsed}
-    <div class="children">
-      {#each item.children as child (child.node.id)}
-        <OutlineItem item={child} {onNavigateToNode} />
-      {/each}
+    <div class="children-wrapper">
+      <div class="indent-guide"></div>
+      <div class="children">
+        {#each item.children as child (child.node.id)}
+          <OutlineItem item={child} {onNavigateToNode} />
+        {/each}
+      </div>
     </div>
   {/if}
 </div>
@@ -1104,6 +1107,21 @@
 
   .editor-wrapper :global(.due-date-completed:hover) {
     background: var(--date-completed-bg-hover);
+  }
+
+  .children-wrapper {
+    position: relative;
+    display: block;
+  }
+
+  .indent-guide {
+    position: absolute;
+    left: 9px; /* Center under the bullet (20px drag-handle / 2 - 1px line / 2) */
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--indent-guide-color);
+    opacity: 0.5;
   }
 
   .children {

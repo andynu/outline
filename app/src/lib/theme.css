@@ -120,6 +120,9 @@
   /* Drop indicator */
   --drop-indicator: var(--accent-primary);
 
+  /* Indent guide lines */
+  --indent-guide-color: var(--border-primary);
+
   /* Highlight (search matches) */
   --highlight-bg: #e8dca8;  /* Muted yellow highlighter */
 
@@ -241,6 +244,9 @@
   /* Selection/Focus */
   --selection-bg: rgba(90, 148, 148, 0.2);
   --selection-bg-strong: rgba(90, 148, 148, 0.35);
+
+  /* Indent guide lines - slightly brighter in dark mode */
+  --indent-guide-color: #4a4745;
 
   /* Highlight (search matches) */
   --highlight-bg: #4a4428;
