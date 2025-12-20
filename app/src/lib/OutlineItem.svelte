@@ -298,7 +298,9 @@
               return true;
             }
             // Let ArrowUp/Down/Enter pass to suggestion component
+            // But prevent default to avoid inserting newline on Enter
             if (['ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) {
+              event.preventDefault();
               return false; // Let window handler catch it
             }
           }
@@ -311,7 +313,9 @@
               return true;
             }
             // Let ArrowUp/Down/Enter/Tab pass to suggestion component
+            // But prevent default to avoid inserting newline on Enter
             if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab'].includes(event.key)) {
+              event.preventDefault();
               return false; // Let window handler catch it
             }
           }
@@ -324,7 +328,9 @@
               return true;
             }
             // Let ArrowUp/Down/Enter/Tab pass to suggestion component
+            // But prevent default to avoid inserting newline on Enter
             if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab'].includes(event.key)) {
+              event.preventDefault();
               return false; // Let window handler catch it
             }
           }
