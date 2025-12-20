@@ -402,15 +402,12 @@
             return true;
           }
 
-          // === CHECKBOX ===
+          // === COMPLETION ===
 
-          // Ctrl+Enter: toggle checkbox (if checkbox type)
+          // Ctrl+Enter: toggle completion (works for any item type)
           if (event.key === 'Enter' && mod && !event.shiftKey) {
             event.preventDefault();
-            const node = outline.getNode(nodeId);
-            if (node?.node_type === 'checkbox') {
-              outline.toggleCheckbox(nodeId);
-            }
+            outline.toggleCheckbox(nodeId);
             return true;
           }
 
@@ -815,6 +812,11 @@
   .bullet {
     font-size: 14px;
     color: var(--text-tertiary);
+  }
+
+  /* Dim bullet for completed non-checkbox items */
+  .outline-item.checked .bullet {
+    opacity: 0.4;
   }
 
   .checkbox-btn {
