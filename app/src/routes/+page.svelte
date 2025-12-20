@@ -14,6 +14,7 @@
   import { generateIcalFeed, getInboxCount, createDocument, exportOpml, exportMarkdown, exportJson } from '$lib/api';
   import type { InboxItem } from '$lib/api';
   import { theme } from '$lib/theme.svelte';
+  import { zoom } from '$lib/zoom.svelte';
 
   let showSearchModal = $state(false);
   let searchDocumentScope: string | undefined = $state(undefined);
@@ -72,6 +73,7 @@
 
   onMount(() => {
     theme.init();
+    zoom.init();
     initSidebarState();
     outline.load();
     refreshInboxCount();
@@ -249,6 +251,21 @@
     else if (event.key === 'Escape' && outline.filterQuery && !showSearchModal && !showQuickNav && !showQuickMove && !showDateViews && !showTags && !showInbox && !showKeyboardShortcuts) {
       event.preventDefault();
       outline.clearFilter();
+    }
+    // Ctrl+= or Ctrl++: Zoom in
+    else if (event.ctrlKey && (event.key === '=' || event.key === '+')) {
+      event.preventDefault();
+      zoom.zoomIn();
+    }
+    // Ctrl+-: Zoom out
+    else if (event.ctrlKey && event.key === '-') {
+      event.preventDefault();
+      zoom.zoomOut();
+    }
+    // Ctrl+0: Reset zoom
+    else if (event.ctrlKey && event.key === '0') {
+      event.preventDefault();
+      zoom.reset();
     }
   }
 
@@ -604,6 +621,9 @@
       {/if}
     </span>
     <span class="status-right">
+      {#if zoom.level !== 1}
+        <span class="zoom-status">{zoom.percentage}%</span>
+      {/if}
       {#if outline.isSaving}
         <span class="save-status saving">Saving...</span>
       {:else if outline.lastSavedAt}
@@ -669,6 +689,7 @@
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: var(--bg-primary);
     color: var(--text-primary);
+    --zoom-level: 1;
   }
 
   /* App Chrome - Full viewport flex layout */
@@ -677,6 +698,7 @@
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
+    font-size: calc(14px * var(--zoom-level));
   }
 
   /* Menu Bar */
@@ -936,5 +958,13 @@
 
   .save-status.saved {
     color: var(--save-status-saved);
+  }
+
+  .zoom-status {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 3px;
   }
 </style>
