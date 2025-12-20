@@ -11,7 +11,7 @@
   import MenuDropdown from '$lib/MenuDropdown.svelte';
   import { outline } from '$lib/outline.svelte';
   import KeyboardShortcutsModal from '$lib/KeyboardShortcutsModal.svelte';
-  import { generateIcalFeed, getInboxCount, createDocument, exportOpml, exportMarkdown, exportJson } from '$lib/api';
+  import { generateIcalFeed, getInboxCount, createDocument, exportOpml, exportMarkdown, exportJson, importOpmlAsDocument } from '$lib/api';
   import type { InboxItem } from '$lib/api';
   import { theme } from '$lib/theme.svelte';
   import { zoom } from '$lib/zoom.svelte';
@@ -399,6 +399,29 @@
     URL.revokeObjectURL(url);
   }
 
+  async function handleImportOpml() {
+    try {
+      // Create a file input and trigger it
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.opml,.xml';
+      input.onchange = async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+
+        const content = await file.text();
+        const result = await importOpmlAsDocument(content);
+        console.log(`Imported "${result.title}" with ${result.node_count} nodes`);
+
+        // Load the newly imported document
+        await outline.load(result.doc_id);
+      };
+      input.click();
+    } catch (e) {
+      console.error('Failed to import OPML:', e);
+    }
+  }
+
   // Menu dropdown state
   let openMenu = $state<string | null>(null);
 
@@ -413,6 +436,8 @@
   // File menu items
   const fileMenuItems = [
     { label: 'Save', shortcut: 'Ctrl+S', action: handleSave, separator: false as const },
+    { separator: true as const },
+    { label: 'Import OPML...', action: handleImportOpml, separator: false as const },
     { separator: true as const },
     { label: 'Export as OPML...', action: handleExportOpml, separator: false as const },
     { label: 'Export as Markdown...', action: handleExportMarkdown, separator: false as const },

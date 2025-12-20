@@ -483,6 +483,28 @@ export async function importOpml(content: string): Promise<DocumentState> {
   return mockState;
 }
 
+// Result from importing OPML as a new document
+export interface ImportOpmlResult {
+  doc_id: string;
+  title: string;
+  node_count: number;
+}
+
+// Import OPML content as a new document
+export async function importOpmlAsDocument(content: string): Promise<ImportOpmlResult> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('import_opml_as_document', { content }) as Promise<ImportOpmlResult>;
+  }
+  // Browser-only mode: create mock document
+  console.warn('OPML import as document not fully supported in browser-only mode');
+  return {
+    doc_id: 'mock-import-' + Date.now(),
+    title: 'Imported Document',
+    node_count: 0,
+  };
+}
+
 // Export current document to OPML format
 export async function exportOpml(title: string): Promise<string> {
   await initTauri();

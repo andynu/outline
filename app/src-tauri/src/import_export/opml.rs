@@ -6,6 +6,48 @@ use uuid::Uuid;
 
 use crate::data::Node;
 
+/// Extract title from OPML content
+pub fn get_opml_title(content: &str) -> Option<String> {
+    let mut reader = Reader::from_str(content);
+    reader.config_mut().trim_text(true);
+
+    let mut buf = Vec::new();
+    let mut in_head = false;
+    let mut in_title = false;
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => {
+                let name = e.name();
+                let tag_name = String::from_utf8_lossy(name.as_ref());
+                if tag_name == "head" {
+                    in_head = true;
+                } else if tag_name == "title" && in_head {
+                    in_title = true;
+                }
+            }
+            Ok(Event::Text(ref e)) if in_title => {
+                if let Ok(text) = e.unescape() {
+                    return Some(text.to_string());
+                }
+            }
+            Ok(Event::End(ref e)) => {
+                let name = e.name();
+                let tag_name = String::from_utf8_lossy(name.as_ref());
+                if tag_name == "head" {
+                    return None; // Title not found in head
+                } else if tag_name == "title" {
+                    in_title = false;
+                }
+            }
+            Ok(Event::Eof) => return None,
+            Err(_) => return None,
+            _ => {}
+        }
+        buf.clear();
+    }
+}
+
 /// Parse OPML content and return a list of nodes
 pub fn parse_opml(content: &str) -> Result<Vec<Node>, String> {
     let mut reader = Reader::from_str(content);
@@ -69,6 +111,8 @@ fn parse_outline_element(
 ) -> Result<Node, String> {
     let mut text = String::new();
     let mut note: Option<String> = None;
+    let mut is_checked = false;
+    let mut color: Option<String> = None;
 
     for attr in e.attributes().flatten() {
         let key = String::from_utf8_lossy(attr.key.as_ref());
@@ -80,6 +124,20 @@ fn parse_outline_element(
         match key.as_ref() {
             "text" => text = value,
             "_note" => note = Some(value),
+            // Dynalist uses "complete" attribute for checked items
+            "complete" => is_checked = value == "true",
+            // Dynalist color labels: 1=red, 2=orange, 3=yellow, 4=green, 5=blue, 6=purple
+            "colorLabel" => {
+                color = match value.as_str() {
+                    "1" => Some("red".to_string()),
+                    "2" => Some("orange".to_string()),
+                    "3" => Some("yellow".to_string()),
+                    "4" => Some("green".to_string()),
+                    "5" => Some("blue".to_string()),
+                    "6" => Some("purple".to_string()),
+                    _ => None,
+                };
+            }
             _ => {}
         }
     }
@@ -93,6 +151,13 @@ fn parse_outline_element(
         (None, 0)
     };
 
+    // If is_checked, treat it as a checkbox type
+    let node_type = if is_checked {
+        crate::data::NodeType::Checkbox
+    } else {
+        crate::data::NodeType::Bullet
+    };
+
     let now = Utc::now();
     Ok(Node {
         id: Uuid::now_v7(),
@@ -100,10 +165,10 @@ fn parse_outline_element(
         position,
         content: text,
         note,
-        node_type: crate::data::NodeType::Bullet,
+        node_type,
         heading_level: None,
-        is_checked: false,
-        color: None,
+        is_checked,
+        color,
         tags: Vec::new(),
         date: None,
         date_recurrence: None,
@@ -342,5 +407,66 @@ mod tests {
             assert_eq!(a.content, b.content);
             assert_eq!(a.position, b.position);
         }
+    }
+
+    #[test]
+    fn test_parse_dynalist_complete_and_colors() {
+        // Dynalist export with complete and colorLabel attributes
+        let opml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+<head><title>Dynalist Export</title></head>
+<body>
+<outline text="Meeting Notes">
+  <outline text="Completed task" complete="true"/>
+  <outline text="Important item" colorLabel="1"/>
+  <outline text="Warning" colorLabel="3"/>
+  <outline text="Blue highlight" colorLabel="5"/>
+</outline>
+</body>
+</opml>"#;
+
+        let nodes = parse_opml(opml).unwrap();
+        assert_eq!(nodes.len(), 5);
+
+        // Find completed task
+        let completed = nodes.iter().find(|n| n.content == "Completed task").unwrap();
+        assert!(completed.is_checked);
+        assert_eq!(completed.node_type, crate::data::NodeType::Checkbox);
+
+        // Find colored items
+        let red = nodes.iter().find(|n| n.content == "Important item").unwrap();
+        assert_eq!(red.color, Some("red".to_string()));
+
+        let yellow = nodes.iter().find(|n| n.content == "Warning").unwrap();
+        assert_eq!(yellow.color, Some("yellow".to_string()));
+
+        let blue = nodes.iter().find(|n| n.content == "Blue highlight").unwrap();
+        assert_eq!(blue.color, Some("blue".to_string()));
+    }
+
+    #[test]
+    fn test_get_opml_title() {
+        let opml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+<head>
+<title>My Document Title</title>
+</head>
+<body><outline text="Item"/></body>
+</opml>"#;
+
+        let title = get_opml_title(opml);
+        assert_eq!(title, Some("My Document Title".to_string()));
+    }
+
+    #[test]
+    fn test_get_opml_title_missing() {
+        let opml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+<head></head>
+<body><outline text="Item"/></body>
+</opml>"#;
+
+        let title = get_opml_title(opml);
+        assert_eq!(title, None);
     }
 }

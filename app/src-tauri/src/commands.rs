@@ -495,12 +495,15 @@ pub fn import_opml(
         doc.append_op(&create_op)?;
         create_op.apply(&mut doc.state);
 
-        // If there's a note, update the node with it
-        if node.note.is_some() {
+        // If there's additional metadata, update the node
+        let needs_update = node.note.is_some() || node.is_checked || node.color.is_some();
+        if needs_update {
             let update_op = update_op(
                 node.id,
                 NodeChanges {
                     note: node.note,
+                    is_checked: if node.is_checked { Some(true) } else { None },
+                    color: node.color,
                     ..Default::default()
                 },
             );
@@ -510,6 +513,89 @@ pub fn import_opml(
     }
 
     Ok(doc.state.clone())
+}
+
+/// Import result for OPML as new document
+#[derive(Clone, serde::Serialize)]
+pub struct ImportResult {
+    pub doc_id: String,
+    pub title: String,
+    pub node_count: usize,
+}
+
+/// Import OPML content as a new document
+#[tauri::command]
+pub fn import_opml_as_document(
+    state: State<AppState>,
+    content: String,
+) -> Result<ImportResult, String> {
+    ensure_dirs()?;
+
+    // Parse OPML and extract title
+    let nodes = crate::import_export::parse_opml(&content)?;
+    let title = crate::import_export::get_opml_title(&content)
+        .unwrap_or_else(|| "Imported Document".to_string());
+
+    // Create a new document with a new UUID
+    let doc_uuid = Uuid::now_v7();
+    let doc_dir = documents_dir().join(doc_uuid.to_string());
+
+    let mut doc = Document::create(doc_dir)?;
+
+    // Add nodes to document
+    for node in &nodes {
+        // Create the node
+        let create_op = crate::data::Operation::Create {
+            id: node.id,
+            parent_id: node.parent_id,
+            position: node.position,
+            content: node.content.clone(),
+            node_type: node.node_type.clone(),
+            updated_at: node.updated_at,
+        };
+        doc.append_op(&create_op)?;
+        create_op.apply(&mut doc.state);
+
+        // If there's additional metadata, update the node
+        let needs_update = node.note.is_some() || node.is_checked || node.color.is_some();
+        if needs_update {
+            let update_op = update_op(
+                node.id,
+                NodeChanges {
+                    note: node.note.clone(),
+                    is_checked: if node.is_checked { Some(true) } else { None },
+                    color: node.color.clone(),
+                    ..Default::default()
+                },
+            );
+            doc.append_op(&update_op)?;
+            update_op.apply(&mut doc.state);
+        }
+    }
+
+    let node_count = doc.state.nodes.len();
+
+    // Index the new document for search
+    if let Ok(search_index) = state.search_index.lock() {
+        if let Some(ref index) = *search_index {
+            if let Err(e) = index.index_document(&doc_uuid, &doc.state.nodes) {
+                log::warn!("Failed to index imported document: {}", e);
+            }
+            if let Err(e) = index.update_document_links(&doc_uuid, &doc.state.nodes) {
+                log::warn!("Failed to update links for imported document: {}", e);
+            }
+        }
+    }
+
+    // Store as current document
+    let mut current = state.current_document.lock().unwrap();
+    *current = Some(doc);
+
+    Ok(ImportResult {
+        doc_id: doc_uuid.to_string(),
+        title,
+        node_count,
+    })
 }
 
 /// Export current document to OPML format

@@ -38,6 +38,7 @@ pub fn run() {
             commands::get_inbox_count,
             commands::clear_inbox_items,
             commands::import_opml,
+            commands::import_opml_as_document,
             commands::export_opml,
             commands::export_markdown,
             commands::export_json,
