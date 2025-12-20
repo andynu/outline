@@ -19,6 +19,7 @@
   import RecurrencePicker from './RecurrencePicker.svelte';
   import ContextMenu from './ContextMenu.svelte';
   import { processStaticContentElement, handleStaticContentClick } from './renderStaticContent';
+  import { zoom } from './zoom.svelte';
 
   interface Props {
     item: TreeNode;
@@ -115,25 +116,28 @@
 
     function updateHashtagPosition(view: any) {
       const coords = view.coordsAtPos(view.state.selection.from);
+      const zoomLevel = zoom.level;
       hashtagPosition = {
-        x: coords.left,
-        y: coords.bottom + 5,
+        x: coords.left / zoomLevel,
+        y: (coords.bottom + 5) / zoomLevel,
       };
     }
 
     function updateDueDatePosition(view: any) {
       const coords = view.coordsAtPos(view.state.selection.from);
+      const zoomLevel = zoom.level;
       dueDatePosition = {
-        x: coords.left,
-        y: coords.bottom + 5,
+        x: coords.left / zoomLevel,
+        y: (coords.bottom + 5) / zoomLevel,
       };
     }
 
     function updateSuggestionPosition(view: any) {
       const coords = view.coordsAtPos(view.state.selection.from);
+      const zoomLevel = zoom.level;
       suggestionPosition = {
-        x: coords.left,
-        y: coords.bottom + 5,
+        x: coords.left / zoomLevel,
+        y: (coords.bottom + 5) / zoomLevel,
       };
     }
 
@@ -519,12 +523,13 @@
   }
 
   function openDatePicker(view?: any) {
+    const zoomLevel = zoom.level;
     if (view) {
       const coords = view.coordsAtPos(view.state.selection.from);
-      datePickerPosition = { x: coords.left, y: coords.bottom + 5 };
+      datePickerPosition = { x: coords.left / zoomLevel, y: (coords.bottom + 5) / zoomLevel };
     } else if (editorElement) {
       const rect = editorElement.getBoundingClientRect();
-      datePickerPosition = { x: rect.left, y: rect.bottom + 5 };
+      datePickerPosition = { x: rect.left / zoomLevel, y: (rect.bottom + 5) / zoomLevel };
     }
     showDatePicker = true;
   }
@@ -543,12 +548,13 @@
   }
 
   function openRecurrencePicker(view?: any) {
+    const zoomLevel = zoom.level;
     if (view) {
       const coords = view.coordsAtPos(view.state.selection.from);
-      recurrencePickerPosition = { x: coords.left, y: coords.bottom + 5 };
+      recurrencePickerPosition = { x: coords.left / zoomLevel, y: (coords.bottom + 5) / zoomLevel };
     } else if (editorElement) {
       const rect = editorElement.getBoundingClientRect();
-      recurrencePickerPosition = { x: rect.left, y: rect.bottom + 5 };
+      recurrencePickerPosition = { x: rect.left / zoomLevel, y: (rect.bottom + 5) / zoomLevel };
     }
     showRecurrencePicker = true;
   }
@@ -760,7 +766,10 @@
   function handleContextMenu(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    contextMenuPosition = { x: e.clientX, y: e.clientY };
+    // Adjust coordinates for zoom level - CSS zoom scales the content,
+    // so mouse coordinates need to be divided by zoom to get correct position
+    const zoomLevel = zoom.level;
+    contextMenuPosition = { x: e.clientX / zoomLevel, y: e.clientY / zoomLevel };
     showContextMenu = true;
     outline.focus(item.node.id);
   }
