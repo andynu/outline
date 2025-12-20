@@ -25,6 +25,7 @@
 
   async function loadBacklinks(id: string) {
     loading = true;
+    backlinks = [];  // Clear old backlinks immediately
     try {
       backlinks = await api.getBacklinks(id);
     } catch (e) {
@@ -51,7 +52,7 @@
   }
 </script>
 
-{#if backlinks.length > 0 || loading}
+{#if backlinks.length > 0}
   <div class="backlinks-panel">
     <button class="panel-header" onclick={() => expanded = !expanded}>
       <span class="expand-icon">{expanded ? '▼' : '▶'}</span>
