@@ -56,17 +56,20 @@ pub fn load_document(
 
     let doc_state = doc.state.clone();
 
-    // Index document for search and update links
-    if let Ok(search_index) = state.search_index.lock() {
-        if let Some(ref index) = *search_index {
-            if let Err(e) = index.index_document(&doc_uuid, &doc_state.nodes) {
+    // Index document for search in background (don't block loading)
+    let nodes_for_index = doc_state.nodes.clone();
+    std::thread::spawn(move || {
+        // Re-open search index in this thread
+        if let Ok(index) = SearchIndex::open() {
+            if let Err(e) = index.index_document(&doc_uuid, &nodes_for_index) {
                 log::warn!("Failed to index document: {}", e);
             }
-            if let Err(e) = index.update_document_links(&doc_uuid, &doc_state.nodes) {
+            if let Err(e) = index.update_document_links(&doc_uuid, &nodes_for_index) {
                 log::warn!("Failed to update document links: {}", e);
             }
+            log::info!("Background indexing complete for {} nodes", nodes_for_index.len());
         }
-    }
+    });
 
     // Store current document
     let mut current = state.current_document.lock().unwrap();

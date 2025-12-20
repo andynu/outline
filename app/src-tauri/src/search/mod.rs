@@ -107,42 +107,48 @@ impl SearchIndex {
 
     /// Index a document's nodes (replaces any existing entries for that document)
     pub fn index_document(&self, document_id: &Uuid, nodes: &[Node]) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let mut conn = self.conn.lock().unwrap();
         let doc_id_str = document_id.to_string();
 
+        // Use a transaction for bulk inserts (massive performance improvement)
+        let tx = conn.transaction()?;
+
         // Delete existing entries for this document
-        conn.execute(
+        tx.execute(
             "DELETE FROM nodes WHERE document_id = ?",
             params![doc_id_str],
         )?;
 
         // Insert new entries
-        let mut stmt = conn.prepare(
-            r#"
-            INSERT INTO nodes (id, document_id, parent_id, content, note, tags, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            "#,
-        )?;
+        {
+            let mut stmt = tx.prepare(
+                r#"
+                INSERT INTO nodes (id, document_id, parent_id, content, note, tags, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                "#,
+            )?;
 
-        for node in nodes {
-            let tags_str = if node.tags.is_empty() {
-                None
-            } else {
-                Some(node.tags.join(" "))
-            };
+            for node in nodes {
+                let tags_str = if node.tags.is_empty() {
+                    None
+                } else {
+                    Some(node.tags.join(" "))
+                };
 
-            stmt.execute(params![
-                node.id.to_string(),
-                doc_id_str,
-                node.parent_id.map(|id| id.to_string()),
-                strip_html(&node.content),
-                node.note,
-                tags_str,
-                node.created_at.to_rfc3339(),
-                node.updated_at.to_rfc3339(),
-            ])?;
+                stmt.execute(params![
+                    node.id.to_string(),
+                    doc_id_str,
+                    node.parent_id.map(|id| id.to_string()),
+                    strip_html(&node.content),
+                    node.note,
+                    tags_str,
+                    node.created_at.to_rfc3339(),
+                    node.updated_at.to_rfc3339(),
+                ])?;
+            }
         }
 
+        tx.commit()?;
         Ok(())
     }
 
@@ -309,29 +315,35 @@ impl SearchIndex {
 
     /// Update links for all nodes in a document
     pub fn update_document_links(&self, document_id: &Uuid, nodes: &[Node]) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let mut conn = self.conn.lock().unwrap();
         let doc_id_str = document_id.to_string();
 
+        // Use a transaction for bulk operations
+        let tx = conn.transaction()?;
+
         // Delete existing links from this document
-        conn.execute(
+        tx.execute(
             "DELETE FROM links WHERE source_document_id = ?",
             params![doc_id_str],
         )?;
 
         // Insert new links
-        let mut stmt = conn.prepare(
-            "INSERT OR REPLACE INTO links (source_node_id, target_node_id, source_document_id) VALUES (?, ?, ?)",
-        )?;
+        {
+            let mut stmt = tx.prepare(
+                "INSERT OR REPLACE INTO links (source_node_id, target_node_id, source_document_id) VALUES (?, ?, ?)",
+            )?;
 
-        for node in nodes {
-            let node_id_str = node.id.to_string();
-            let links = extract_wiki_links(&node.content);
+            for node in nodes {
+                let node_id_str = node.id.to_string();
+                let links = extract_wiki_links(&node.content);
 
-            for target_id in links {
-                stmt.execute(params![node_id_str, target_id, doc_id_str])?;
+                for target_id in links {
+                    stmt.execute(params![node_id_str, target_id, doc_id_str])?;
+                }
             }
         }
 
+        tx.commit()?;
         Ok(())
     }
 
