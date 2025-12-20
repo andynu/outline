@@ -265,14 +265,9 @@ export const outline = {
   async load(docId?: string) {
     loading = true;
     error = null;
-    const t0 = performance.now();
     try {
       const state = await api.loadDocument(docId);
-      const t1 = performance.now();
-      console.log(`[PERF] API load: ${(t1 - t0).toFixed(0)}ms`);
       updateFromState(state);
-      const t2 = performance.now();
-      console.log(`[PERF] updateFromState: ${(t2 - t1).toFixed(0)}ms, ${nodes.length} nodes`);
       // Focus first node if none focused
       if (!focusedId && nodes.length > 0) {
         const roots = rootNodes();
@@ -280,15 +275,10 @@ export const outline = {
           focusedId = roots[0].id;
         }
       }
-      // Log when rendering should be done (next frame)
-      requestAnimationFrame(() => {
-        console.log(`[PERF] First frame after load: ${(performance.now() - t0).toFixed(0)}ms`);
-      });
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
       loading = false;
-      console.log(`[PERF] Load complete: ${(performance.now() - t0).toFixed(0)}ms`);
     }
   },
 
