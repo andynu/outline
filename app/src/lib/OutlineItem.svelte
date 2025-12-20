@@ -17,6 +17,7 @@
   import DateBadge from './DateBadge.svelte';
   import DatePicker from './DatePicker.svelte';
   import RecurrencePicker from './RecurrencePicker.svelte';
+  import ContextMenu from './ContextMenu.svelte';
 
   interface Props {
     item: TreeNode;
@@ -54,6 +55,10 @@
   // Recurrence picker state
   let showRecurrencePicker = $state(false);
   let recurrencePickerPosition = $state({ x: 0, y: 0 });
+
+  // Context menu state
+  let showContextMenu = $state(false);
+  let contextMenuPosition = $state({ x: 0, y: 0 });
 
   // Reactive checks
   let isFocused = $derived(outline.focusedId === item.node.id);
@@ -653,6 +658,78 @@
     dropPosition = null;
   }
 
+  function handleContextMenu(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenuPosition = { x: e.clientX, y: e.clientY };
+    showContextMenu = true;
+    outline.focus(item.node.id);
+  }
+
+  // Delete all completed descendants
+  async function deleteCompletedChildren() {
+    const nodeMap = outline.nodes.reduce((map, n) => {
+      map.set(n.id, n);
+      return map;
+    }, new Map());
+
+    // Find all completed descendants
+    function getCompletedDescendants(parentId: string): string[] {
+      const completedIds: string[] = [];
+      for (const node of outline.nodes) {
+        if (node.parent_id === parentId) {
+          if (node.is_checked) {
+            completedIds.push(node.id);
+          }
+          // Also check children of non-completed items
+          completedIds.push(...getCompletedDescendants(node.id));
+        }
+      }
+      return completedIds;
+    }
+
+    const toDelete = getCompletedDescendants(item.node.id);
+    for (const id of toDelete) {
+      await outline.deleteNode(id);
+    }
+  }
+
+  const contextMenuItems = $derived([
+    {
+      label: item.node.is_checked ? 'Mark Incomplete' : 'Mark Complete',
+      action: () => outline.toggleCheckbox(item.node.id),
+      shortcut: 'Ctrl+Enter',
+    },
+    {
+      label: item.node.node_type === 'checkbox' ? 'Convert to Bullet' : 'Convert to Checkbox',
+      action: () => outline.toggleNodeType(item.node.id),
+      shortcut: 'Ctrl+Shift+C',
+    },
+    { separator: true as const },
+    {
+      label: 'Indent',
+      action: () => outline.indentNode(item.node.id),
+      shortcut: 'Tab',
+    },
+    {
+      label: 'Outdent',
+      action: () => outline.outdentNode(item.node.id),
+      shortcut: 'Shift+Tab',
+    },
+    { separator: true as const },
+    {
+      label: 'Delete Completed Children',
+      action: deleteCompletedChildren,
+      disabled: !outline.nodes.some(n => n.parent_id === item.node.id && n.is_checked),
+    },
+    { separator: true as const },
+    {
+      label: 'Delete',
+      action: () => outline.deleteNode(item.node.id),
+      shortcut: 'Ctrl+Shift+Backspace',
+    },
+  ]);
+
   function handleDrop(e: DragEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -686,7 +763,7 @@
   ondrop={handleDrop}
 >
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="item-row" onclick={handleRowClick}>
+  <div class="item-row" onclick={handleRowClick} oncontextmenu={handleContextMenu}>
     {#if item.hasChildren && item.node.node_type !== 'checkbox'}
       <button
         class="expand-btn"
@@ -798,6 +875,14 @@
     currentRecurrence={item.node.date_recurrence}
     onSelect={handleRecurrenceSelect}
     onClose={handleRecurrencePickerClose}
+  />
+{/if}
+
+{#if showContextMenu}
+  <ContextMenu
+    items={contextMenuItems}
+    position={contextMenuPosition}
+    onClose={() => showContextMenu = false}
   />
 {/if}
 
