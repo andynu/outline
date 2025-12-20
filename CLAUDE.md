@@ -118,6 +118,28 @@ The app supports offline editing on multiple machines via file sync (Dropbox/Syn
 
 ## Testing
 
+**Playwright E2E tests are the primary testing strategy for the frontend.** New features should include Playwright tests covering user interactions.
+
 - **E2E tests**: `app/tests/*.spec.ts` using Playwright
 - **Rust tests**: Unit tests in `app/src-tauri/src/` modules
 - Playwright auto-starts dev server for E2E tests
+- Use `npm run test:headed` to debug tests visually
+
+### Test Coverage Areas
+
+The Playwright suite covers:
+- Basic editing (create, update, delete items)
+- Navigation (arrow keys, focus management)
+- Hierarchy operations (indent, outdent, collapse/expand)
+- Drag and drop reordering
+- Checkboxes and task completion
+- Wiki links and backlinks
+- Hashtags
+- Inline dates and date picker
+- Recurrence picker
+- Rich text formatting
+- Search
+- Sidebar and document switching
+- Context menus
+- Date views panel
+- Tags panel
