@@ -40,6 +40,7 @@
   // Sidebar state - persisted in localStorage
   let sidebarOpen = $state(false);
   let currentDocumentId = $state<string | undefined>(undefined);
+  let sidebarRef: { refresh: () => void } | undefined = $state();
 
   // Initialize sidebar state from localStorage
   function initSidebarState() {
@@ -413,6 +414,10 @@
         const result = await importOpmlAsDocument(content);
         console.log(`Imported "${result.title}" with ${result.node_count} nodes`);
 
+        // Update current document ID and refresh sidebar
+        currentDocumentId = result.doc_id;
+        sidebarRef?.refresh();
+
         // Load the newly imported document
         await outline.load(result.doc_id);
       };
@@ -632,6 +637,7 @@
   <!-- Main Area with Sidebar -->
   <div class="main-wrapper">
     <Sidebar
+      bind:this={sidebarRef}
       isOpen={sidebarOpen}
       {currentDocumentId}
       onToggle={toggleSidebar}

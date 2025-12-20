@@ -33,6 +33,11 @@
     }
   }
 
+  // Expose refresh function for external callers
+  export function refresh() {
+    loadDocuments();
+  }
+
   function handleDocumentClick(docId: string) {
     if (docId !== currentDocumentId) {
       onSelectDocument(docId);
