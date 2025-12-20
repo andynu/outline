@@ -68,7 +68,7 @@ test.describe('Hashtags', () => {
     await expect(suggestionItem.first()).toBeVisible();
   });
 
-  test('Enter selects/creates hashtag from suggestion', async ({ page }) => {
+  test('Enter selects/creates hashtag inline without adding newline', async ({ page }) => {
     const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(100);
@@ -95,6 +95,11 @@ test.describe('Hashtags', () => {
     const hashtag = page.locator('.hashtag');
     await expect(hashtag).toBeVisible();
     await expect(hashtag).toContainText('#testtag');
+
+    // The editor should have only one paragraph (no extra newline inserted)
+    const focusedEditor = page.locator('.outline-item.focused .outline-editor');
+    const paragraphs = focusedEditor.locator('p');
+    await expect(paragraphs).toHaveCount(1);
   });
 
   test('hashtag renders with styling after typing', async ({ page }) => {
