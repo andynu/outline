@@ -770,7 +770,6 @@
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
-    font-size: calc(14px * var(--zoom-level));
   }
 
   /* Menu Bar */

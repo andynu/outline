@@ -58,8 +58,10 @@ class ZoomStore {
   }
 
   private applyZoom() {
-    // Apply zoom via CSS custom property
+    // Apply zoom via CSS custom property and zoom CSS property
     document.documentElement.style.setProperty('--zoom-level', String(this._zoom));
+    // Apply actual zoom using CSS zoom property for comprehensive scaling
+    document.documentElement.style.zoom = String(this._zoom);
   }
 }
 
