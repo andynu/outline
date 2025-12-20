@@ -18,6 +18,7 @@
   import DatePicker from './DatePicker.svelte';
   import RecurrencePicker from './RecurrencePicker.svelte';
   import ContextMenu from './ContextMenu.svelte';
+  import { processStaticContentElement, handleStaticContentClick } from './renderStaticContent';
 
   interface Props {
     item: TreeNode;
@@ -493,6 +494,18 @@
       editorElement.removeEventListener('keydown', tabHandler, { capture: true });
     }
     editor?.destroy();
+  });
+
+  // Process static content to style hashtags, mentions, dates, URLs when unfocused
+  $effect(() => {
+    // Track content to re-run when it changes
+    const _content = item.node.content;
+
+    if (isFocused || !staticElement) return;
+
+    // Process the static content to add styling for inline elements
+    // This adds styling to raw text like #tag, @mention, !(date), URLs
+    processStaticContentElement(staticElement);
   });
 
   function handleCollapseClick() {
