@@ -1,6 +1,7 @@
 use chrono::Utc;
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
+use regex::Regex;
 use std::io::Cursor;
 use uuid::Uuid;
 
@@ -113,6 +114,7 @@ fn parse_outline_element(
     let mut note: Option<String> = None;
     let mut is_checked = false;
     let mut color: Option<String> = None;
+    let mut heading_level: Option<u8> = None;
 
     for attr in e.attributes().flatten() {
         let key = String::from_utf8_lossy(attr.key.as_ref());
@@ -138,6 +140,10 @@ fn parse_outline_element(
                     _ => None,
                 };
             }
+            // Dynalist headings (1-6)
+            "heading" => {
+                heading_level = value.parse::<u8>().ok().filter(|&h| h >= 1 && h <= 6);
+            }
             _ => {}
         }
     }
@@ -151,8 +157,16 @@ fn parse_outline_element(
         (None, 0)
     };
 
-    // If is_checked, treat it as a checkbox type
-    let node_type = if is_checked {
+    // Process text to extract dates and convert special syntax
+    let (processed_text, date, date_recurrence) = process_dynalist_content(&text);
+
+    // Convert special syntax in notes too
+    let processed_note = note.map(|n| convert_dynalist_syntax(&n));
+
+    // Determine node type
+    let node_type = if heading_level.is_some() {
+        crate::data::NodeType::Heading
+    } else if is_checked {
         crate::data::NodeType::Checkbox
     } else {
         crate::data::NodeType::Bullet
@@ -163,21 +177,102 @@ fn parse_outline_element(
         id: Uuid::now_v7(),
         parent_id,
         position,
-        content: text,
-        note,
+        content: processed_text,
+        note: processed_note,
         node_type,
-        heading_level: None,
+        heading_level,
         is_checked,
         color,
         tags: Vec::new(),
-        date: None,
-        date_recurrence: None,
+        date,
+        date_recurrence,
         collapsed: false,
         mirror_source_id: None,
         created_at: now,
         updated_at: now,
     })
 }
+
+/// Process Dynalist-specific content, extracting dates and converting syntax
+fn process_dynalist_content(text: &str) -> (String, Option<String>, Option<String>) {
+    // Extract Dynalist dates: !(2024-09-01) or !(2024-09-01 | 1y)
+    // Capture: date part, optional recurrence part
+    let date_re = Regex::new(r"!\((\d{4}-\d{2}-\d{2})(?:\s*\|\s*([^)]+))?\)\s*").unwrap();
+
+    let mut date: Option<String> = None;
+    let mut recurrence: Option<String> = None;
+
+    // Extract the first date found
+    if let Some(caps) = date_re.captures(text) {
+        date = Some(caps.get(1).unwrap().as_str().to_string());
+        if let Some(rec) = caps.get(2) {
+            recurrence = convert_dynalist_recurrence(rec.as_str().trim());
+        }
+    }
+
+    // Remove date patterns from text
+    let text_without_dates = date_re.replace_all(text, "").to_string();
+
+    // Convert other Dynalist syntax
+    let converted = convert_dynalist_syntax(&text_without_dates);
+
+    (converted, date, recurrence)
+}
+
+/// Convert Dynalist recurrence format to iCal RRULE
+fn convert_dynalist_recurrence(rec: &str) -> Option<String> {
+    // Dynalist uses formats like: 1d, 1w, 1m, 1y, ~1y
+    // The ~ prefix means "from completion" but we'll treat it the same
+    let rec = rec.trim_start_matches('~');
+
+    // Parse number and unit
+    let re = Regex::new(r"^(\d+)([dwmy])$").unwrap();
+    if let Some(caps) = re.captures(rec) {
+        let interval: u32 = caps.get(1).unwrap().as_str().parse().unwrap_or(1);
+        let unit = caps.get(2).unwrap().as_str();
+
+        let freq = match unit {
+            "d" => "DAILY",
+            "w" => "WEEKLY",
+            "m" => "MONTHLY",
+            "y" => "YEARLY",
+            _ => return None,
+        };
+
+        if interval == 1 {
+            return Some(format!("FREQ={}", freq));
+        } else {
+            return Some(format!("FREQ={};INTERVAL={}", freq, interval));
+        }
+    }
+
+    None
+}
+
+/// Convert Dynalist-specific syntax to our format
+fn convert_dynalist_syntax(text: &str) -> String {
+    let mut result = text.to_string();
+
+    // Convert Obsidian links: [@ob](obsidian://open?vault=...&file=...) -> [[page-name]]
+    let obsidian_re = Regex::new(r"\[@ob\]\(obsidian://open\?vault=[^&]+&file=([^)]+)\)").unwrap();
+    result = obsidian_re
+        .replace_all(&result, |caps: &regex::Captures| {
+            // URL decode the file path and convert to wiki link
+            let file = caps.get(1).unwrap().as_str();
+            let decoded = urlencoding::decode(file).unwrap_or_else(|_| file.into());
+            // Take just the filename, not the full path
+            let name = decoded.rsplit('/').next().unwrap_or(&decoded);
+            format!("[[{}]]", name)
+        })
+        .to_string();
+
+    // Convert ==highlighted text== to <mark>text</mark>
+    let highlight_re = Regex::new(r"==([^=]+)==").unwrap();
+    result = highlight_re.replace_all(&result, "<mark>$1</mark>").to_string();
+
+    result
+}
+
 
 /// Generate OPML content from nodes
 pub fn generate_opml(nodes: &[Node], title: &str) -> Result<String, String> {
@@ -468,5 +563,130 @@ mod tests {
 
         let title = get_opml_title(opml);
         assert_eq!(title, None);
+    }
+
+    #[test]
+    fn test_parse_dynalist_dates() {
+        let opml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+<head><title>Test</title></head>
+<body>
+    <outline text="Task with date !(2024-09-01) "/>
+    <outline text="Recurring task !(2024-10-15 | 1m) "/>
+    <outline text="Yearly task !(2024-01-01 | ~1y) "/>
+</body>
+</opml>"#;
+
+        let nodes = parse_opml(opml).unwrap();
+        assert_eq!(nodes.len(), 3);
+
+        // Check date extraction
+        let task1 = &nodes[0];
+        assert_eq!(task1.content.trim(), "Task with date");
+        assert_eq!(task1.date, Some("2024-09-01".to_string()));
+        assert_eq!(task1.date_recurrence, None);
+
+        // Check recurring date
+        let task2 = &nodes[1];
+        assert_eq!(task2.content.trim(), "Recurring task");
+        assert_eq!(task2.date, Some("2024-10-15".to_string()));
+        assert_eq!(task2.date_recurrence, Some("FREQ=MONTHLY".to_string()));
+
+        // Check yearly recurrence with ~
+        let task3 = &nodes[2];
+        assert_eq!(task3.date, Some("2024-01-01".to_string()));
+        assert_eq!(task3.date_recurrence, Some("FREQ=YEARLY".to_string()));
+    }
+
+    #[test]
+    fn test_parse_dynalist_highlights() {
+        let opml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+<head><title>Test</title></head>
+<body>
+    <outline text="This has ==highlighted text== in it"/>
+    <outline text="==Full highlight=="/>
+</body>
+</opml>"#;
+
+        let nodes = parse_opml(opml).unwrap();
+        assert_eq!(nodes.len(), 2);
+
+        assert_eq!(nodes[0].content, "This has <mark>highlighted text</mark> in it");
+        assert_eq!(nodes[1].content, "<mark>Full highlight</mark>");
+    }
+
+    #[test]
+    fn test_parse_obsidian_links() {
+        let opml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+<head><title>Test</title></head>
+<body>
+    <outline text="See [@ob](obsidian://open?vault=notes&amp;file=my-note) for details"/>
+    <outline text="Check [@ob](obsidian://open?vault=notes&amp;file=projects%2Fsome-project)"/>
+</body>
+</opml>"#;
+
+        let nodes = parse_opml(opml).unwrap();
+        assert_eq!(nodes.len(), 2);
+
+        assert_eq!(nodes[0].content, "See [[my-note]] for details");
+        // Should extract just the filename from path
+        assert_eq!(nodes[1].content, "Check [[some-project]]");
+    }
+
+    #[test]
+    fn test_parse_dynalist_headings() {
+        let opml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+<head><title>Test</title></head>
+<body>
+    <outline text="Main Heading" heading="1"/>
+    <outline text="Subheading" heading="3"/>
+    <outline text="Regular item"/>
+</body>
+</opml>"#;
+
+        let nodes = parse_opml(opml).unwrap();
+        assert_eq!(nodes.len(), 3);
+
+        assert_eq!(nodes[0].node_type, crate::data::NodeType::Heading);
+        assert_eq!(nodes[0].heading_level, Some(1));
+
+        assert_eq!(nodes[1].node_type, crate::data::NodeType::Heading);
+        assert_eq!(nodes[1].heading_level, Some(3));
+
+        assert_eq!(nodes[2].node_type, crate::data::NodeType::Bullet);
+        assert_eq!(nodes[2].heading_level, None);
+    }
+
+    #[test]
+    fn test_convert_dynalist_recurrence() {
+        assert_eq!(convert_dynalist_recurrence("1d"), Some("FREQ=DAILY".to_string()));
+        assert_eq!(convert_dynalist_recurrence("1w"), Some("FREQ=WEEKLY".to_string()));
+        assert_eq!(convert_dynalist_recurrence("1m"), Some("FREQ=MONTHLY".to_string()));
+        assert_eq!(convert_dynalist_recurrence("1y"), Some("FREQ=YEARLY".to_string()));
+        assert_eq!(convert_dynalist_recurrence("~1y"), Some("FREQ=YEARLY".to_string()));
+        assert_eq!(convert_dynalist_recurrence("2w"), Some("FREQ=WEEKLY;INTERVAL=2".to_string()));
+        assert_eq!(convert_dynalist_recurrence("3m"), Some("FREQ=MONTHLY;INTERVAL=3".to_string()));
+        assert_eq!(convert_dynalist_recurrence("invalid"), None);
+    }
+
+    #[test]
+    fn test_note_syntax_conversion() {
+        let opml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+<head><title>Test</title></head>
+<body>
+    <outline text="Item" _note="See [@ob](obsidian://open?vault=notes&amp;file=reference) and ==important=="/>
+</body>
+</opml>"#;
+
+        let nodes = parse_opml(opml).unwrap();
+        assert_eq!(nodes.len(), 1);
+
+        let note = nodes[0].note.as_ref().unwrap();
+        assert!(note.contains("[[reference]]"));
+        assert!(note.contains("<mark>important</mark>"));
     }
 }
