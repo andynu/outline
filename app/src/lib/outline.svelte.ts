@@ -123,8 +123,11 @@ function computeChangedParents(oldNodes: Node[], newNodes: Node[]): Set<string |
   return affectedParents;
 }
 
+let rebuildCallCount = 0;
+
 function rebuildIndexes() {
   if (cachedNodes === nodes) return; // No change
+  rebuildCallCount++;
 
   const startTime = performance.now();
 
@@ -177,10 +180,13 @@ function rebuildIndexes() {
   }
 
   // Full rebuild
+  const mapStart = performance.now();
   cachedNodes = nodes;
   cachedNodesById = new Map(nodes.map(n => [n.id, n]));
+  const mapTime = performance.now() - mapStart;
 
   // Build children index - group by parent_id
+  const groupStart = performance.now();
   const childrenMap = new Map<string | null, Node[]>();
   for (const node of nodes) {
     const parentId = node.parent_id ?? null;
@@ -191,11 +197,14 @@ function rebuildIndexes() {
     }
     children.push(node);
   }
+  const groupTime = performance.now() - groupStart;
 
   // Sort each children array by position
+  const sortStart = performance.now();
   for (const children of childrenMap.values()) {
     children.sort((a, b) => a.position - b.position);
   }
+  const sortTime = performance.now() - sortStart;
 
   cachedChildrenByParent = childrenMap;
   dirtyParentIds.clear();
@@ -203,7 +212,7 @@ function rebuildIndexes() {
 
   const elapsed = performance.now() - startTime;
   if (elapsed > 5) {
-    console.log(`[perf] rebuildIndexes (full): ${elapsed.toFixed(1)}ms for ${nodes.length} nodes`);
+    console.log(`[perf] rebuildIndexes (full) call#${rebuildCallCount}: ${elapsed.toFixed(1)}ms for ${nodes.length} nodes (map=${mapTime.toFixed(1)}ms, group=${groupTime.toFixed(1)}ms, sort=${sortTime.toFixed(1)}ms)`);
   }
 }
 
