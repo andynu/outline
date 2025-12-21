@@ -141,6 +141,31 @@ test.describe('Rich text formatting', () => {
     await expect(link).toHaveAttribute('target', '_blank');
   });
 
+  test('Ctrl+E makes text code', async ({ page }) => {
+    const firstEditor = page.locator('.editor-wrapper').first();
+    await firstEditor.click();
+    await page.waitForTimeout(100);
+
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+
+    await page.keyboard.type('some code here');
+    await page.waitForTimeout(100);
+
+    // Select "code"
+    await page.keyboard.press('Control+Shift+ArrowLeft');
+    await page.keyboard.press('Control+Shift+ArrowLeft');
+
+    // Press Ctrl+E to make code (TipTap default)
+    await page.keyboard.press('Control+e');
+    await page.waitForTimeout(100);
+
+    // Check for code formatting
+    const focusedItem = page.locator('.outline-item.focused');
+    const code = focusedItem.locator('code');
+    await expect(code).toBeVisible();
+  });
+
   test('multiple formatting can be combined', async ({ page }) => {
     const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
