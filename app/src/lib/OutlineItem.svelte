@@ -533,6 +533,13 @@
     outline.toggleCollapse(item.node.id);
   }
 
+  function handleBulletDblClick(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    // Zoom into this item's subtree
+    outline.zoomTo(item.node.id);
+  }
+
   function handleCheckboxClick(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -1049,8 +1056,15 @@
       {:else}
         <!-- Bullet style:
              ● (filled) = normal state (leaf or expanded)
-             ◉ (fisheye) = collapsed with hidden children -->
-        <span class="bullet" class:has-children={item.hasChildren} class:collapsed={item.node.collapsed}>
+             ◉ (fisheye) = collapsed with hidden children
+             Double-click to zoom into subtree -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <span
+          class="bullet"
+          class:has-children={item.hasChildren}
+          class:collapsed={item.node.collapsed}
+          ondblclick={handleBulletDblClick}
+        >
           {#if item.hasChildren && item.node.collapsed}◉{:else}●{/if}
         </span>
       {/if}

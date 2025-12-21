@@ -48,6 +48,7 @@ let pendingOperations = $state(0);
 let lastSavedAt = $state<Date | null>(null);
 let filterQuery = $state<string | null>(null);  // e.g., "#tag" or "@mention"
 let hideCompleted = $state(false);  // Hide completed items from view
+let zoomedNodeId = $state<string | null>(null);  // Zoom/focus mode: show only this subtree
 
 // Lock to prevent concurrent position-changing operations
 let isMoving = false;
@@ -71,11 +72,12 @@ let cachedNodes: Node[] = [];
 let cachedNodesById: Map<string, Node> = new Map();
 let cachedChildrenByParent: Map<string | null, Node[]> = new Map();
 
-// Cached tree - rebuilt when nodes, filter, or hideCompleted changes
+// Cached tree - rebuilt when nodes, filter, hideCompleted, or zoomedNodeId changes
 let cachedTree: TreeNode[] = [];
 let cachedTreeNodes: Node[] = [];
 let cachedTreeFilter: string | null = null;
 let cachedTreeHideCompleted: boolean = false;
+let cachedTreeZoomedNodeId: string | null = null;
 
 // Change tracking for surgical cache invalidation
 // Tracks which parent IDs need their children array rebuilt
@@ -374,27 +376,77 @@ export const outline = {
     hideCompleted = value;
   },
 
-  // Build tree for rendering (respects active filter and hideCompleted)
+  // --- Zoom/Focus Mode ---
+
+  get zoomedNodeId() { return zoomedNodeId; },
+
+  // Zoom into a subtree (show only this node and its descendants)
+  zoomTo(nodeId: string) {
+    const node = nodesById().get(nodeId);
+    if (!node) return;
+    zoomedNodeId = nodeId;
+    // Focus the zoomed node
+    focusedId = nodeId;
+  },
+
+  // Zoom out one level (to parent of current zoom)
+  zoomOut() {
+    if (!zoomedNodeId) return;
+    const node = nodesById().get(zoomedNodeId);
+    if (!node) {
+      // Node was deleted, zoom all the way out
+      zoomedNodeId = null;
+      return;
+    }
+    // Zoom to parent, or all the way out if at root
+    zoomedNodeId = node.parent_id;
+  },
+
+  // Zoom all the way out (show full document)
+  zoomReset() {
+    zoomedNodeId = null;
+  },
+
+  // Get breadcrumb path from root to zoomed node
+  getZoomBreadcrumbs(): Node[] {
+    if (!zoomedNodeId) return [];
+    const path: Node[] = [];
+    let currentId: string | null = zoomedNodeId;
+    while (currentId) {
+      const node = nodesById().get(currentId);
+      if (!node) break;
+      path.unshift(node); // Add to front
+      currentId = node.parent_id;
+    }
+    return path;
+  },
+
+  // Build tree for rendering (respects active filter, hideCompleted, and zoom)
   getTree(): TreeNode[] {
     // Check if cached tree is still valid
     if (cachedTreeNodes === nodes &&
         cachedTreeFilter === filterQuery &&
-        cachedTreeHideCompleted === hideCompleted) {
+        cachedTreeHideCompleted === hideCompleted &&
+        cachedTreeZoomedNodeId === zoomedNodeId) {
       return cachedTree;
     }
 
     const filteredIds = filterQuery ? getFilteredNodeIds(filterQuery) : undefined;
-    cachedTree = buildTree(null, 0, filteredIds, hideCompleted);
+    // When zoomed, start tree from zoomed node instead of root
+    const rootId = zoomedNodeId;
+    cachedTree = buildTree(rootId, 0, filteredIds, hideCompleted);
     cachedTreeNodes = nodes;
     cachedTreeFilter = filterQuery;
     cachedTreeHideCompleted = hideCompleted;
+    cachedTreeZoomedNodeId = zoomedNodeId;
     return cachedTree;
   },
 
-  // Get visible nodes in order (respects active filter and hideCompleted)
+  // Get visible nodes in order (respects active filter, hideCompleted, and zoom)
   getVisibleNodes(): Node[] {
     const filteredIds = filterQuery ? getFilteredNodeIds(filterQuery) : undefined;
-    return flattenTree(buildTree(null, 0, filteredIds, hideCompleted));
+    const rootId = zoomedNodeId;
+    return flattenTree(buildTree(rootId, 0, filteredIds, hideCompleted));
   },
 
   // Get a node by ID

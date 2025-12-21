@@ -294,10 +294,16 @@
       event.preventDefault();
       handleQuit();
     }
-    // Escape: Clear filter if one is active (only when no modal is open)
-    else if (event.key === 'Escape' && outline.filterQuery && !showSearchModal && !showQuickNav && !showQuickMove && !showDateViews && !showTags && !showInbox && !showKeyboardShortcuts) {
-      event.preventDefault();
-      outline.clearFilter();
+    // Escape: Clear filter or zoom (only when no modal is open)
+    else if (event.key === 'Escape' && !showSearchModal && !showQuickNav && !showQuickMove && !showDateViews && !showTags && !showInbox && !showKeyboardShortcuts) {
+      // First clear filter, then zoom
+      if (outline.filterQuery) {
+        event.preventDefault();
+        outline.clearFilter();
+      } else if (outline.zoomedNodeId) {
+        event.preventDefault();
+        outline.zoomOut();
+      }
     }
     // Ctrl+= or Ctrl++: Zoom in
     else if (event.ctrlKey && (event.key === '=' || event.key === '+')) {
@@ -815,6 +821,44 @@
             </button>
           </div>
         {/if}
+        {#if outline.zoomedNodeId}
+          <div class="zoom-breadcrumbs">
+            <button
+              class="breadcrumb-item breadcrumb-root"
+              onclick={() => outline.zoomReset()}
+              title="Zoom out to document root"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              </svg>
+            </button>
+            {#each outline.getZoomBreadcrumbs() as crumb, i}
+              <span class="breadcrumb-separator">›</span>
+              {#if i === outline.getZoomBreadcrumbs().length - 1}
+                <span class="breadcrumb-item breadcrumb-current">
+                  {@html crumb.content.replace(/<[^>]*>/g, '').slice(0, 30) || 'Untitled'}
+                </span>
+              {:else}
+                <button
+                  class="breadcrumb-item breadcrumb-link"
+                  onclick={() => outline.zoomTo(crumb.id)}
+                >
+                  {@html crumb.content.replace(/<[^>]*>/g, '').slice(0, 30) || 'Untitled'}
+                </button>
+              {/if}
+            {/each}
+            <button
+              class="zoom-close"
+              onclick={() => outline.zoomReset()}
+              title="Exit zoom mode (Escape)"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        {/if}
         <div class="outline-container">
           {#each outline.getTree() as item (item.node.id)}
             <OutlineItem {item} />
@@ -1156,6 +1200,88 @@
   .filter-clear svg {
     width: 14px;
     height: 14px;
+  }
+
+  /* Zoom breadcrumbs bar */
+  .zoom-breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 16px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-primary);
+    font-size: 13px;
+    overflow-x: auto;
+  }
+
+  .breadcrumb-item {
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .breadcrumb-root {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+  }
+
+  .breadcrumb-root:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+
+  .breadcrumb-separator {
+    color: var(--text-tertiary);
+    font-size: 14px;
+  }
+
+  .breadcrumb-link {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--accent-primary);
+    font-size: 13px;
+  }
+
+  .breadcrumb-link:hover {
+    background: var(--bg-tertiary);
+    text-decoration: underline;
+  }
+
+  .breadcrumb-current {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  .zoom-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    margin-left: auto;
+  }
+
+  .zoom-close:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
   }
 
   .loading, .error {
