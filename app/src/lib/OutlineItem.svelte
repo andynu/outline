@@ -932,7 +932,7 @@
 >
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="item-row" onclick={handleRowClick} oncontextmenu={handleContextMenu}>
-    <!-- Hamburger menu button - shows on hover -->
+    <!-- Three-dot menu button - positioned in the left margin, shows on hover -->
     <button
       class="hover-menu-btn"
       onclick={(e) => { e.stopPropagation(); contextMenuPosition = { x: e.clientX / zoom.level, y: e.clientY / zoom.level }; showContextMenu = true; outline.focus(item.node.id); }}
@@ -947,28 +947,13 @@
       </svg>
     </button>
 
-    <!-- Expand/collapse button - shows on hover for items with children -->
-    {#if item.hasChildren && item.node.node_type !== 'checkbox'}
-      <button
-        class="expand-btn"
-        class:collapsed={item.node.collapsed}
-        onclick={handleCollapseClick}
-        tabindex="-1"
-        aria-label={item.node.collapsed ? 'Expand' : 'Collapse'}
-      >
-        <span class="expand-icon">{item.node.collapsed ? '▶' : '▼'}</span>
-      </button>
-    {:else}
-      <!-- Spacer to maintain alignment when no expand button -->
-      <span class="expand-spacer"></span>
-    {/if}
-
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <span
       class="drag-handle"
       draggable="true"
       ondragstart={handleDragStart}
       ondragend={handleDragEnd}
+      onclick={item.hasChildren ? handleCollapseClick : () => outline.focus(item.node.id)}
     >
       {#if item.node.node_type === 'checkbox'}
         <button
@@ -985,16 +970,11 @@
           {/if}
         </button>
       {:else}
-        <!-- Bullet style varies by item state:
-             ● (filled) = has children, expanded
-             ◉ (with dot) = has children, collapsed
-             ○ (hollow) = no children (leaf) -->
+        <!-- Bullet style:
+             ● (filled) = normal state (leaf or expanded)
+             ◉ (fisheye) = collapsed with hidden children -->
         <span class="bullet" class:has-children={item.hasChildren} class:collapsed={item.node.collapsed}>
-          {#if item.hasChildren}
-            {#if item.node.collapsed}◉{:else}●{/if}
-          {:else}
-            ○
-          {/if}
+          {#if item.hasChildren && item.node.collapsed}◉{:else}●{/if}
         </span>
       {/if}
     </span>
@@ -1134,6 +1114,7 @@
     border-radius: 4px;
     transition: background-color 0.1s;
     cursor: text;
+    position: relative;
   }
 
   .focused .item-row {
@@ -1148,6 +1129,7 @@
   .bullet {
     font-size: 14px;
     color: var(--text-tertiary);
+    margin-right: 4px;
   }
 
   /* Bullet with children (filled or with dot) is slightly more prominent */
@@ -1176,6 +1158,7 @@
     cursor: pointer;
     flex-shrink: 0;
     padding: 0;
+    margin-right: 4px;
   }
 
   .checkbox-icon {
@@ -1468,8 +1451,11 @@
     display: block;
   }
 
-  /* Hover menu button (hamburger/three dots) */
+  /* Three-dot menu button - positioned in left margin */
   .hover-menu-btn {
+    position: absolute;
+    left: -20px;
+    top: 2px;
     width: 16px;
     height: 24px;
     display: flex;
@@ -1479,7 +1465,6 @@
     border: none;
     cursor: pointer;
     color: var(--text-tertiary);
-    flex-shrink: 0;
     padding: 0;
     opacity: 0;
     transition: opacity 0.15s;
@@ -1494,55 +1479,13 @@
     color: var(--text-primary);
   }
 
-  /* Show hover controls on item hover or focus */
+  /* Show menu button on item hover or focus */
   .item-row:hover .hover-menu-btn,
   .focused .hover-menu-btn {
     opacity: 1;
   }
 
-  /* Expand/collapse button */
-  .expand-btn {
-    width: 16px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-tertiary);
-    font-size: 8px;
-    flex-shrink: 0;
-    padding: 0;
-    margin-right: 2px;
-    opacity: 0;
-    transition: opacity 0.15s;
-  }
-
-  /* Show expand button on hover or when collapsed (to indicate hidden content) */
-  .item-row:hover .expand-btn,
-  .focused .expand-btn,
-  .expand-btn.collapsed {
-    opacity: 1;
-  }
-
-  .expand-btn:hover {
-    color: var(--text-primary);
-  }
-
-  .expand-icon {
-    transition: transform 0.15s;
-  }
-
-  /* Spacer for items without expand button to maintain alignment */
-  .expand-spacer {
-    width: 16px;
-    height: 24px;
-    flex-shrink: 0;
-    margin-right: 2px;
-  }
-
-  /* Drag handle (wraps bullet) */
+  /* Drag handle (wraps bullet) - also handles collapse/expand on click */
   .drag-handle {
     width: 20px;
     height: 24px;
@@ -1555,6 +1498,11 @@
 
   .drag-handle:active {
     cursor: grabbing;
+  }
+
+  /* Indicate clickable for collapse/expand when item has children */
+  .bullet.has-children {
+    cursor: pointer;
   }
 
   /* Drag and drop states */

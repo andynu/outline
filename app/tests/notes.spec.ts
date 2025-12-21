@@ -60,6 +60,7 @@ test.describe('Secondary notes field', () => {
 
     // Press Escape
     await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
 
     // Note input should be gone (no note content yet)
     await expect(noteInput).not.toBeVisible();

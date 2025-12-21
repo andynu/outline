@@ -56,43 +56,43 @@ test.describe('Hierarchy', () => {
     expect(newMargin).toBeLessThan(beforeMargin);
   });
 
-  test('expand button shows on items with children', async ({ page }) => {
+  test('items with children show filled bullet', async ({ page }) => {
     // Find an item that has children - "Getting Started" has children
     const gettingStarted = page.locator('.outline-item').filter({ hasText: 'Getting Started' }).first();
 
-    // Check that it has an expand button
-    const expandBtn = gettingStarted.locator('.expand-btn').first();
-    await expect(expandBtn).toBeVisible();
+    // Check that it has a filled bullet (● = expanded with children)
+    const bullet = gettingStarted.locator('.bullet').first();
+    await expect(bullet).toHaveText('●');
   });
 
-  test('collapse button hides children', async ({ page }) => {
+  test('clicking bullet collapses children', async ({ page }) => {
     // Find "Getting Started" which has children
     const gettingStartedRow = page.locator('.outline-item').filter({ hasText: 'Getting Started' }).first();
 
-    // Find its expand button (should show ▼ indicating expanded)
-    const expandBtn = gettingStartedRow.locator('.expand-btn').first();
-    await expect(expandBtn).toBeVisible();
+    // Find its bullet (should show ● indicating expanded with children)
+    const bullet = gettingStartedRow.locator('.bullet').first();
+    await expect(bullet).toHaveText('●');
 
     // Check that children are visible before collapse
     // "Press Enter to create a new item" is a child of "Getting Started"
     const childItem = page.locator('.editor-wrapper').filter({ hasText: 'Press Enter to create a new item' });
     await expect(childItem).toBeVisible();
 
-    // Click to collapse
-    await expandBtn.click();
+    // Click bullet to collapse
+    await bullet.click();
     await page.waitForTimeout(100);
 
     // Children should now be hidden
     await expect(childItem).not.toBeVisible();
   });
 
-  test('expand button shows children', async ({ page }) => {
+  test('clicking bullet expands children', async ({ page }) => {
     // First collapse "Getting Started"
     const gettingStartedRow = page.locator('.outline-item').filter({ hasText: 'Getting Started' }).first();
-    const expandBtn = gettingStartedRow.locator('.expand-btn').first();
+    const bullet = gettingStartedRow.locator('.bullet').first();
 
     // Collapse
-    await expandBtn.click();
+    await bullet.click();
     await page.waitForTimeout(100);
 
     // Verify collapsed
@@ -100,43 +100,51 @@ test.describe('Hierarchy', () => {
     await expect(childItem).not.toBeVisible();
 
     // Now click to expand
-    await expandBtn.click();
+    await bullet.click();
     await page.waitForTimeout(100);
 
     // Children should be visible again
     await expect(childItem).toBeVisible();
   });
 
-  test('collapse indicator shows correct state', async ({ page }) => {
+  test('bullet shows correct state', async ({ page }) => {
     const gettingStartedRow = page.locator('.outline-item').filter({ hasText: 'Getting Started' }).first();
-    const expandBtn = gettingStartedRow.locator('.expand-btn').first();
+    const bullet = gettingStartedRow.locator('.bullet').first();
 
-    // Initially expanded - should show ▼
-    const expandIcon = expandBtn.locator('.expand-icon');
-    await expect(expandIcon).toHaveText('▼');
+    // Initially expanded - should show ● (filled)
+    await expect(bullet).toHaveText('●');
 
     // Collapse
-    await expandBtn.click();
+    await bullet.click();
     await page.waitForTimeout(100);
 
-    // Should now show ▶
-    await expect(expandIcon).toHaveText('▶');
+    // Should now show ◉ (collapsed indicator - fisheye)
+    await expect(bullet).toHaveText('◉');
 
     // Expand again
-    await expandBtn.click();
+    await bullet.click();
     await page.waitForTimeout(100);
 
-    // Should show ▼ again
-    await expect(expandIcon).toHaveText('▼');
+    // Should show ● again
+    await expect(bullet).toHaveText('●');
   });
 
-  test('items without children have no expand button', async ({ page }) => {
-    // Find an item that definitely has no children - "Welcome to Outline" is at root with no children
-    const welcomeItem = page.locator('.outline-item').filter({ hasText: /^Welcome to Outline$/ }).first();
+  test('items without children show filled bullet', async ({ page }) => {
+    // Create a new leaf item to test with
+    const firstEditor = page.locator('.editor-wrapper').first();
+    await firstEditor.click();
+    await page.waitForTimeout(100);
 
-    // Check that it has no expand button
-    const expandBtn = welcomeItem.locator('.expand-btn');
-    await expect(expandBtn).toHaveCount(0);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('Test leaf item');
+    await page.waitForTimeout(100);
+
+    // Leaf items show filled bullet (same as expanded parents)
+    const leafItem = page.locator('.outline-item.focused');
+    const bullet = leafItem.locator('> .item-row .bullet');
+    await expect(bullet).toHaveText('●');
+    await expect(bullet).not.toHaveClass(/has-children/);
   });
 
   test('multiple indent/outdent cycles work correctly', async ({ page }) => {

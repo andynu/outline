@@ -32,9 +32,9 @@ test.describe('Lazy rendering of collapsed nodes', () => {
     const childItems = firstItem.locator('.children > .outline-item');
     await expect(childItems).toHaveCount(1);
 
-    // Collapse the parent
-    const expandBtn = firstItem.locator('.expand-btn');
-    await expandBtn.click();
+    // Collapse the parent by clicking the bullet
+    const bullet = firstItem.locator('> .item-row .bullet');
+    await bullet.click();
     await page.waitForTimeout(100);
 
     // The children-wrapper should no longer be in the DOM
@@ -62,18 +62,18 @@ test.describe('Lazy rendering of collapsed nodes', () => {
     await page.keyboard.press('ArrowUp');
     await page.waitForTimeout(100);
 
-    // Collapse
-    const expandBtn = firstItem.locator('.expand-btn');
-    await expandBtn.click();
+    // Collapse by clicking the bullet
+    const bullet = firstItem.locator('> .item-row .bullet');
+    await bullet.click();
     await page.waitForTimeout(100);
 
     // Verify collapsed
-    await expect(expandBtn).toHaveClass(/collapsed/);
+    await expect(bullet).toHaveClass(/collapsed/);
     const wrapperCount = await firstItem.locator('.children-wrapper').count();
     expect(wrapperCount).toBe(0);
 
-    // Now expand
-    await expandBtn.click();
+    // Now expand by clicking the bullet again
+    await bullet.click();
     await page.waitForTimeout(100);
 
     // Children should be rendered again
@@ -116,9 +116,9 @@ test.describe('Lazy rendering of collapsed nodes', () => {
     await page.keyboard.press('ArrowUp');
     await page.waitForTimeout(100);
 
-    // Get the direct expand button (not nested ones)
-    const expandBtn = firstItem.locator('> .item-row > .expand-btn');
-    await expandBtn.click();
+    // Get the direct bullet (not nested ones) and click to collapse
+    const bullet = firstItem.locator('> .item-row .bullet');
+    await bullet.click();
     await page.waitForTimeout(100);
 
     // All nested items should be removed from DOM

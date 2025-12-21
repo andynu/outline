@@ -7,7 +7,7 @@ test.describe('Bullet styles', () => {
     await page.waitForSelector('.outline-item');
   });
 
-  test('leaf items show hollow bullet (○)', async ({ page }) => {
+  test('leaf items show filled bullet (●)', async ({ page }) => {
     // Create a new item with no children
     await page.keyboard.press('End'); // Go to last item
     await page.keyboard.press('Enter');
@@ -16,12 +16,12 @@ test.describe('Bullet styles', () => {
     // Wait for the new item to be rendered
     await page.waitForTimeout(100);
 
-    // The new item should show a hollow bullet since it has no children
+    // The new item should show a filled bullet (same as expanded parents)
     const newItem = page.locator('.outline-item').filter({ hasText: 'Leaf item test' });
     const bullet = newItem.locator('.bullet');
 
-    // Check that it's a hollow bullet (no children)
-    await expect(bullet).toHaveText('○');
+    // Check that it's a filled bullet
+    await expect(bullet).toHaveText('●');
     await expect(bullet).not.toHaveClass(/has-children/);
   });
 
@@ -41,37 +41,37 @@ test.describe('Bullet styles', () => {
     await expect(bullet).not.toHaveClass(/collapsed/);
   });
 
-  test('collapsed items with children show dot bullet (◉)', async ({ page }) => {
-    // Find an item with children that we can collapse
-    const collapseButton = page.locator('.expand-btn').first();
-    await expect(collapseButton).toBeVisible();
+  test('collapsed items with children show fisheye bullet (◉)', async ({ page }) => {
+    // Find an item with children - "Getting Started" has children
+    const itemWithChildren = page.locator('.outline-item').filter({ hasText: 'Getting Started' }).first();
+    const bullet = itemWithChildren.locator('> .item-row .bullet').first();
 
-    // Get the parent outline-item
-    const parentItem = collapseButton.locator('..');
+    // Start expanded - should show ●
+    await expect(bullet).toHaveText('●');
 
-    // Click to collapse
-    await collapseButton.click();
+    // Click bullet to collapse
+    await bullet.click();
 
     // Wait for collapse animation
     await page.waitForTimeout(100);
 
     // Now the bullet should show the collapsed indicator (◉)
-    const bullet = parentItem.locator('.bullet').first();
     await expect(bullet).toHaveText('◉');
     await expect(bullet).toHaveClass(/has-children/);
     await expect(bullet).toHaveClass(/collapsed/);
   });
 
-  test('bullet style updates when item gets children', async ({ page }) => {
+  test('bullet gets has-children class when item gets children', async ({ page }) => {
     // Create a new leaf item
     await page.keyboard.press('End');
     await page.keyboard.press('Enter');
     await page.keyboard.type('Parent to be');
 
-    // Verify it starts as a leaf (hollow bullet)
+    // Verify it starts as a leaf (filled bullet, no has-children class)
     const parentItem = page.locator('.outline-item').filter({ hasText: 'Parent to be' });
     let bullet = parentItem.locator('> .item-row .bullet');
-    await expect(bullet).toHaveText('○');
+    await expect(bullet).toHaveText('●');
+    await expect(bullet).not.toHaveClass(/has-children/);
 
     // Add a child by pressing Enter then Tab to indent
     await page.keyboard.press('Enter');
@@ -81,31 +81,27 @@ test.describe('Bullet styles', () => {
     // Wait for update
     await page.waitForTimeout(100);
 
-    // Now the parent should show a filled bullet
+    // Now the parent should have has-children class (still filled bullet)
     bullet = parentItem.locator('> .item-row .bullet');
     await expect(bullet).toHaveText('●');
     await expect(bullet).toHaveClass(/has-children/);
   });
 
   test('bullet style updates when collapsing/expanding', async ({ page }) => {
-    // Find an expandable item
-    const collapseButton = page.locator('.expand-btn').first();
-    await expect(collapseButton).toBeVisible();
-
-    // Get the bullet (using the parent .item-row)
-    const itemRow = collapseButton.locator('..');
-    const bullet = itemRow.locator('.bullet');
+    // Find an item with children - "Getting Started" has children
+    const itemWithChildren = page.locator('.outline-item').filter({ hasText: 'Getting Started' }).first();
+    const bullet = itemWithChildren.locator('> .item-row .bullet').first();
 
     // Start expanded - should show ●
     await expect(bullet).toHaveText('●');
 
-    // Collapse - should show ◉
-    await collapseButton.click();
+    // Collapse by clicking bullet - should show ◉
+    await bullet.click();
     await page.waitForTimeout(100);
     await expect(bullet).toHaveText('◉');
 
-    // Expand again - should show ●
-    await collapseButton.click();
+    // Expand again by clicking bullet - should show ●
+    await bullet.click();
     await page.waitForTimeout(100);
     await expect(bullet).toHaveText('●');
   });

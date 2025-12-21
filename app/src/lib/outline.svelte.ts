@@ -526,6 +526,19 @@ export const outline = {
     const node = nodesById().get(nodeId);
     if (!node) return false;
 
+    // If checking an item while hideCompleted is on, find next item to focus BEFORE hiding
+    let nextFocusId: string | null = null;
+    if (!node.is_checked && hideCompleted && focusedId === nodeId) {
+      const visible = this.getVisibleNodes();
+      const idx = visible.findIndex(n => n.id === nodeId);
+      // Prefer next item, fall back to previous
+      if (idx >= 0 && idx < visible.length - 1) {
+        nextFocusId = visible[idx + 1].id;
+      } else if (idx > 0) {
+        nextFocusId = visible[idx - 1].id;
+      }
+    }
+
     startOperation();
     try {
       // If this is a recurring task being checked, calculate next occurrence
@@ -547,6 +560,12 @@ export const outline = {
         is_checked: !node.is_checked,
       });
       updateFromState(state);
+
+      // Move focus to next item if the completed item is now hidden
+      if (nextFocusId) {
+        focusedId = nextFocusId;
+      }
+
       return true;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);

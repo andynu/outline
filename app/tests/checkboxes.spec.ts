@@ -7,7 +7,7 @@ test.describe('Checkboxes and completion', () => {
     await page.waitForSelector('.outline-item', { timeout: 10000 });
   });
 
-  test('Ctrl+Shift+C converts bullet to checkbox', async ({ page }) => {
+  test('Ctrl+Shift+X converts bullet to checkbox', async ({ page }) => {
     // Create a new item
     const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
@@ -24,8 +24,8 @@ test.describe('Checkboxes and completion', () => {
     const focusedItem = page.locator('.outline-item.focused');
     await expect(focusedItem.locator('.bullet')).toBeVisible();
 
-    // Press Ctrl+Shift+C to convert to checkbox
-    await page.keyboard.press('Control+Shift+c');
+    // Press Ctrl+Shift+X to convert to checkbox
+    await page.keyboard.press('Control+Shift+x');
     await page.waitForTimeout(100);
 
     // Should now have a checkbox, not a bullet
@@ -33,7 +33,7 @@ test.describe('Checkboxes and completion', () => {
     await expect(focusedItem.locator('.bullet')).not.toBeVisible();
   });
 
-  test('Ctrl+Shift+C converts checkbox back to bullet', async ({ page }) => {
+  test('Ctrl+Shift+X converts checkbox back to bullet', async ({ page }) => {
     // Create a new item and convert to checkbox
     const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
@@ -46,14 +46,14 @@ test.describe('Checkboxes and completion', () => {
     await page.waitForTimeout(100);
 
     // Convert to checkbox
-    await page.keyboard.press('Control+Shift+c');
+    await page.keyboard.press('Control+Shift+x');
     await page.waitForTimeout(100);
 
     const focusedItem = page.locator('.outline-item.focused');
     await expect(focusedItem.locator('.checkbox-btn')).toBeVisible();
 
     // Convert back to bullet
-    await page.keyboard.press('Control+Shift+c');
+    await page.keyboard.press('Control+Shift+x');
     await page.waitForTimeout(100);
 
     // Should now have bullet again
@@ -74,7 +74,7 @@ test.describe('Checkboxes and completion', () => {
     await page.waitForTimeout(100);
 
     // Convert to checkbox
-    await page.keyboard.press('Control+Shift+c');
+    await page.keyboard.press('Control+Shift+x');
     await page.waitForTimeout(100);
 
     const focusedItem = page.locator('.outline-item.focused');
@@ -105,7 +105,7 @@ test.describe('Checkboxes and completion', () => {
     await page.keyboard.type('Task');
     await page.waitForTimeout(100);
 
-    await page.keyboard.press('Control+Shift+c');
+    await page.keyboard.press('Control+Shift+x');
     await page.waitForTimeout(100);
 
     // Complete it
@@ -174,7 +174,7 @@ test.describe('Checkboxes and completion', () => {
     await page.keyboard.type('Completed task');
     await page.waitForTimeout(100);
 
-    await page.keyboard.press('Control+Shift+c');
+    await page.keyboard.press('Control+Shift+x');
     await page.waitForTimeout(100);
 
     await page.keyboard.press('Control+Enter');
@@ -204,7 +204,7 @@ test.describe('Checkboxes and completion', () => {
     await page.keyboard.type('Click test');
     await page.waitForTimeout(100);
 
-    await page.keyboard.press('Control+Shift+c');
+    await page.keyboard.press('Control+Shift+x');
     await page.waitForTimeout(100);
 
     const focusedItem = page.locator('.outline-item.focused');
@@ -235,7 +235,7 @@ test.describe('Checkboxes and completion', () => {
     await page.keyboard.type('Visual test');
     await page.waitForTimeout(100);
 
-    await page.keyboard.press('Control+Shift+c');
+    await page.keyboard.press('Control+Shift+x');
     await page.waitForTimeout(100);
 
     const focusedItem = page.locator('.outline-item.focused');
