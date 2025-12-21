@@ -1,6 +1,7 @@
 <script lang="ts">
   import { settings } from './settings.svelte';
   import { theme } from './theme.svelte';
+  import { getDataDirectory, setDataDirectory, pickDirectory, type DataDirectoryInfo } from './api';
 
   interface Props {
     isOpen: boolean;
@@ -17,6 +18,12 @@
   let localConfirmDelete = $state(true);
   let localStartCollapsed = $state(false);
 
+  // Data directory state
+  let dataDir = $state<DataDirectoryInfo | null>(null);
+  let dataDirLoading = $state(false);
+  let dataDirError = $state('');
+  let needsRestart = $state(false);
+
   // Sync local state when modal opens
   $effect(() => {
     if (isOpen) {
@@ -27,8 +34,52 @@
       localAutoSave = s.autoSaveInterval;
       localConfirmDelete = s.confirmDelete;
       localStartCollapsed = s.startCollapsed;
+
+      // Load data directory info
+      loadDataDirectory();
     }
   });
+
+  async function loadDataDirectory() {
+    dataDirLoading = true;
+    dataDirError = '';
+    try {
+      dataDir = await getDataDirectory();
+    } catch (e) {
+      dataDirError = e instanceof Error ? e.message : 'Failed to load';
+    } finally {
+      dataDirLoading = false;
+    }
+  }
+
+  async function handleBrowseDataDir() {
+    try {
+      const selected = await pickDirectory();
+      if (selected) {
+        dataDirLoading = true;
+        dataDirError = '';
+        dataDir = await setDataDirectory(selected);
+        needsRestart = true;
+      }
+    } catch (e) {
+      dataDirError = e instanceof Error ? e.message : 'Failed to set directory';
+    } finally {
+      dataDirLoading = false;
+    }
+  }
+
+  async function handleResetDataDir() {
+    try {
+      dataDirLoading = true;
+      dataDirError = '';
+      dataDir = await setDataDirectory(null);
+      needsRestart = dataDir?.is_custom === false;
+    } catch (e) {
+      dataDirError = e instanceof Error ? e.message : 'Failed to reset';
+    } finally {
+      dataDirLoading = false;
+    }
+  }
 
   function handleThemeChange(newTheme: 'light' | 'dark' | 'system') {
     localTheme = newTheme;
@@ -261,15 +312,52 @@
         <!-- Data Section -->
         <section class="settings-section">
           <h3>Data</h3>
-          <div class="setting-row">
+          <div class="setting-row data-dir-row">
             <label class="setting-label">
               <span class="label-text">Data Directory</span>
               <span class="label-hint">Where your documents are stored</span>
             </label>
-            <div class="data-path">
-              <code>~/.outline-data</code>
+            <div class="data-dir-controls">
+              {#if dataDirLoading}
+                <span class="data-dir-loading">Loading...</span>
+              {:else if dataDir}
+                <code class="data-dir-path" title={dataDir.current}>{dataDir.current}</code>
+                <div class="data-dir-buttons">
+                  <button
+                    class="btn-browse"
+                    onclick={handleBrowseDataDir}
+                    title="Choose a different directory"
+                  >
+                    Browse...
+                  </button>
+                  {#if dataDir.is_custom}
+                    <button
+                      class="btn-reset-dir"
+                      onclick={handleResetDataDir}
+                      title="Reset to default directory"
+                    >
+                      Reset
+                    </button>
+                  {/if}
+                </div>
+              {:else}
+                <span class="data-dir-error">Unable to load</span>
+              {/if}
             </div>
           </div>
+          {#if dataDirError}
+            <div class="data-dir-error-msg">{dataDirError}</div>
+          {/if}
+          {#if needsRestart}
+            <div class="data-dir-restart-notice">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <span>Restart the app to use the new data directory.</span>
+            </div>
+          {/if}
         </section>
       </div>
 
@@ -512,13 +600,20 @@
     transform: translateX(20px);
   }
 
-  /* Data path display */
-  .data-path {
-    display: flex;
-    align-items: center;
+  /* Data directory controls */
+  .data-dir-row {
+    flex-direction: column;
+    gap: 12px;
   }
 
-  .data-path code {
+  .data-dir-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .data-dir-path {
     padding: 8px 12px;
     font-size: 13px;
     font-family: 'SF Mono', Monaco, monospace;
@@ -526,6 +621,69 @@
     border: 1px solid var(--border-primary);
     border-radius: 6px;
     color: var(--text-secondary);
+    word-break: break-all;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .data-dir-buttons {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn-browse,
+  .btn-reset-dir {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid var(--border-primary);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  .btn-browse:hover,
+  .btn-reset-dir:hover {
+    background: var(--bg-tertiary);
+  }
+
+  .data-dir-loading {
+    color: var(--text-tertiary);
+    font-size: 13px;
+  }
+
+  .data-dir-error {
+    color: var(--danger);
+    font-size: 13px;
+  }
+
+  .data-dir-error-msg {
+    color: var(--danger);
+    font-size: 12px;
+    padding: 8px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 4px;
+    margin-top: 4px;
+  }
+
+  .data-dir-restart-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 6px;
+    color: var(--warning, #d97706);
+    margin-top: 8px;
+  }
+
+  .data-dir-restart-notice svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
   }
 
   kbd {

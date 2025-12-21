@@ -648,3 +648,49 @@ function escapeXml(str: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 }
+
+// Data directory info from backend
+export interface DataDirectoryInfo {
+  current: string;
+  default: string;
+  is_custom: boolean;
+}
+
+// Get the current data directory configuration
+export async function getDataDirectory(): Promise<DataDirectoryInfo> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('get_data_directory') as Promise<DataDirectoryInfo>;
+  }
+  // Browser-only mode: return mock info
+  return {
+    current: '~/.outline-data',
+    default: '~/.outline-data',
+    is_custom: false,
+  };
+}
+
+// Set the data directory (requires app restart to take full effect)
+export async function setDataDirectory(path: string | null): Promise<DataDirectoryInfo> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('set_data_directory', { path }) as Promise<DataDirectoryInfo>;
+  }
+  // Browser-only mode: return mock info
+  return {
+    current: path || '~/.outline-data',
+    default: '~/.outline-data',
+    is_custom: !!path,
+  };
+}
+
+// Open a directory picker dialog and return the selected path
+export async function pickDirectory(): Promise<string | null> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('pick_directory') as Promise<string | null>;
+  }
+  // Browser-only mode: not supported
+  console.warn('Directory picker not available in browser-only mode');
+  return null;
+}

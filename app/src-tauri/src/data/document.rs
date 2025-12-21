@@ -3,10 +3,14 @@ use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
+use std::sync::RwLock;
 use uuid::Uuid;
 
 use super::node::Node;
 use super::operations::Operation;
+
+/// Global config for data directory (can be changed at runtime)
+static DATA_DIR_OVERRIDE: RwLock<Option<PathBuf>> = RwLock::new(None);
 
 /// Document state stored in state.json
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -244,12 +248,79 @@ impl Document {
     }
 }
 
-/// Get the data directory path
-pub fn data_dir() -> PathBuf {
-    // Use ~/.outline-data for now
+/// Get the default data directory path
+pub fn default_data_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".outline-data")
+}
+
+/// Get the data directory path (uses override if set, otherwise default)
+pub fn data_dir() -> PathBuf {
+    if let Ok(guard) = DATA_DIR_OVERRIDE.read() {
+        if let Some(ref path) = *guard {
+            return path.clone();
+        }
+    }
+    default_data_dir()
+}
+
+/// Set the data directory override
+pub fn set_data_dir(path: Option<PathBuf>) {
+    if let Ok(mut guard) = DATA_DIR_OVERRIDE.write() {
+        *guard = path;
+    }
+}
+
+/// Get the config file path (stored in user's config directory)
+fn config_path() -> PathBuf {
+    dirs::config_dir()
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")))
+        .join("outline")
+        .join("config.json")
+}
+
+/// App configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AppConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data_directory: Option<String>,
+}
+
+/// Load app configuration from disk
+pub fn load_config() -> AppConfig {
+    let path = config_path();
+    if path.exists() {
+        if let Ok(content) = fs::read_to_string(&path) {
+            if let Ok(config) = serde_json::from_str(&content) {
+                return config;
+            }
+        }
+    }
+    AppConfig::default()
+}
+
+/// Save app configuration to disk
+pub fn save_config(config: &AppConfig) -> Result<(), String> {
+    let path = config_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Create config dir: {}", e))?;
+    }
+    let content = serde_json::to_string_pretty(config)
+        .map_err(|e| format!("Serialize config: {}", e))?;
+    fs::write(&path, content).map_err(|e| format!("Write config: {}", e))?;
+    Ok(())
+}
+
+/// Initialize data directory from config (call at startup)
+pub fn init_data_dir_from_config() {
+    let config = load_config();
+    if let Some(ref path_str) = config.data_directory {
+        let path = PathBuf::from(path_str);
+        if path.exists() || path_str.is_empty() {
+            set_data_dir(if path_str.is_empty() { None } else { Some(path) });
+        }
+    }
 }
 
 /// Get the documents directory path

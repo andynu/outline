@@ -184,9 +184,21 @@ test.describe('Settings panel', () => {
     const modal = page.locator('.modal[aria-labelledby="settings-title"]');
     await expect(modal).toBeVisible();
 
-    const dataPath = modal.locator('.data-path code');
+    const dataPath = modal.locator('.data-dir-path');
     await expect(dataPath).toBeVisible();
     await expect(dataPath).toContainText('.outline-data');
+  });
+
+  test('browse button is visible for data directory', async ({ page }) => {
+    await page.keyboard.press('Control+,');
+    await page.waitForTimeout(100);
+
+    const modal = page.locator('.modal[aria-labelledby="settings-title"]');
+    await expect(modal).toBeVisible();
+
+    const browseBtn = modal.locator('.btn-browse');
+    await expect(browseBtn).toBeVisible();
+    await expect(browseBtn).toHaveText('Browse...');
   });
 
   test('reset to defaults button is visible', async ({ page }) => {

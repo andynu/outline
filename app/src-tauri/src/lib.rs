@@ -7,7 +7,11 @@ use commands::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize data directory from saved config before anything else
+    data::init_data_dir_from_config();
+
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::new())
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -43,6 +47,9 @@ pub fn run() {
             commands::export_markdown,
             commands::export_json,
             commands::import_json,
+            commands::get_data_directory,
+            commands::set_data_directory,
+            commands::pick_directory,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
