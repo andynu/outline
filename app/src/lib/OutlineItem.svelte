@@ -917,6 +917,22 @@
 >
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="item-row" onclick={handleRowClick} oncontextmenu={handleContextMenu}>
+    <!-- Hamburger menu button - shows on hover -->
+    <button
+      class="hover-menu-btn"
+      onclick={(e) => { e.stopPropagation(); contextMenuPosition = { x: e.clientX / zoom.level, y: e.clientY / zoom.level }; showContextMenu = true; outline.focus(item.node.id); }}
+      tabindex="-1"
+      aria-label="Open menu"
+      title="Menu"
+    >
+      <svg viewBox="0 0 16 16" fill="currentColor">
+        <circle cx="8" cy="3" r="1.5"/>
+        <circle cx="8" cy="8" r="1.5"/>
+        <circle cx="8" cy="13" r="1.5"/>
+      </svg>
+    </button>
+
+    <!-- Expand/collapse button - shows on hover for items with children -->
     {#if item.hasChildren && item.node.node_type !== 'checkbox'}
       <button
         class="expand-btn"
@@ -927,6 +943,9 @@
       >
         <span class="expand-icon">{item.node.collapsed ? '▶' : '▼'}</span>
       </button>
+    {:else}
+      <!-- Spacer to maintain alignment when no expand button -->
+      <span class="expand-spacer"></span>
     {/if}
 
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -1434,6 +1453,38 @@
     display: block;
   }
 
+  /* Hover menu button (hamburger/three dots) */
+  .hover-menu-btn {
+    width: 16px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+    padding: 0;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .hover-menu-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .hover-menu-btn:hover {
+    color: var(--text-primary);
+  }
+
+  /* Show hover controls on item hover or focus */
+  .item-row:hover .hover-menu-btn,
+  .focused .hover-menu-btn {
+    opacity: 1;
+  }
+
   /* Expand/collapse button */
   .expand-btn {
     width: 16px;
@@ -1449,6 +1500,15 @@
     flex-shrink: 0;
     padding: 0;
     margin-right: 2px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  /* Show expand button on hover or when collapsed (to indicate hidden content) */
+  .item-row:hover .expand-btn,
+  .focused .expand-btn,
+  .expand-btn.collapsed {
+    opacity: 1;
   }
 
   .expand-btn:hover {
@@ -1457,6 +1517,14 @@
 
   .expand-icon {
     transition: transform 0.15s;
+  }
+
+  /* Spacer for items without expand button to maintain alignment */
+  .expand-spacer {
+    width: 16px;
+    height: 24px;
+    flex-shrink: 0;
+    margin-right: 2px;
   }
 
   /* Drag handle (wraps bullet) */
