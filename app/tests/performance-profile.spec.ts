@@ -157,6 +157,8 @@ test.describe('Performance profiling', () => {
 
     // Generate synthetic test nodes
     console.log('\n=== SYNTHETIC DATA PERFORMANCE TEST ===');
+    console.log('Note: Uses _generateTestNodes which bypasses normal update path');
+    console.log('Full rebuilds are expected (no surgical updates)');
 
     for (const count of [100, 500, 1000, 2000]) {
       perfLogs.length = 0;
@@ -174,12 +176,10 @@ test.describe('Performance profiling', () => {
       await page.waitForTimeout(50);
 
       // Find the perf logs for this iteration
-      const genLog = perfLogs.find(l => l.includes('Generated'));
-      const renderLog = perfLogs.find(l => l.includes('getTree'));
+      const rebuildLog = perfLogs.find(l => l.includes('rebuildIndexes'));
 
-      console.log(`\n${count} nodes:`);
-      if (genLog) console.log(`  ${genLog}`);
-      if (renderLog) console.log(`  ${renderLog}`);
+      console.log(`${count} nodes:`);
+      if (rebuildLog) console.log(`  ${rebuildLog}`);
     }
 
     console.log('\n=== END SYNTHETIC TEST ===\n');

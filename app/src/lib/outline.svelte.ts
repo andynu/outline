@@ -236,11 +236,13 @@ function getFilteredNodeIds(filter: string): Set<string> {
 let lastBuildTreeTime = 0;
 let buildTreeCallCount = 0;
 
-// Build tree structure for rendering
+// Build tree structure for rendering - optimized version
+// For large flat lists, this avoids unnecessary recursive calls
 function buildTree(parentId: string | null, depth: number, filteredIds?: Set<string>, excludeCompleted: boolean = false): TreeNode[] {
   const isRoot = parentId === null;
-  const startTime = isRoot ? performance.now() : 0;
+  // Get children first (may trigger rebuildIndexes) before measuring tree building time
   const children = parentId === null ? rootNodes() : childrenOf(parentId);
+  const startTime = isRoot ? performance.now() : 0;
 
   // Filter children based on active filters
   let visibleChildren = children;
@@ -255,8 +257,12 @@ function buildTree(parentId: string | null, depth: number, filteredIds?: Set<str
     visibleChildren = visibleChildren.filter(n => !n.is_checked);
   }
 
+  // Optimization: pre-fetch the children map to avoid repeated lookups
+  const childrenByParent = cachedChildrenByParent;
+
   const result = visibleChildren.map(node => {
-    const nodeChildren = childrenOf(node.id);
+    // Direct lookup from cache instead of function call
+    const nodeChildren = childrenByParent.get(node.id) ?? [];
     // When filtering, check if any children are visible
     let hasVisibleChildren = nodeChildren.length > 0;
     if (filteredIds) {
@@ -266,12 +272,17 @@ function buildTree(parentId: string | null, depth: number, filteredIds?: Set<str
       hasVisibleChildren = hasVisibleChildren && nodeChildren.some(c => !c.is_checked);
     }
 
+    // Skip recursive call if no children (common case for leaf nodes)
+    let childTree: TreeNode[] = [];
+    if (hasVisibleChildren && (filteredIds || !node.collapsed)) {
+      childTree = buildTree(node.id, depth + 1, filteredIds, excludeCompleted);
+    }
+
     return {
       node,
       depth,
       hasChildren: hasVisibleChildren,
-      // When filtering, expand all nodes to show matches; otherwise respect collapsed state
-      children: (filteredIds || !node.collapsed) ? buildTree(node.id, depth + 1, filteredIds, excludeCompleted) : []
+      children: childTree
     };
   });
 
