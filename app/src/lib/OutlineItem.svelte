@@ -846,6 +846,15 @@
     }
   }
 
+  // Copy item content to clipboard as plain text
+  async function copyToClipboard() {
+    // Use DOMParser to safely extract text from HTML content
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(item.node.content, 'text/html');
+    const plainText = doc.body.textContent || '';
+    await navigator.clipboard.writeText(plainText);
+  }
+
   const contextMenuItems = $derived([
     {
       label: item.node.is_checked ? 'Mark Incomplete' : 'Mark Complete',
@@ -856,6 +865,12 @@
       label: item.node.node_type === 'checkbox' ? 'Convert to Bullet' : 'Convert to Checkbox',
       action: () => outline.toggleNodeType(item.node.id),
       shortcut: 'Ctrl+Shift+X',
+    },
+    { separator: true as const },
+    {
+      label: 'Copy',
+      action: copyToClipboard,
+      shortcut: 'Ctrl+C',
     },
     { separator: true as const },
     {

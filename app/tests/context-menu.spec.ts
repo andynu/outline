@@ -29,6 +29,7 @@ test.describe('Context menu', () => {
     // Check for expected menu items
     await expect(page.locator('.menu-item').filter({ hasText: 'Mark Complete' })).toBeVisible();
     await expect(page.locator('.menu-item').filter({ hasText: 'Convert to Checkbox' })).toBeVisible();
+    await expect(page.locator('.menu-item').filter({ hasText: 'Copy' })).toBeVisible();
     await expect(page.locator('.menu-item').filter({ hasText: 'Indent' })).toBeVisible();
     await expect(page.locator('.menu-item').filter({ hasText: 'Outdent' })).toBeVisible();
     // Check for Delete menu item (not "Delete Completed Children")
@@ -48,7 +49,8 @@ test.describe('Context menu', () => {
     const shortcutTexts = await shortcuts.allTextContents();
 
     expect(shortcutTexts).toContain('Ctrl+Enter');
-    expect(shortcutTexts).toContain('Ctrl+Shift+C');
+    expect(shortcutTexts).toContain('Ctrl+Shift+X');
+    expect(shortcutTexts).toContain('Ctrl+C');
     expect(shortcutTexts).toContain('Tab');
     expect(shortcutTexts).toContain('Shift+Tab');
   });
