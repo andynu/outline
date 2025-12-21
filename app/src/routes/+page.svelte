@@ -309,6 +309,11 @@
       event.preventDefault();
       outline.collapseAll();
     }
+    // Ctrl+Shift+,: Expand all
+    else if (event.ctrlKey && event.shiftKey && event.key === ',') {
+      event.preventDefault();
+      outline.expandAll();
+    }
     // Ctrl+0: Reset zoom
     else if (event.ctrlKey && event.key === '0') {
       event.preventDefault();

@@ -941,6 +941,28 @@ export const outline = {
     }
   },
 
+  // Expand all collapsed nodes
+  async expandAll() {
+    const nodesToExpand = nodes.filter(n => n.collapsed);
+
+    if (nodesToExpand.length === 0) return;
+
+    startOperation();
+    try {
+      let state: DocumentState | null = null;
+      for (const node of nodesToExpand) {
+        state = await api.updateNode(node.id, { collapsed: false });
+      }
+      if (state) {
+        updateFromState(state);
+      }
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    } finally {
+      endOperation();
+    }
+  },
+
   // Expand all nodes up to a specific depth level (1-based)
   // Level 1 = show root items only (collapse all)
   // Level 2 = show root + their direct children

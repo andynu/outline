@@ -78,10 +78,11 @@
           </ul>
         </div>
         <div class="shortcut-group">
-          <h4>Structure</h4>
+          <h4>View</h4>
           <ul>
-            <li><kbd>Ctrl+,</kbd> Outdent</li>
-            <li><kbd>Ctrl+.</kbd> Indent</li>
+            <li><kbd>Ctrl+.</kbd> Toggle collapse</li>
+            <li><kbd>Ctrl+Shift+.</kbd> Collapse all</li>
+            <li><kbd>Ctrl+Shift+,</kbd> Expand all</li>
           </ul>
         </div>
         <div class="shortcut-group">
