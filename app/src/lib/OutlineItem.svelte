@@ -855,6 +855,9 @@
     await navigator.clipboard.writeText(plainText);
   }
 
+  const hasChildren = $derived(outline.hasChildren(item.node.id));
+  const isCollapsed = $derived(outline.isCollapsed(item.node.id));
+
   const contextMenuItems = $derived([
     {
       label: item.node.is_checked ? 'Mark Incomplete' : 'Mark Complete',
@@ -871,6 +874,39 @@
       label: 'Copy',
       action: copyToClipboard,
       shortcut: 'Ctrl+C',
+    },
+    { separator: true as const },
+    {
+      label: isCollapsed ? 'Expand' : 'Collapse',
+      action: () => outline.toggleCollapse(item.node.id),
+      shortcut: 'Ctrl+.',
+      disabled: !hasChildren,
+    },
+    {
+      label: 'Collapse All',
+      action: () => outline.collapseAll(),
+      shortcut: 'Ctrl+Shift+.',
+    },
+    {
+      label: 'Collapse Siblings',
+      action: () => outline.collapseSiblings(item.node.id),
+    },
+    { separator: true as const },
+    {
+      label: 'Expand to Level 1',
+      action: () => outline.expandToLevel(1),
+    },
+    {
+      label: 'Expand to Level 2',
+      action: () => outline.expandToLevel(2),
+    },
+    {
+      label: 'Expand to Level 3',
+      action: () => outline.expandToLevel(3),
+    },
+    {
+      label: 'Expand to Level 4',
+      action: () => outline.expandToLevel(4),
     },
     { separator: true as const },
     {

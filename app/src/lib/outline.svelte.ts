@@ -878,6 +878,171 @@ export const outline = {
     const buildTime = performance.now() - startTime;
     console.log(`[perf] getTree: ${buildTime.toFixed(1)}ms, ${nodes.length} nodes, ${tree.length} root items`);
     return tree;
+  },
+
+  // Collapse a specific node (set collapsed=true)
+  async collapseNode(nodeId: string) {
+    const node = nodesById().get(nodeId);
+    if (!node || node.collapsed) return;
+
+    const children = childrenOf(nodeId);
+    if (children.length === 0) return;
+
+    startOperation();
+    try {
+      const state = await api.updateNode(nodeId, { collapsed: true });
+      updateFromState(state);
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    } finally {
+      endOperation();
+    }
+  },
+
+  // Expand a specific node (set collapsed=false)
+  async expandNode(nodeId: string) {
+    const node = nodesById().get(nodeId);
+    if (!node || !node.collapsed) return;
+
+    startOperation();
+    try {
+      const state = await api.updateNode(nodeId, { collapsed: false });
+      updateFromState(state);
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    } finally {
+      endOperation();
+    }
+  },
+
+  // Collapse all nodes that have children
+  async collapseAll() {
+    const nodesToCollapse = nodes.filter(n => {
+      if (n.collapsed) return false;
+      return childrenOf(n.id).length > 0;
+    });
+
+    if (nodesToCollapse.length === 0) return;
+
+    startOperation();
+    try {
+      // Update each node - the API returns full state each time
+      let state: DocumentState | null = null;
+      for (const node of nodesToCollapse) {
+        state = await api.updateNode(node.id, { collapsed: true });
+      }
+      if (state) {
+        updateFromState(state);
+      }
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    } finally {
+      endOperation();
+    }
+  },
+
+  // Expand all nodes up to a specific depth level (1-based)
+  // Level 1 = show root items only (collapse all)
+  // Level 2 = show root + their direct children
+  // etc.
+  async expandToLevel(level: number) {
+    // Calculate depth of each node
+    const nodeDepths = new Map<string, number>();
+
+    function getDepth(nodeId: string): number {
+      const cached = nodeDepths.get(nodeId);
+      if (cached !== undefined) return cached;
+
+      const node = nodesById().get(nodeId);
+      if (!node || !node.parent_id) {
+        nodeDepths.set(nodeId, 1);
+        return 1;
+      }
+
+      const depth = getDepth(node.parent_id) + 1;
+      nodeDepths.set(nodeId, depth);
+      return depth;
+    }
+
+    // Calculate depths for all nodes
+    for (const node of nodes) {
+      getDepth(node.id);
+    }
+
+    // Determine which nodes need to change
+    const changes: { id: string; collapsed: boolean }[] = [];
+
+    for (const node of nodes) {
+      const hasChildren = childrenOf(node.id).length > 0;
+      if (!hasChildren) continue;
+
+      const depth = nodeDepths.get(node.id) || 1;
+      // Nodes at depth < level should be expanded (collapsed=false)
+      // Nodes at depth >= level should be collapsed (collapsed=true)
+      const shouldBeCollapsed = depth >= level;
+
+      if (node.collapsed !== shouldBeCollapsed) {
+        changes.push({ id: node.id, collapsed: shouldBeCollapsed });
+      }
+    }
+
+    if (changes.length === 0) return;
+
+    startOperation();
+    try {
+      let state: DocumentState | null = null;
+      for (const change of changes) {
+        state = await api.updateNode(change.id, { collapsed: change.collapsed });
+      }
+      if (state) {
+        updateFromState(state);
+      }
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    } finally {
+      endOperation();
+    }
+  },
+
+  // Collapse all siblings of the focused node
+  async collapseSiblings(nodeId: string) {
+    const node = nodesById().get(nodeId);
+    if (!node) return;
+
+    const siblings = getSiblings(nodeId);
+    const siblingsToCollapse = siblings.filter(s =>
+      s.id !== nodeId &&
+      !s.collapsed &&
+      childrenOf(s.id).length > 0
+    );
+
+    if (siblingsToCollapse.length === 0) return;
+
+    startOperation();
+    try {
+      let state: DocumentState | null = null;
+      for (const sibling of siblingsToCollapse) {
+        state = await api.updateNode(sibling.id, { collapsed: true });
+      }
+      if (state) {
+        updateFromState(state);
+      }
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    } finally {
+      endOperation();
+    }
+  },
+
+  // Check if a node has children (useful for UI)
+  hasChildren(nodeId: string): boolean {
+    return childrenOf(nodeId).length > 0;
+  },
+
+  // Check if a node is collapsed
+  isCollapsed(nodeId: string): boolean {
+    const node = nodesById().get(nodeId);
+    return node?.collapsed ?? false;
   }
 };
 

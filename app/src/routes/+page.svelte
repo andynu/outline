@@ -297,6 +297,18 @@
       event.preventDefault();
       zoom.zoomOut();
     }
+    // Ctrl+.: Collapse/Expand focused item
+    else if (event.ctrlKey && !event.shiftKey && event.key === '.') {
+      event.preventDefault();
+      if (outline.focusedId) {
+        outline.toggleCollapse(outline.focusedId);
+      }
+    }
+    // Ctrl+Shift+.: Collapse all
+    else if (event.ctrlKey && event.shiftKey && event.key === '.') {
+      event.preventDefault();
+      outline.collapseAll();
+    }
     // Ctrl+0: Reset zoom
     else if (event.ctrlKey && event.key === '0') {
       event.preventDefault();
@@ -507,6 +519,45 @@
     {
       label: outline.hideCompleted ? 'Show Completed Items' : 'Hide Completed Items',
       action: () => outline.toggleHideCompleted(),
+      separator: false as const
+    },
+    { separator: true as const },
+    {
+      label: outline.focusedId && outline.isCollapsed(outline.focusedId) ? 'Expand' : 'Collapse',
+      shortcut: 'Ctrl+.',
+      action: () => { if (outline.focusedId) outline.toggleCollapse(outline.focusedId); },
+      separator: false as const
+    },
+    {
+      label: 'Collapse All',
+      shortcut: 'Ctrl+Shift+.',
+      action: () => outline.collapseAll(),
+      separator: false as const
+    },
+    {
+      label: 'Collapse Siblings',
+      action: () => { if (outline.focusedId) outline.collapseSiblings(outline.focusedId); },
+      separator: false as const
+    },
+    { separator: true as const },
+    {
+      label: 'Expand to Level 1',
+      action: () => outline.expandToLevel(1),
+      separator: false as const
+    },
+    {
+      label: 'Expand to Level 2',
+      action: () => outline.expandToLevel(2),
+      separator: false as const
+    },
+    {
+      label: 'Expand to Level 3',
+      action: () => outline.expandToLevel(3),
+      separator: false as const
+    },
+    {
+      label: 'Expand to Level 4',
+      action: () => outline.expandToLevel(4),
       separator: false as const
     },
     { separator: true as const },
