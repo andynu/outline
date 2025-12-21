@@ -218,6 +218,18 @@
       handleSave();
       return;
     }
+    // Ctrl+Z: Undo
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key === 'z') {
+      event.preventDefault();
+      outline.undo();
+      return;
+    }
+    // Ctrl+Y or Ctrl+Shift+Z: Redo
+    if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || (event.shiftKey && event.key === 'Z'))) {
+      event.preventDefault();
+      outline.redo();
+      return;
+    }
     // Ctrl+Shift+F: Global search
     if (event.ctrlKey && event.shiftKey && event.key === 'F') {
       event.preventDefault();

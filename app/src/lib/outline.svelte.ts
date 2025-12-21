@@ -1,4 +1,4 @@
-import type { DocumentState, Node, NodeChanges, TreeNode } from './types';
+import type { DocumentState, Node, NodeChanges, TreeNode, UndoEntry, UndoAction } from './types';
 import * as api from './api';
 
 // Hashtag pattern - matches #word (letters, numbers, underscores, hyphens)
@@ -51,6 +51,20 @@ let hideCompleted = $state(false);  // Hide completed items from view
 
 // Lock to prevent concurrent position-changing operations
 let isMoving = false;
+
+// Undo/Redo stacks
+const MAX_UNDO_STACK_SIZE = 100;
+let undoStack: UndoEntry[] = [];
+let redoStack: UndoEntry[] = [];
+
+// Push an entry to the undo stack, clearing redo stack
+function pushUndo(entry: UndoEntry) {
+  undoStack.push(entry);
+  if (undoStack.length > MAX_UNDO_STACK_SIZE) {
+    undoStack.shift(); // Remove oldest entry
+  }
+  redoStack = []; // Clear redo stack on new action
+}
 
 // Cached indexes - rebuilt when nodes change
 let cachedNodes: Node[] = [];
@@ -455,6 +469,18 @@ export const outline = {
       const result = await api.createNode(node.parent_id, newPosition, '');
       updateFromState(result.state);
       focusedId = result.id;
+
+      // Get the newly created node for undo
+      const newNode = nodesById().get(result.id);
+      if (newNode) {
+        pushUndo({
+          description: 'Create item',
+          undo: { type: 'delete', id: result.id },
+          redo: { type: 'create', node: { ...newNode } },
+          timestamp: Date.now(),
+        });
+      }
+
       return result.id;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -631,6 +657,11 @@ export const outline = {
     // Don't delete the last node
     if (visible.length <= 1) return null;
 
+    // Save node data for undo before deleting
+    const nodeToDelete = nodesById().get(nodeId);
+    if (!nodeToDelete) return null;
+    const savedNode = { ...nodeToDelete };
+
     startOperation();
     try {
       const apiStart = performance.now();
@@ -640,6 +671,14 @@ export const outline = {
       const updateStart = performance.now();
       updateFromState(state);
       const updateTime = performance.now() - updateStart;
+
+      // Push undo entry
+      pushUndo({
+        description: 'Delete item',
+        undo: { type: 'create', node: savedNode },
+        redo: { type: 'delete', id: nodeId },
+        timestamp: Date.now(),
+      });
 
       // Focus previous or next
       const newFocusId = visible[idx - 1]?.id || visible[idx + 1]?.id;
@@ -1150,6 +1189,107 @@ export const outline = {
   isCollapsed(nodeId: string): boolean {
     const node = nodesById().get(nodeId);
     return node?.collapsed ?? false;
+  },
+
+  // --- Undo/Redo ---
+
+  get canUndo() { return undoStack.length > 0; },
+  get canRedo() { return redoStack.length > 0; },
+
+  // Perform undo
+  async undo(): Promise<boolean> {
+    if (pendingOperations > 0) return false; // Can't undo while saving
+    const entry = undoStack.pop();
+    if (!entry) return false;
+
+    const success = await this._executeUndoAction(entry.undo);
+    if (success) {
+      redoStack.push(entry);
+    } else {
+      // Restore to undo stack if failed
+      undoStack.push(entry);
+    }
+    return success;
+  },
+
+  // Perform redo
+  async redo(): Promise<boolean> {
+    if (pendingOperations > 0) return false; // Can't redo while saving
+    const entry = redoStack.pop();
+    if (!entry) return false;
+
+    const success = await this._executeUndoAction(entry.redo);
+    if (success) {
+      undoStack.push(entry);
+    } else {
+      // Restore to redo stack if failed
+      redoStack.push(entry);
+    }
+    return success;
+  },
+
+  // Execute an undo action without adding to undo stack
+  async _executeUndoAction(action: UndoAction): Promise<boolean> {
+    startOperation();
+    try {
+      switch (action.type) {
+        case 'create': {
+          // Recreate a deleted node
+          const result = await api.createNodeWithId(
+            action.node.id,
+            action.node.parent_id,
+            action.node.position,
+            action.node.content,
+            action.node.node_type
+          );
+          // Apply additional properties
+          if (action.node.note || action.node.date || action.node.is_checked || action.node.collapsed) {
+            await api.updateNode(action.node.id, {
+              note: action.node.note,
+              date: action.node.date,
+              date_recurrence: action.node.date_recurrence,
+              is_checked: action.node.is_checked,
+              collapsed: action.node.collapsed,
+              color: action.node.color,
+              tags: action.node.tags,
+            });
+          }
+          const state = await api.loadDocument();
+          updateFromState(state);
+          focusedId = action.node.id;
+          return true;
+        }
+        case 'delete': {
+          // Delete a node
+          const state = await api.deleteNode(action.id);
+          updateFromState(state);
+          return true;
+        }
+        case 'update': {
+          // Apply a field update
+          const state = await api.updateNode(action.id, action.changes);
+          updateFromState(state);
+          return true;
+        }
+        case 'move': {
+          // Move a node
+          const state = await api.moveNode(action.id, action.parentId, action.position);
+          updateFromState(state);
+          return true;
+        }
+      }
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return false;
+    } finally {
+      endOperation();
+    }
+  },
+
+  // Clear undo/redo stacks (called on sync/reload)
+  clearUndoHistory() {
+    undoStack = [];
+    redoStack = [];
   }
 };
 

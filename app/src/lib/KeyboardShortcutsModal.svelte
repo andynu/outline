@@ -43,6 +43,8 @@
           <h4>Application</h4>
           <ul>
             <li><kbd>Ctrl+S</kbd> Save</li>
+            <li><kbd>Ctrl+Z</kbd> Undo</li>
+            <li><kbd>Ctrl+Y</kbd> Redo</li>
             <li><kbd>Ctrl+Q</kbd> Quit</li>
             <li><kbd>Ctrl+/</kbd> This help</li>
             <li><kbd>Ctrl+,</kbd> Settings</li>

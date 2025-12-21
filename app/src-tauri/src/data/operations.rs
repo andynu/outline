@@ -225,6 +225,24 @@ pub fn create_op(parent_id: Option<Uuid>, position: i32, content: String) -> Ope
     }
 }
 
+/// Helper to create a Create operation with a specific ID (for undo/redo)
+pub fn create_op_with_id(
+    id: Uuid,
+    parent_id: Option<Uuid>,
+    position: i32,
+    content: String,
+    node_type: NodeType,
+) -> Operation {
+    Operation::Create {
+        id,
+        parent_id,
+        position,
+        content,
+        node_type,
+        updated_at: Utc::now(),
+    }
+}
+
 /// Helper to create an Update operation
 pub fn update_op(id: Uuid, changes: NodeChanges) -> Operation {
     Operation::Update {

@@ -1,4 +1,4 @@
-import type { DocumentState, Node, NodeChanges, Operation } from './types';
+import type { DocumentState, Node, NodeChanges, NodeType, Operation } from './types';
 
 // Check if we're running in Tauri
 let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null | undefined = undefined;
@@ -201,6 +201,43 @@ export async function createNode(
   };
   mockState.nodes.push(newNode);
   return { id: newId, state: { ...mockState } };
+}
+
+// Create a node with a specific ID (for undo/redo)
+export async function createNodeWithId(
+  id: string,
+  parentId: string | null,
+  position: number,
+  content: string,
+  nodeType: NodeType
+): Promise<{ id: string; state: DocumentState }> {
+  await initTauri();
+  if (tauriInvoke) {
+    const result = await tauriInvoke('create_node_with_id', {
+      id,
+      parentId,
+      position,
+      content,
+      nodeType
+    }) as [string, DocumentState];
+    return { id: result[0], state: result[1] };
+  }
+
+  // Browser-only mode: create in memory with specific ID
+  const now = new Date().toISOString();
+  const newNode: Node = {
+    id,
+    parent_id: parentId,
+    position,
+    content,
+    node_type: nodeType,
+    is_checked: false,
+    collapsed: false,
+    created_at: now,
+    updated_at: now,
+  };
+  mockState.nodes.push(newNode);
+  return { id, state: { ...mockState } };
 }
 
 // Update a node's fields

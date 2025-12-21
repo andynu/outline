@@ -76,3 +76,21 @@ export interface TreeNode {
   hasChildren: boolean;  // true if node has children (even when collapsed)
   children: TreeNode[];  // empty when collapsed
 }
+
+// Undo/Redo support
+export interface UndoEntry {
+  // Description for UI (e.g., "Delete item", "Edit text")
+  description: string;
+  // What to do to undo this operation
+  undo: UndoAction;
+  // What to do to redo this operation (after undo)
+  redo: UndoAction;
+  // Timestamp for grouping rapid operations
+  timestamp: number;
+}
+
+export type UndoAction =
+  | { type: 'create'; node: Node }                          // Recreate a deleted node
+  | { type: 'delete'; id: string }                          // Delete a created node
+  | { type: 'update'; id: string; changes: NodeChanges }    // Revert field changes
+  | { type: 'move'; id: string; parentId: string | null; position: number }  // Move back

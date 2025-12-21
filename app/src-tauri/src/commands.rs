@@ -3,9 +3,9 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::data::{
-    create_op, data_dir, default_data_dir, delete_op, documents_dir, ensure_dirs, load_config,
+    create_op, create_op_with_id, data_dir, default_data_dir, delete_op, documents_dir, ensure_dirs, load_config,
     move_op, save_config, set_data_dir, update_op, AppConfig, Document, DocumentState, InboxItem,
-    Node, NodeChanges, Operation, read_inbox, remove_inbox_items,
+    Node, NodeChanges, NodeType, Operation, read_inbox, remove_inbox_items,
 };
 use crate::search::{BacklinkResult, SearchIndex, SearchResult};
 
@@ -116,6 +116,29 @@ pub fn create_node(
 
     let new_state = save_op(state, op)?;
     Ok((new_id, new_state))
+}
+
+/// Create a node with a specific ID (for undo/redo)
+#[tauri::command]
+pub fn create_node_with_id(
+    state: State<AppState>,
+    id: String,
+    parent_id: Option<String>,
+    position: i32,
+    content: String,
+    node_type: NodeType,
+) -> Result<(Uuid, DocumentState), String> {
+    let node_id = Uuid::parse_str(&id).map_err(|e| format!("Invalid UUID: {}", e))?;
+    let parent_uuid = if let Some(id_str) = parent_id {
+        Some(Uuid::parse_str(&id_str).map_err(|e| format!("Invalid parent UUID: {}", e))?)
+    } else {
+        None
+    };
+
+    let op = create_op_with_id(node_id, parent_uuid, position, content, node_type);
+
+    let new_state = save_op(state, op)?;
+    Ok((node_id, new_state))
 }
 
 /// Update a node (convenience command that wraps save_op)

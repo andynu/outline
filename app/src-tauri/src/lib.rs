@@ -29,6 +29,7 @@ pub fn run() {
             commands::load_document,
             commands::save_op,
             commands::create_node,
+            commands::create_node_with_id,
             commands::update_node,
             commands::move_node,
             commands::delete_node,
