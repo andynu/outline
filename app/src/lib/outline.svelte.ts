@@ -63,10 +63,81 @@ let cachedTreeNodes: Node[] = [];
 let cachedTreeFilter: string | null = null;
 let cachedTreeHideCompleted: boolean = false;
 
+// Change tracking for surgical cache invalidation
+// Tracks which parent IDs need their children array rebuilt
+let dirtyParentIds: Set<string | null> = new Set();
+// Tracks if we need a full rebuild (e.g., large change or first load)
+let needsFullRebuild = true;
+
+// Compute diff between old and new node arrays
+// Returns the set of parent IDs that were affected
+function computeChangedParents(oldNodes: Node[], newNodes: Node[]): Set<string | null> {
+  const affectedParents = new Set<string | null>();
+
+  // Build maps for efficient lookup
+  const oldById = new Map(oldNodes.map(n => [n.id, n]));
+  const newById = new Map(newNodes.map(n => [n.id, n]));
+
+  // Find deleted nodes - their parent needs rebuild
+  for (const oldNode of oldNodes) {
+    if (!newById.has(oldNode.id)) {
+      affectedParents.add(oldNode.parent_id ?? null);
+    }
+  }
+
+  // Find added or modified nodes
+  for (const newNode of newNodes) {
+    const oldNode = oldById.get(newNode.id);
+    if (!oldNode) {
+      // New node - parent needs rebuild
+      affectedParents.add(newNode.parent_id ?? null);
+    } else {
+      // Check if parent changed (move operation)
+      if (oldNode.parent_id !== newNode.parent_id) {
+        affectedParents.add(oldNode.parent_id ?? null);
+        affectedParents.add(newNode.parent_id ?? null);
+      }
+      // Check if position changed within same parent
+      else if (oldNode.position !== newNode.position) {
+        affectedParents.add(newNode.parent_id ?? null);
+      }
+    }
+  }
+
+  return affectedParents;
+}
+
 function rebuildIndexes() {
   if (cachedNodes === nodes) return; // No change
 
   const startTime = performance.now();
+
+  // If we can do a surgical update (have dirty parents and existing cache)
+  if (!needsFullRebuild && dirtyParentIds.size > 0 && cachedNodesById.size > 0) {
+    // Surgical update: only rebuild affected parent's children arrays
+    // First, update the node map with all new node objects
+    cachedNodesById = new Map(nodes.map(n => [n.id, n]));
+
+    // Rebuild only affected children arrays
+    for (const parentId of dirtyParentIds) {
+      const children = nodes.filter(n => (n.parent_id ?? null) === parentId);
+      children.sort((a, b) => a.position - b.position);
+      cachedChildrenByParent.set(parentId, children);
+    }
+
+    cachedNodes = nodes;
+    const numDirty = dirtyParentIds.size;
+    dirtyParentIds.clear();
+    needsFullRebuild = true; // Reset for next change
+
+    const elapsed = performance.now() - startTime;
+    if (elapsed > 2) {
+      console.log(`[perf] rebuildIndexes (surgical, ${numDirty} parents): ${elapsed.toFixed(1)}ms`);
+    }
+    return;
+  }
+
+  // Full rebuild
   cachedNodes = nodes;
   cachedNodesById = new Map(nodes.map(n => [n.id, n]));
 
@@ -88,10 +159,12 @@ function rebuildIndexes() {
   }
 
   cachedChildrenByParent = childrenMap;
+  dirtyParentIds.clear();
+  needsFullRebuild = true; // Reset for next change
 
   const elapsed = performance.now() - startTime;
   if (elapsed > 5) {
-    console.log(`[perf] rebuildIndexes: ${elapsed.toFixed(1)}ms for ${nodes.length} nodes`);
+    console.log(`[perf] rebuildIndexes (full): ${elapsed.toFixed(1)}ms for ${nodes.length} nodes`);
   }
 }
 
@@ -225,6 +298,18 @@ function getSiblings(nodeId: string): Node[] {
 
 // Update state from API response
 function updateFromState(state: DocumentState) {
+  // Compute which parents are affected by this change
+  if (nodes.length > 0 && state.nodes.length > 0) {
+    const changedParents = computeChangedParents(nodes, state.nodes);
+    if (changedParents.size > 0 && changedParents.size < nodes.length / 10) {
+      // Small change - use surgical update
+      dirtyParentIds = changedParents;
+      needsFullRebuild = false;
+    } else {
+      // Large change or first load - full rebuild
+      needsFullRebuild = true;
+    }
+  }
   nodes = state.nodes;
 }
 
