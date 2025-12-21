@@ -432,6 +432,42 @@
     }
   }
 
+  // Calculate document statistics
+  interface DocumentStats {
+    totalWords: number;
+    contentWords: number;
+    noteWords: number;
+    itemCount: number;
+  }
+
+  function countWords(text: string): number {
+    if (!text) return 0;
+    // Strip HTML tags
+    const plainText = text.replace(/<[^>]*>/g, ' ');
+    // Split on whitespace and filter empty strings
+    const words = plainText.split(/\s+/).filter(w => w.length > 0);
+    return words.length;
+  }
+
+  function calculateDocumentStats(nodes: typeof outline.nodes): DocumentStats {
+    let contentWords = 0;
+    let noteWords = 0;
+
+    for (const node of nodes) {
+      contentWords += countWords(node.content);
+      if (node.note) {
+        noteWords += countWords(node.note);
+      }
+    }
+
+    return {
+      totalWords: contentWords + noteWords,
+      contentWords,
+      noteWords,
+      itemCount: nodes.length,
+    };
+  }
+
   // Menu dropdown state
   let openMenu = $state<string | null>(null);
 
@@ -705,9 +741,22 @@
       {#if outline.loading}
         Loading...
       {:else}
-        {@const total = outline.nodes.length}
-        {@const incomplete = outline.nodes.filter(n => !n.is_checked).length}
-        {incomplete} incomplete / {total} total
+        {@const stats = calculateDocumentStats(outline.nodes)}
+        <span class="stat-item" title="Total words in document">
+          {stats.totalWords.toLocaleString()} words
+        </span>
+        <span class="stat-separator">•</span>
+        <span class="stat-item" title="Words in item content">
+          {stats.contentWords.toLocaleString()} in items
+        </span>
+        <span class="stat-separator">•</span>
+        <span class="stat-item" title="Words in notes">
+          {stats.noteWords.toLocaleString()} in notes
+        </span>
+        <span class="stat-separator">•</span>
+        <span class="stat-item" title="Total items">
+          {stats.itemCount.toLocaleString()} items
+        </span>
         {#if outline.hideCompleted}
           <span class="filter-indicator">(hiding completed)</span>
         {/if}
@@ -1071,5 +1120,14 @@
     color: var(--text-tertiary);
     font-style: italic;
     margin-left: 4px;
+  }
+
+  .stat-item {
+    cursor: default;
+  }
+
+  .stat-separator {
+    color: var(--text-tertiary);
+    opacity: 0.5;
   }
 </style>
