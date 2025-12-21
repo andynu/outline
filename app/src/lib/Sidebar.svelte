@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { listDocuments, type DocumentInfo } from './api';
+  import { listDocuments, updateNode, type DocumentInfo } from './api';
+  import RenameModal from './RenameModal.svelte';
 
   interface Props {
     isOpen: boolean;
@@ -16,8 +17,22 @@
   let loading = $state(true);
   let error = $state('');
 
+  // Context menu state
+  let contextMenuDoc: DocumentInfo | null = $state(null);
+  let contextMenuPosition = $state({ x: 0, y: 0 });
+
+  // Rename modal state
+  let renameDoc: DocumentInfo | null = $state(null);
+
   onMount(() => {
     loadDocuments();
+
+    // Close context menu on click elsewhere
+    function handleGlobalClick() {
+      contextMenuDoc = null;
+    }
+    document.addEventListener('click', handleGlobalClick);
+    return () => document.removeEventListener('click', handleGlobalClick);
   });
 
   async function loadDocuments() {
@@ -42,6 +57,39 @@
     if (docId !== currentDocumentId) {
       onSelectDocument(docId);
     }
+  }
+
+  function handleContextMenu(e: MouseEvent, doc: DocumentInfo) {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenuDoc = doc;
+    contextMenuPosition = { x: e.clientX, y: e.clientY };
+  }
+
+  function handleRenameClick() {
+    if (contextMenuDoc) {
+      renameDoc = contextMenuDoc;
+      contextMenuDoc = null;
+    }
+  }
+
+  async function handleRename(newName: string) {
+    if (!renameDoc?.title_node_id) return;
+
+    try {
+      // Update the first root node's content (which is the document title)
+      await updateNode(renameDoc.title_node_id, { content: newName });
+      // Refresh the document list
+      await loadDocuments();
+    } catch (e) {
+      console.error('Failed to rename document:', e);
+    }
+  }
+
+  function handleDoubleClick(e: MouseEvent, doc: DocumentInfo) {
+    e.preventDefault();
+    e.stopPropagation();
+    renameDoc = doc;
   }
 </script>
 
@@ -73,6 +121,8 @@
               class="document-item"
               class:active={doc.id === currentDocumentId}
               onclick={() => handleDocumentClick(doc.id)}
+              ondblclick={(e) => handleDoubleClick(e, doc)}
+              oncontextmenu={(e) => handleContextMenu(e, doc)}
             >
               <svg class="document-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -102,6 +152,30 @@
     </div>
   </aside>
 {/if}
+
+<!-- Context menu for document actions -->
+{#if contextMenuDoc}
+  <div
+    class="context-menu"
+    style="left: {contextMenuPosition.x}px; top: {contextMenuPosition.y}px;"
+  >
+    <button class="context-menu-item" onclick={handleRenameClick}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+      </svg>
+      Rename
+    </button>
+  </div>
+{/if}
+
+<!-- Rename modal -->
+<RenameModal
+  isOpen={renameDoc !== null}
+  currentName={renameDoc?.title || ''}
+  onRename={handleRename}
+  onClose={() => renameDoc = null}
+/>
 
 <style>
   .sidebar {
@@ -265,5 +339,42 @@
   .new-document-btn svg {
     width: 16px;
     height: 16px;
+  }
+
+  /* Context menu */
+  .context-menu {
+    position: fixed;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 4px;
+    z-index: 1000;
+    min-width: 140px;
+  }
+
+  .context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-primary);
+    text-align: left;
+  }
+
+  .context-menu-item:hover {
+    background: var(--bg-tertiary);
+  }
+
+  .context-menu-item svg {
+    width: 14px;
+    height: 14px;
+    color: var(--text-secondary);
   }
 </style>

@@ -319,6 +319,7 @@ export interface DocumentInfo {
   id: string;
   title: string;
   node_count: number;
+  title_node_id?: string;  // ID of the first root node (for renaming)
 }
 
 // Search for nodes matching a query

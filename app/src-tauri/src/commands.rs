@@ -262,6 +262,7 @@ pub struct DocumentInfo {
     pub id: String,
     pub title: String,
     pub node_count: usize,
+    pub title_node_id: Option<String>,  // ID of the first root node (for renaming)
 }
 
 /// List all available documents
@@ -276,20 +277,25 @@ pub fn list_documents() -> Result<Vec<DocumentInfo>, String> {
     for doc_id in doc_ids {
         let doc_dir = documents_dir().join(doc_id.to_string());
         if let Ok(doc) = Document::load(doc_dir) {
-            // Get title from first root node
-            let title = doc
+            // Get first root node (for title and renaming)
+            let first_root = doc
                 .state
                 .nodes
                 .iter()
                 .filter(|n| n.parent_id.is_none())
-                .min_by_key(|n| n.position)
+                .min_by_key(|n| n.position);
+
+            let title = first_root
                 .map(|n| strip_html_for_title(&n.content))
                 .unwrap_or_else(|| "Untitled".to_string());
+
+            let title_node_id = first_root.map(|n| n.id.to_string());
 
             documents.push(DocumentInfo {
                 id: doc_id.to_string(),
                 title,
                 node_count: doc.state.nodes.len(),
+                title_node_id,
             });
         }
     }
