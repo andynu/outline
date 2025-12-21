@@ -1,4 +1,4 @@
-import type { DocumentState, Node, NodeChanges, TreeNode } from './types';
+import type { DocumentState, Node, NodeChanges, TreeNode, FlatNode } from './types';
 import * as api from './api';
 
 // Hashtag pattern - matches #word (letters, numbers, underscores, hyphens)
@@ -62,6 +62,12 @@ let cachedTree: TreeNode[] = [];
 let cachedTreeNodes: Node[] = [];
 let cachedTreeFilter: string | null = null;
 let cachedTreeHideCompleted: boolean = false;
+
+// Cached flat list - rebuilt when nodes, filter, or hideCompleted changes
+let cachedFlatList: FlatNode[] = [];
+let cachedFlatNodes: Node[] = [];
+let cachedFlatFilter: string | null = null;
+let cachedFlatHideCompleted: boolean = false;
 
 function rebuildIndexes() {
   if (cachedNodes === nodes) return; // No change
@@ -209,6 +215,76 @@ function flattenTree(tree: TreeNode[]): Node[] {
   return result;
 }
 
+// Build flat list for virtualized rendering
+// More efficient than building tree then flattening - single pass O(n)
+function buildFlatList(filteredIds?: Set<string>, excludeCompleted: boolean = false): FlatNode[] {
+  const startTime = performance.now();
+  rebuildIndexes();
+
+  const result: FlatNode[] = [];
+
+  // Track which depths have more siblings coming (for indent guide rendering)
+  // This is a stack where continuesStack[depth] = true means there are more siblings at that depth
+  const continuesStack: boolean[] = [];
+
+  function visit(parentId: string | null, depth: number) {
+    let children = parentId === null ? rootNodes() : childrenOf(parentId);
+
+    // Apply filters
+    if (filteredIds) {
+      children = children.filter(n => filteredIds.has(n.id));
+    }
+    if (excludeCompleted) {
+      children = children.filter(n => !n.is_checked);
+    }
+
+    for (let i = 0; i < children.length; i++) {
+      const node = children[i];
+      const isLast = i === children.length - 1;
+
+      // Determine if this node has visible children
+      let nodeChildren = childrenOf(node.id);
+      if (filteredIds) {
+        nodeChildren = nodeChildren.filter(n => filteredIds.has(n.id));
+      }
+      if (excludeCompleted) {
+        nodeChildren = nodeChildren.filter(n => !n.is_checked);
+      }
+      const hasChildren = nodeChildren.length > 0;
+
+      // Update continues stack for this depth
+      continuesStack[depth] = !isLast;
+
+      // Create snapshot of continues state for this node
+      const continuesAtDepth = continuesStack.slice(0, depth);
+
+      result.push({
+        node,
+        depth,
+        hasChildren,
+        continuesAtDepth,
+      });
+
+      // Recurse into children if not collapsed (and not filtering - when filtering, always expand)
+      if (hasChildren && (filteredIds || !node.collapsed)) {
+        visit(node.id, depth + 1);
+      }
+    }
+
+    // Clean up stack when leaving this level
+    continuesStack.length = depth;
+  }
+
+  visit(null, 0);
+
+  const elapsed = performance.now() - startTime;
+  if (elapsed > 10) {
+    console.log(`[perf] buildFlatList: ${elapsed.toFixed(1)}ms for ${result.length} visible items`);
+  }
+
+  return result;
+}
+
 // Get parent of a node
 function getParent(nodeId: string): Node | null {
   const node = nodesById().get(nodeId);
@@ -290,6 +366,23 @@ export const outline = {
     cachedTreeFilter = filterQuery;
     cachedTreeHideCompleted = hideCompleted;
     return cachedTree;
+  },
+
+  // Build flat list for virtualized rendering (respects active filter and hideCompleted)
+  getFlatList(): FlatNode[] {
+    // Check if cached flat list is still valid
+    if (cachedFlatNodes === nodes &&
+        cachedFlatFilter === filterQuery &&
+        cachedFlatHideCompleted === hideCompleted) {
+      return cachedFlatList;
+    }
+
+    const filteredIds = filterQuery ? getFilteredNodeIds(filterQuery) : undefined;
+    cachedFlatList = buildFlatList(filteredIds, hideCompleted);
+    cachedFlatNodes = nodes;
+    cachedFlatFilter = filterQuery;
+    cachedFlatHideCompleted = hideCompleted;
+    return cachedFlatList;
   },
 
   // Get visible nodes in order (respects active filter and hideCompleted)

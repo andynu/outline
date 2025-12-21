@@ -76,3 +76,13 @@ export interface TreeNode {
   hasChildren: boolean;  // true if node has children (even when collapsed)
   children: TreeNode[];  // empty when collapsed
 }
+
+// Flattened node for virtualized rendering
+export interface FlatNode {
+  node: Node;
+  depth: number;
+  hasChildren: boolean;
+  // For drawing indent guides: which depths have a continuing sibling below?
+  // e.g., [true, false, true] means depth 0 and 2 have more siblings, depth 1 doesn't
+  continuesAtDepth: boolean[];
+}

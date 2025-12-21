@@ -26,6 +26,7 @@
     "vite": "^6.0.0"
   },
   "dependencies": {
+    "@tanstack/svelte-virtual": "^3.13.13",
     "@tauri-apps/api": "^2.0.0",
     "@tiptap/core": "^2.11.0",
     "@tiptap/pm": "^2.11.0",

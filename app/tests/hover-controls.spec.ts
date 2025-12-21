@@ -9,9 +9,9 @@ test.describe('Hover controls', () => {
 
   test('hamburger menu button is hidden on non-focused, non-hovered items', async ({ page }) => {
     // The first item starts focused, so check a non-focused item
-    // Use the second root-level item (not a child)
-    const secondItem = page.locator('.outline-container > .outline-item').nth(1);
-    const menuBtn = secondItem.locator('> .item-row > .hover-menu-btn');
+    // Use the second item (in virtualized flat rendering, items are siblings)
+    const secondItem = page.locator('.outline-item').nth(1);
+    const menuBtn = secondItem.locator('.hover-menu-btn');
 
     // Move mouse away from items
     await page.mouse.move(0, 0);

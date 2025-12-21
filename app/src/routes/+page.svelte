@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import OutlineItem from '$lib/OutlineItem.svelte';
+  import VirtualOutline from '$lib/VirtualOutline.svelte';
   import SearchModal from '$lib/SearchModal.svelte';
   import QuickNavigator from '$lib/QuickNavigator.svelte';
   import QuickMove from '$lib/QuickMove.svelte';
@@ -748,9 +748,7 @@
           </div>
         {/if}
         <div class="outline-container">
-          {#each outline.getTree() as item (item.node.id)}
-            <OutlineItem {item} />
-          {/each}
+          <VirtualOutline />
         </div>
       {/if}
     </main>
@@ -1020,10 +1018,12 @@
     overflow: hidden;
   }
 
-  /* Main Content Area - Flex grow and scroll */
+  /* Main Content Area - Flex grow */
   .content-area {
     flex: 1;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     background: var(--bg-elevated);
   }
 
@@ -1041,6 +1041,8 @@
   }
 
   .outline-container {
+    flex: 1;
+    overflow: hidden;
     padding: 16px;
   }
 

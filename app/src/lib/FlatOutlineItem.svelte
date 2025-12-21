@@ -1,0 +1,1435 @@
+<script lang="ts">
+  import { onDestroy } from 'svelte';
+  import { Editor } from '@tiptap/core';
+  import StarterKit from '@tiptap/starter-kit';
+  import { outline } from './outline.svelte';
+  import type { FlatNode } from './types';
+  import { WikiLink } from './WikiLink';
+  import { AutoLink } from './AutoLink';
+  import { MarkdownLink } from './MarkdownLink';
+  import { Hashtag } from './Hashtag';
+  import { Mention } from './Mention';
+  import { DueDate } from './DueDate';
+  import WikiLinkSuggestion from './WikiLinkSuggestion.svelte';
+  import HashtagSuggestion from './HashtagSuggestion.svelte';
+  import DueDateSuggestion from './DueDateSuggestion.svelte';
+  import BacklinksPanel from './BacklinksPanel.svelte';
+  import DateBadge from './DateBadge.svelte';
+  import DatePicker from './DatePicker.svelte';
+  import RecurrencePicker from './RecurrencePicker.svelte';
+  import ContextMenu from './ContextMenu.svelte';
+  import { processStaticContentElement } from './renderStaticContent';
+  import { zoom } from './zoom.svelte';
+
+  interface Props {
+    item: FlatNode;
+    onNavigateToNode?: (nodeId: string) => void;
+    measureElement?: (el: HTMLElement | null) => void;
+  }
+
+  let { item, onNavigateToNode, measureElement }: Props = $props();
+
+  let editor: Editor | undefined = $state();
+  let editorElement: HTMLDivElement | undefined = $state();
+  let staticElement: HTMLDivElement | undefined = $state();
+  let rowElement: HTMLDivElement | undefined = $state();
+  let tabHandler: ((e: KeyboardEvent) => void) | undefined;
+
+  // Wiki link suggestion state
+  let showWikiLinkSuggestion = $state(false);
+  let wikiLinkQuery = $state('');
+  let wikiLinkRange = $state<{ from: number; to: number } | null>(null);
+  let suggestionPosition = $state({ x: 0, y: 0 });
+
+  // Hashtag suggestion state
+  let showHashtagSuggestion = $state(false);
+  let hashtagQuery = $state('');
+  let hashtagRange = $state<{ from: number; to: number } | null>(null);
+  let hashtagPosition = $state({ x: 0, y: 0 });
+
+  // Inline due date suggestion state
+  let showDueDateSuggestion = $state(false);
+  let dueDateQuery = $state('');
+  let dueDateRange = $state<{ from: number; to: number } | null>(null);
+  let dueDatePosition = $state({ x: 0, y: 0 });
+
+  // Date picker state
+  let showDatePicker = $state(false);
+  let datePickerPosition = $state({ x: 0, y: 0 });
+
+  // Recurrence picker state
+  let showRecurrencePicker = $state(false);
+  let recurrencePickerPosition = $state({ x: 0, y: 0 });
+
+  // Context menu state
+  let showContextMenu = $state(false);
+  let contextMenuPosition = $state({ x: 0, y: 0 });
+
+  // Note editing state
+  let isEditingNote = $state(false);
+  let noteInputElement: HTMLTextAreaElement | undefined = $state();
+
+  // Reactive checks
+  let isFocused = $derived(outline.focusedId === item.node.id);
+
+  // Measure element for dynamic height virtualization
+  $effect(() => {
+    if (rowElement && measureElement) {
+      measureElement(rowElement);
+    }
+  });
+
+  // Sync content from store to editor when it changes externally
+  $effect(() => {
+    if (editor && !editor.isFocused) {
+      const currentContent = editor.getHTML();
+      if (currentContent !== item.node.content) {
+        editor.commands.setContent(item.node.content || '');
+      }
+    }
+  });
+
+  // Lazy editor creation - only create TipTap when focused
+  $effect(() => {
+    if (!isFocused) {
+      // Destroy editor when losing focus to free memory
+      if (editor) {
+        editor.destroy();
+        editor = undefined;
+      }
+      if (editorElement && tabHandler) {
+        editorElement.removeEventListener('keydown', tabHandler, { capture: true });
+        tabHandler = undefined;
+      }
+      return;
+    }
+
+    // Wait for editorElement to be available
+    if (!editorElement) return;
+
+    // Already have editor
+    if (editor) {
+      editor.commands.focus('end');
+      return;
+    }
+
+    // Capture Tab before browser focus navigation - must use capture phase
+    tabHandler = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.shiftKey) {
+          outline.outdentNode(item.node.id);
+        } else {
+          outline.indentNode(item.node.id);
+        }
+      }
+    };
+    editorElement.addEventListener('keydown', tabHandler, { capture: true });
+
+    function updateHashtagPosition(view: any) {
+      const coords = view.coordsAtPos(view.state.selection.from);
+      const zoomLevel = zoom.level;
+      hashtagPosition = {
+        x: coords.left / zoomLevel,
+        y: (coords.bottom + 5) / zoomLevel,
+      };
+    }
+
+    function updateDueDatePosition(view: any) {
+      const coords = view.coordsAtPos(view.state.selection.from);
+      const zoomLevel = zoom.level;
+      dueDatePosition = {
+        x: coords.left / zoomLevel,
+        y: (coords.bottom + 5) / zoomLevel,
+      };
+    }
+
+    function updateSuggestionPosition(view: any) {
+      const coords = view.coordsAtPos(view.state.selection.from);
+      const zoomLevel = zoom.level;
+      suggestionPosition = {
+        x: coords.left / zoomLevel,
+        y: (coords.bottom + 5) / zoomLevel,
+      };
+    }
+
+    editor = new Editor({
+      element: editorElement,
+      extensions: [
+        StarterKit.configure({
+          // Disable multi-line features for single-line items
+          heading: false,
+          bulletList: false,
+          orderedList: false,
+          blockquote: false,
+          codeBlock: false,
+          horizontalRule: false,
+          hardBreak: false
+        }),
+        WikiLink.configure({
+          onNavigate: (nodeId: string) => {
+            if (onNavigateToNode) {
+              onNavigateToNode(nodeId);
+            } else {
+              outline.focus(nodeId);
+            }
+          },
+        }),
+        AutoLink,
+        MarkdownLink,
+        Hashtag.configure({
+          onHashtagClick: (tag: string) => {
+            window.dispatchEvent(new CustomEvent('hashtag-search', { detail: { tag } }));
+          },
+        }),
+        Mention.configure({
+          onMentionClick: (mention: string) => {
+            window.dispatchEvent(new CustomEvent('mention-search', { detail: { mention } }));
+          },
+        }),
+        DueDate.configure({
+          onDueDateClick: (date: string) => {
+            openDatePicker();
+          },
+        }),
+      ],
+      content: item.node.content || '',
+      editorProps: {
+        attributes: {
+          class: 'outline-editor'
+        },
+        handleTextInput: (view, from, to, text) => {
+          const state = view.state;
+          const prevChar = from > 0 ? state.doc.textBetween(from - 1, from) : '';
+
+          // Auto-convert [ ] and [x] to checkboxes when followed by space
+          if (text === ' ' && from >= 3) {
+            const prefix = state.doc.textBetween(1, from);
+            if (prefix === '[ ]' || prefix === '[x]' || prefix === '[X]') {
+              const isChecked = prefix !== '[ ]';
+              view.dispatch(state.tr.delete(1, from));
+              if (item.node.node_type !== 'checkbox') {
+                outline.toggleNodeType(item.node.id);
+              }
+              if (isChecked && !item.node.is_checked) {
+                outline.toggleCheckbox(item.node.id);
+              }
+              return true;
+            }
+          }
+
+          // Detect [[ trigger for wiki links
+          if (text === '[' && prevChar === '[') {
+            showWikiLinkSuggestion = true;
+            wikiLinkQuery = '';
+            wikiLinkRange = { from: from - 1, to: from + 1 };
+            updateSuggestionPosition(view);
+            return false;
+          }
+
+          // If wiki link suggestion is active, update query
+          if (showWikiLinkSuggestion && wikiLinkRange) {
+            const queryStart = wikiLinkRange.from + 2;
+            const currentQuery = state.doc.textBetween(queryStart, from) + text;
+
+            if (text === ']' && currentQuery.endsWith(']')) {
+              showWikiLinkSuggestion = false;
+              wikiLinkRange = null;
+              return false;
+            }
+
+            wikiLinkQuery = currentQuery;
+            wikiLinkRange = { ...wikiLinkRange, to: from + text.length + 1 };
+            return false;
+          }
+
+          // Detect # trigger for hashtags
+          if (text === '#' && (prevChar === '' || prevChar === ' ' || prevChar === '\t' || from === 1)) {
+            showHashtagSuggestion = true;
+            hashtagQuery = '';
+            hashtagRange = { from: from, to: from + 1 };
+            updateHashtagPosition(view);
+            return false;
+          }
+
+          // If hashtag suggestion is active, update query
+          if (showHashtagSuggestion && hashtagRange) {
+            if (text === ' ' || text === '\t' || text === '\n') {
+              showHashtagSuggestion = false;
+              hashtagRange = null;
+              return false;
+            }
+
+            const queryStart = hashtagRange.from + 1;
+            const currentQuery = from > queryStart ? state.doc.textBetween(queryStart, from) + text : text;
+            hashtagQuery = currentQuery;
+            hashtagRange = { ...hashtagRange, to: from + text.length + 1 };
+          }
+
+          // Detect !( trigger for inline due dates
+          if (text === '(' && prevChar === '!') {
+            showDueDateSuggestion = true;
+            dueDateQuery = '';
+            dueDateRange = { from: from - 1, to: from + 1 };
+            updateDueDatePosition(view);
+            return false;
+          }
+
+          // If due date suggestion is active, update query
+          if (showDueDateSuggestion && dueDateRange) {
+            if (text === ')') {
+              showDueDateSuggestion = false;
+              dueDateRange = null;
+              return false;
+            }
+
+            const queryStart = dueDateRange.from + 2;
+            const currentQuery = from > queryStart ? state.doc.textBetween(queryStart, from) + text : text;
+            dueDateQuery = currentQuery;
+            dueDateRange = { ...dueDateRange, to: from + text.length + 1 };
+          }
+
+          return false;
+        },
+        handleKeyDown: (view, event) => {
+          const mod = event.ctrlKey || event.metaKey;
+          const nodeId = item.node.id;
+
+          // Tab handling
+          if (event.key === 'Tab') {
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.shiftKey) {
+              outline.outdentNode(nodeId);
+            } else {
+              outline.indentNode(nodeId);
+            }
+            return true;
+          }
+
+          // Handle wiki link suggestion navigation
+          if (showWikiLinkSuggestion) {
+            if (event.key === 'Escape') {
+              showWikiLinkSuggestion = false;
+              wikiLinkRange = null;
+              return true;
+            }
+            if (['ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) {
+              event.preventDefault();
+              return true;
+            }
+          }
+
+          // Handle hashtag suggestion navigation
+          if (showHashtagSuggestion) {
+            if (event.key === 'Escape') {
+              showHashtagSuggestion = false;
+              hashtagRange = null;
+              return true;
+            }
+            if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab'].includes(event.key)) {
+              event.preventDefault();
+              return true;
+            }
+          }
+
+          // Handle due date suggestion navigation
+          if (showDueDateSuggestion) {
+            if (event.key === 'Escape') {
+              showDueDateSuggestion = false;
+              dueDateRange = null;
+              return true;
+            }
+            if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab'].includes(event.key)) {
+              event.preventDefault();
+              return true;
+            }
+          }
+
+          // Shift+Enter: toggle note editing
+          if (event.key === 'Enter' && !mod && event.shiftKey) {
+            event.preventDefault();
+            isEditingNote = true;
+            setTimeout(() => noteInputElement?.focus(), 0);
+            return true;
+          }
+
+          // Enter: add sibling below
+          if (event.key === 'Enter' && !mod && !event.shiftKey) {
+            event.preventDefault();
+            outline.addSiblingAfter(nodeId);
+            return true;
+          }
+
+          // Ctrl+Shift+Backspace: delete item
+          if (event.key === 'Backspace' && mod && event.shiftKey) {
+            event.preventDefault();
+            outline.deleteNode(nodeId);
+            return true;
+          }
+
+          // Backspace at start of empty node: delete
+          if (event.key === 'Backspace' && !mod && !event.shiftKey) {
+            const { from } = view.state.selection;
+            const isEmpty = view.state.doc.textContent.length === 0;
+            if (from === 1 && isEmpty) {
+              event.preventDefault();
+              outline.deleteNode(nodeId);
+              return true;
+            }
+          }
+
+          // Up arrow: previous node
+          if (event.key === 'ArrowUp' && !mod && !event.shiftKey) {
+            event.preventDefault();
+            outline.moveToPrevious();
+            return true;
+          }
+
+          // Down arrow: next node
+          if (event.key === 'ArrowDown' && !mod && !event.shiftKey) {
+            event.preventDefault();
+            outline.moveToNext();
+            return true;
+          }
+
+          // Shift+Up or Ctrl+Up: swap with previous sibling
+          if (event.key === 'ArrowUp' && (event.shiftKey || mod)) {
+            event.preventDefault();
+            outline.swapWithPrevious(nodeId);
+            return true;
+          }
+
+          // Shift+Down or Ctrl+Down: swap with next sibling
+          if (event.key === 'ArrowDown' && (event.shiftKey || mod)) {
+            event.preventDefault();
+            outline.swapWithNext(nodeId);
+            return true;
+          }
+
+          // Ctrl+, : dedent
+          if (event.key === ',' && mod) {
+            event.preventDefault();
+            outline.outdentNode(nodeId);
+            return true;
+          }
+
+          // Ctrl+. : indent
+          if (event.key === '.' && mod) {
+            event.preventDefault();
+            outline.indentNode(nodeId);
+            return true;
+          }
+
+          // Ctrl+Enter: toggle completion
+          if (event.key === 'Enter' && mod && !event.shiftKey) {
+            event.preventDefault();
+            outline.toggleCheckbox(nodeId);
+            return true;
+          }
+
+          // Ctrl+Shift+X: toggle node type
+          if (event.key.toLowerCase() === 'x' && mod && event.shiftKey) {
+            event.preventDefault();
+            outline.toggleNodeType(nodeId);
+            return true;
+          }
+
+          // Ctrl+D: open date picker
+          if (event.key === 'd' && mod && !event.shiftKey) {
+            event.preventDefault();
+            openDatePicker(view);
+            return true;
+          }
+
+          // Ctrl+Shift+D: clear date
+          if (event.key.toLowerCase() === 'd' && mod && event.shiftKey) {
+            event.preventDefault();
+            outline.clearDate(nodeId);
+            return true;
+          }
+
+          // Ctrl+R: open recurrence picker
+          if (event.key === 'r' && mod && !event.shiftKey) {
+            event.preventDefault();
+            openRecurrencePicker(view);
+            return true;
+          }
+
+          return false;
+        },
+        handleDrop: (view, event, slice, moved) => {
+          if (event.dataTransfer?.types.includes('application/x-outline-node')) {
+            return true;
+          }
+          return false;
+        }
+      },
+      onUpdate: ({ editor }) => {
+        outline.updateContent(item.node.id, editor.getHTML());
+      },
+      onFocus: () => {
+        outline.focus(item.node.id);
+      }
+    });
+
+    setTimeout(() => {
+      editor?.commands.focus('end');
+    }, 0);
+  });
+
+  onDestroy(() => {
+    if (editorElement && tabHandler) {
+      editorElement.removeEventListener('keydown', tabHandler, { capture: true });
+    }
+    editor?.destroy();
+  });
+
+  // Process static content to style hashtags, mentions, dates, URLs when unfocused
+  $effect(() => {
+    const _content = item.node.content;
+    if (isFocused || !staticElement) return;
+    processStaticContentElement(staticElement);
+  });
+
+  function handleCollapseClick() {
+    outline.toggleCollapse(item.node.id);
+  }
+
+  function handleCheckboxClick(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    outline.toggleCheckbox(item.node.id);
+  }
+
+  function openDatePicker(view?: any) {
+    const zoomLevel = zoom.level;
+    if (view) {
+      const coords = view.coordsAtPos(view.state.selection.from);
+      datePickerPosition = { x: coords.left / zoomLevel, y: (coords.bottom + 5) / zoomLevel };
+    } else if (editorElement) {
+      const rect = editorElement.getBoundingClientRect();
+      datePickerPosition = { x: rect.left / zoomLevel, y: (rect.bottom + 5) / zoomLevel };
+    }
+    showDatePicker = true;
+  }
+
+  function handleDateBadgeClick() {
+    openDatePicker();
+  }
+
+  function handleDateSelect(date: string | null) {
+    outline.setDate(item.node.id, date);
+    showDatePicker = false;
+  }
+
+  function handleDatePickerClose() {
+    showDatePicker = false;
+  }
+
+  function openRecurrencePicker(view?: any) {
+    const zoomLevel = zoom.level;
+    if (view) {
+      const coords = view.coordsAtPos(view.state.selection.from);
+      recurrencePickerPosition = { x: coords.left / zoomLevel, y: (coords.bottom + 5) / zoomLevel };
+    } else if (editorElement) {
+      const rect = editorElement.getBoundingClientRect();
+      recurrencePickerPosition = { x: rect.left / zoomLevel, y: (rect.bottom + 5) / zoomLevel };
+    }
+    showRecurrencePicker = true;
+  }
+
+  function handleRecurrenceSelect(rrule: string | null) {
+    outline.setRecurrence(item.node.id, rrule);
+    showRecurrencePicker = false;
+  }
+
+  function handleRecurrencePickerClose() {
+    showRecurrencePicker = false;
+  }
+
+  function handleWikiLinkSelect(nodeId: string, displayText: string) {
+    if (!editor || !wikiLinkRange) return;
+    editor.chain().focus().deleteRange(wikiLinkRange).insertWikiLink(nodeId, displayText).run();
+    showWikiLinkSuggestion = false;
+    wikiLinkRange = null;
+  }
+
+  function handleWikiLinkClose() {
+    showWikiLinkSuggestion = false;
+    wikiLinkRange = null;
+  }
+
+  function handleHashtagSelect(tag: string) {
+    if (!editor || !hashtagRange) return;
+    editor.chain().focus().deleteRange(hashtagRange).insertContent(`#${tag} `).run();
+    showHashtagSuggestion = false;
+    hashtagRange = null;
+  }
+
+  function handleHashtagClose() {
+    showHashtagSuggestion = false;
+    hashtagRange = null;
+  }
+
+  function handleDueDateSelect(date: string) {
+    if (!editor || !dueDateRange) return;
+    editor.chain().focus().deleteRange(dueDateRange).insertContent(`!(${date}) `).run();
+    showDueDateSuggestion = false;
+    dueDateRange = null;
+  }
+
+  function handleDueDateClose() {
+    showDueDateSuggestion = false;
+    dueDateRange = null;
+  }
+
+  function handleNoteInput(e: Event) {
+    const target = e.target as HTMLTextAreaElement;
+    outline.updateNote(item.node.id, target.value);
+  }
+
+  function handleNoteKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      isEditingNote = false;
+      editor?.commands.focus('end');
+    }
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      isEditingNote = false;
+      editor?.commands.focus('end');
+    }
+  }
+
+  function handleNoteBlur() {
+    if (!item.node.note?.trim()) {
+      isEditingNote = false;
+    }
+  }
+
+  function handleRowClick(e: MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('.outline-editor') || target.closest('.drag-handle') || target.closest('.static-content')) {
+      return;
+    }
+    editor?.commands.focus('end');
+  }
+
+  function handleStaticClick(e: MouseEvent) {
+    const target = e.target as HTMLElement;
+
+    const wikiLink = target.closest('.wiki-link');
+    if (wikiLink) {
+      e.preventDefault();
+      e.stopPropagation();
+      const nodeId = wikiLink.getAttribute('data-node-id');
+      if (nodeId) {
+        if (onNavigateToNode) {
+          onNavigateToNode(nodeId);
+        } else {
+          outline.focus(nodeId);
+        }
+      }
+      return;
+    }
+
+    const hashtag = target.closest('.hashtag');
+    if (hashtag) {
+      e.preventDefault();
+      e.stopPropagation();
+      const tag = hashtag.getAttribute('data-tag');
+      if (tag) {
+        window.dispatchEvent(new CustomEvent('hashtag-search', { detail: { tag } }));
+      }
+      return;
+    }
+
+    const mention = target.closest('.mention');
+    if (mention) {
+      e.preventDefault();
+      e.stopPropagation();
+      const mentionName = mention.getAttribute('data-mention');
+      if (mentionName) {
+        window.dispatchEvent(new CustomEvent('mention-search', { detail: { mention: mentionName } }));
+      }
+      return;
+    }
+
+    const autoLink = target.closest('.auto-link');
+    if (autoLink) {
+      e.preventDefault();
+      e.stopPropagation();
+      const href = autoLink.getAttribute('href');
+      if (href) {
+        window.open(href, '_blank');
+      }
+      return;
+    }
+
+    const dueDate = target.closest('.due-date');
+    if (dueDate) {
+      e.preventDefault();
+      e.stopPropagation();
+      outline.focus(item.node.id);
+      return;
+    }
+
+    outline.focus(item.node.id);
+  }
+
+  // Drag and drop handlers
+  let isDragOver = $state(false);
+  let dropPosition: 'before' | 'after' | 'child' | null = $state(null);
+
+  function handleDragStart(e: DragEvent) {
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('application/x-outline-node', item.node.id);
+    }
+    outline.startDrag(item.node.id);
+  }
+
+  function handleDragEnd(e: DragEvent) {
+    e.stopPropagation();
+    outline.endDrag();
+    isDragOver = false;
+    dropPosition = null;
+  }
+
+  function handleDragOver(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (outline.draggedId === item.node.id) {
+      return;
+    }
+
+    isDragOver = true;
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const height = rect.height;
+
+    if (y < height * 0.25) {
+      dropPosition = 'before';
+    } else if (y > height * 0.75) {
+      dropPosition = 'after';
+    } else {
+      dropPosition = 'child';
+    }
+
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+  }
+
+  function handleDragLeave(e: DragEvent) {
+    e.stopPropagation();
+    isDragOver = false;
+    dropPosition = null;
+  }
+
+  function handleContextMenu(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const zoomLevel = zoom.level;
+    contextMenuPosition = { x: e.clientX / zoomLevel, y: e.clientY / zoomLevel };
+    showContextMenu = true;
+    outline.focus(item.node.id);
+  }
+
+  async function deleteCompletedChildren() {
+    function getCompletedDescendants(parentId: string): string[] {
+      const completedIds: string[] = [];
+      for (const node of outline.nodes) {
+        if (node.parent_id === parentId) {
+          if (node.is_checked) {
+            completedIds.push(node.id);
+          }
+          completedIds.push(...getCompletedDescendants(node.id));
+        }
+      }
+      return completedIds;
+    }
+
+    const toDelete = getCompletedDescendants(item.node.id);
+    for (const id of toDelete) {
+      await outline.deleteNode(id);
+    }
+  }
+
+  async function copyToClipboard() {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(item.node.content, 'text/html');
+    const plainText = doc.body.textContent || '';
+    await navigator.clipboard.writeText(plainText);
+  }
+
+  const contextMenuItems = $derived([
+    {
+      label: item.node.is_checked ? 'Mark Incomplete' : 'Mark Complete',
+      action: () => outline.toggleCheckbox(item.node.id),
+      shortcut: 'Ctrl+Enter',
+    },
+    {
+      label: item.node.node_type === 'checkbox' ? 'Convert to Bullet' : 'Convert to Checkbox',
+      action: () => outline.toggleNodeType(item.node.id),
+      shortcut: 'Ctrl+Shift+X',
+    },
+    { separator: true as const },
+    {
+      label: 'Copy',
+      action: copyToClipboard,
+      shortcut: 'Ctrl+C',
+    },
+    { separator: true as const },
+    {
+      label: 'Indent',
+      action: () => outline.indentNode(item.node.id),
+      shortcut: 'Tab',
+    },
+    {
+      label: 'Outdent',
+      action: () => outline.outdentNode(item.node.id),
+      shortcut: 'Shift+Tab',
+    },
+    { separator: true as const },
+    {
+      label: 'Delete Completed Children',
+      action: deleteCompletedChildren,
+      disabled: !outline.nodes.some(n => n.parent_id === item.node.id && n.is_checked),
+    },
+    { separator: true as const },
+    {
+      label: 'Delete',
+      action: () => outline.deleteNode(item.node.id),
+      shortcut: 'Ctrl+Shift+Backspace',
+    },
+  ]);
+
+  function handleDrop(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (outline.draggedId && outline.draggedId !== item.node.id) {
+      if (dropPosition === 'child') {
+        outline.dropOnNode(item.node.id, true);
+      } else {
+        outline.dropOnNode(item.node.id, false);
+      }
+    }
+
+    isDragOver = false;
+    dropPosition = null;
+  }
+
+  // Generate indent guides based on continuesAtDepth
+  // Each guide is positioned at a specific depth level
+  const indentGuides = $derived(
+    item.continuesAtDepth.map((continues, depth) => ({
+      depth,
+      continues,
+    })).filter(g => g.continues)
+  );
+</script>
+
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  bind:this={rowElement}
+  class="outline-item"
+  class:focused={isFocused}
+  class:checked={item.node.is_checked}
+  class:drag-over={isDragOver}
+  class:drop-before={dropPosition === 'before'}
+  class:drop-after={dropPosition === 'after'}
+  class:drop-child={dropPosition === 'child'}
+  class:dragging={outline.draggedId === item.node.id}
+  style="margin-left: {item.depth * 24}px"
+  ondragover={handleDragOver}
+  ondragleave={handleDragLeave}
+  ondrop={handleDrop}
+>
+  <!-- Indent guides rendered as positioned lines -->
+  {#each indentGuides as guide}
+    <div
+      class="indent-guide"
+      style="left: {-(item.depth - guide.depth) * 24 + 9}px"
+    ></div>
+  {/each}
+
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="item-row" onclick={handleRowClick} oncontextmenu={handleContextMenu}>
+    <!-- Three-dot menu button -->
+    <button
+      class="hover-menu-btn"
+      onclick={(e) => { e.stopPropagation(); contextMenuPosition = { x: e.clientX / zoom.level, y: e.clientY / zoom.level }; showContextMenu = true; outline.focus(item.node.id); }}
+      tabindex="-1"
+      aria-label="Open menu"
+      title="Menu"
+    >
+      <svg viewBox="0 0 16 16" fill="currentColor">
+        <circle cx="8" cy="3" r="1.5"/>
+        <circle cx="8" cy="8" r="1.5"/>
+        <circle cx="8" cy="13" r="1.5"/>
+      </svg>
+    </button>
+
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <span
+      class="drag-handle"
+      draggable="true"
+      ondragstart={handleDragStart}
+      ondragend={handleDragEnd}
+      onclick={item.hasChildren ? handleCollapseClick : () => outline.focus(item.node.id)}
+    >
+      {#if item.node.node_type === 'checkbox'}
+        <button
+          class="checkbox-btn"
+          class:checked={item.node.is_checked}
+          onclick={handleCheckboxClick}
+          tabindex="-1"
+          aria-label={item.node.is_checked ? 'Mark incomplete' : 'Mark complete'}
+        >
+          {#if item.node.is_checked}
+            <span class="checkbox-icon checked">✓</span>
+          {:else}
+            <span class="checkbox-icon"></span>
+          {/if}
+        </button>
+      {:else}
+        <span class="bullet" class:has-children={item.hasChildren} class:collapsed={item.node.collapsed}>
+          {#if item.hasChildren && item.node.collapsed}◉{:else}●{/if}
+        </span>
+      {/if}
+    </span>
+
+    {#if isFocused}
+      <div class="editor-wrapper" bind:this={editorElement}></div>
+    {:else}
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+      <div
+        class="editor-wrapper static-content"
+        bind:this={staticElement}
+        onclick={handleStaticClick}
+      >
+        {@html item.node.content || '<p></p>'}
+      </div>
+    {/if}
+
+    {#if item.node.date_recurrence}
+      <span class="recurrence-indicator" title="Recurring: {item.node.date_recurrence}">🔄</span>
+    {/if}
+
+    {#if item.node.date}
+      <DateBadge
+        date={item.node.date}
+        isChecked={item.node.is_checked}
+        onclick={handleDateBadgeClick}
+      />
+    {/if}
+  </div>
+
+  {#if item.node.note || isEditingNote}
+    <div class="note-row">
+      {#if isEditingNote && isFocused}
+        <textarea
+          class="note-input"
+          bind:this={noteInputElement}
+          value={item.node.note || ''}
+          oninput={handleNoteInput}
+          onkeydown={handleNoteKeydown}
+          onblur={handleNoteBlur}
+          placeholder="Add a note..."
+          rows="1"
+        ></textarea>
+      {:else}
+        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+        <div
+          class="note-content"
+          onclick={() => { outline.focus(item.node.id); isEditingNote = true; setTimeout(() => noteInputElement?.focus(), 0); }}
+        >
+          {item.node.note}
+        </div>
+      {/if}
+    </div>
+  {/if}
+
+  {#if isFocused}
+    <BacklinksPanel
+      nodeId={item.node.id}
+      onNavigate={(nodeId) => onNavigateToNode ? onNavigateToNode(nodeId) : outline.focus(nodeId)}
+    />
+  {/if}
+</div>
+
+{#if showWikiLinkSuggestion}
+  <WikiLinkSuggestion
+    query={wikiLinkQuery}
+    position={suggestionPosition}
+    onSelect={handleWikiLinkSelect}
+    onClose={handleWikiLinkClose}
+  />
+{/if}
+
+{#if showHashtagSuggestion}
+  <HashtagSuggestion
+    query={hashtagQuery}
+    position={hashtagPosition}
+    onSelect={handleHashtagSelect}
+    onClose={handleHashtagClose}
+  />
+{/if}
+
+{#if showDueDateSuggestion}
+  <DueDateSuggestion
+    query={dueDateQuery}
+    position={dueDatePosition}
+    onSelect={handleDueDateSelect}
+    onClose={handleDueDateClose}
+  />
+{/if}
+
+{#if showDatePicker}
+  <DatePicker
+    position={datePickerPosition}
+    currentDate={item.node.date}
+    onSelect={handleDateSelect}
+    onClose={handleDatePickerClose}
+  />
+{/if}
+
+{#if showRecurrencePicker}
+  <RecurrencePicker
+    position={recurrencePickerPosition}
+    currentRecurrence={item.node.date_recurrence}
+    onSelect={handleRecurrenceSelect}
+    onClose={handleRecurrencePickerClose}
+  />
+{/if}
+
+{#if showContextMenu}
+  <ContextMenu
+    items={contextMenuItems}
+    position={contextMenuPosition}
+    onClose={() => showContextMenu = false}
+  />
+{/if}
+
+<style>
+  .outline-item {
+    position: relative;
+  }
+
+  .item-row {
+    display: flex;
+    align-items: flex-start;
+    padding: 2px 0;
+    border-radius: 4px;
+    transition: background-color 0.1s;
+    cursor: text;
+    position: relative;
+  }
+
+  .focused .item-row {
+    background-color: var(--selection-bg);
+  }
+
+  .bullet {
+    font-size: 14px;
+    color: var(--text-tertiary);
+    margin-right: 4px;
+  }
+
+  .bullet.has-children {
+    color: var(--text-secondary);
+  }
+
+  .bullet.collapsed {
+    color: var(--accent-primary);
+  }
+
+  .outline-item.checked .bullet {
+    opacity: 0.4;
+  }
+
+  .checkbox-btn {
+    width: 20px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+    margin-right: 4px;
+  }
+
+  .checkbox-icon {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--checkbox-border);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: transparent;
+    background: var(--bg-elevated);
+    transition: all 0.15s;
+  }
+
+  .checkbox-btn:hover .checkbox-icon {
+    border-color: var(--checkbox-border-hover);
+  }
+
+  .checkbox-icon.checked {
+    background: var(--checkbox-checked-bg);
+    border-color: var(--checkbox-checked-bg);
+    color: white;
+  }
+
+  .outline-item.checked .editor-wrapper :global(.outline-editor),
+  .outline-item.checked .editor-wrapper.static-content {
+    text-decoration: line-through;
+    color: var(--text-tertiary);
+  }
+
+  .static-content {
+    cursor: text;
+    min-height: 24px;
+    line-height: 24px;
+  }
+
+  .static-content :global(p) {
+    margin: 0;
+  }
+
+  .static-content :global(strong) {
+    font-weight: 600;
+  }
+
+  .static-content :global(em) {
+    font-style: italic;
+  }
+
+  .static-content :global(code) {
+    background: var(--bg-tertiary);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 0.9em;
+  }
+
+  .recurrence-indicator {
+    font-size: 12px;
+    margin-left: 4px;
+    cursor: default;
+    opacity: 0.7;
+  }
+
+  .recurrence-indicator:hover {
+    opacity: 1;
+  }
+
+  .note-row {
+    margin-left: 20px;
+    margin-top: 2px;
+    margin-bottom: 4px;
+  }
+
+  .note-content {
+    font-size: 0.85em;
+    color: var(--text-tertiary);
+    line-height: 1.4;
+    cursor: text;
+    padding: 2px 4px;
+    border-radius: 3px;
+  }
+
+  .note-content:hover {
+    background: var(--bg-tertiary);
+  }
+
+  .note-input {
+    width: 100%;
+    font-size: 0.85em;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 4px;
+    padding: 4px 8px;
+    line-height: 1.4;
+    resize: vertical;
+    min-height: 24px;
+    font-family: inherit;
+  }
+
+  .note-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+  }
+
+  .note-input::placeholder {
+    color: var(--text-tertiary);
+  }
+
+  .outline-item.checked .note-content {
+    text-decoration: line-through;
+    opacity: 0.6;
+  }
+
+  .editor-wrapper {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .editor-wrapper :global(.outline-editor) {
+    outline: none;
+    min-height: 24px;
+    line-height: 24px;
+  }
+
+  .editor-wrapper :global(.outline-editor p) {
+    margin: 0;
+  }
+
+  .editor-wrapper :global(.outline-editor strong) {
+    font-weight: 600;
+  }
+
+  .editor-wrapper :global(.outline-editor em) {
+    font-style: italic;
+  }
+
+  .editor-wrapper :global(.outline-editor code) {
+    background: var(--bg-tertiary);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 0.9em;
+  }
+
+  .editor-wrapper :global(.wiki-link) {
+    display: inline-flex;
+    align-items: center;
+    background: var(--wiki-link-bg);
+    color: var(--wiki-link-color);
+    padding: 1px 8px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    cursor: pointer;
+    text-decoration: none;
+    margin: 0 2px;
+  }
+
+  .editor-wrapper :global(.wiki-link:hover) {
+    background: var(--wiki-link-bg-hover);
+  }
+
+  .editor-wrapper :global(.auto-link) {
+    color: var(--auto-link-color);
+    text-decoration: underline;
+    text-decoration-color: var(--auto-link-underline);
+    cursor: pointer;
+  }
+
+  .editor-wrapper :global(.auto-link:hover) {
+    text-decoration-color: var(--auto-link-color);
+  }
+
+  .editor-wrapper :global(.markdown-link-syntax) {
+    color: var(--auto-link-color);
+    cursor: pointer;
+    border-bottom: 1px dashed var(--auto-link-underline);
+  }
+
+  .editor-wrapper :global(.markdown-link-syntax:hover) {
+    border-bottom-color: var(--auto-link-color);
+  }
+
+  .editor-wrapper :global(.hashtag) {
+    color: var(--hashtag-color);
+    background: var(--hashtag-bg);
+    padding: 1px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+
+  .editor-wrapper :global(.hashtag:hover) {
+    background: var(--hashtag-bg-hover);
+  }
+
+  .editor-wrapper :global(.mention) {
+    color: var(--mention-color);
+    background: var(--mention-bg);
+    padding: 1px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+
+  .editor-wrapper :global(.mention:hover) {
+    background: var(--mention-bg-hover);
+  }
+
+  .editor-wrapper :global(.due-date) {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 0.85em;
+    font-weight: 500;
+    cursor: pointer;
+    margin: 0 2px;
+    transition: all 0.15s;
+  }
+
+  .editor-wrapper :global(.due-date-overdue) {
+    background: var(--date-overdue-bg);
+    color: var(--date-overdue);
+  }
+
+  .editor-wrapper :global(.due-date-overdue:hover) {
+    background: var(--date-overdue-bg-hover);
+  }
+
+  .editor-wrapper :global(.due-date-today) {
+    background: var(--date-today-bg);
+    color: var(--date-today);
+  }
+
+  .editor-wrapper :global(.due-date-today:hover) {
+    background: var(--date-today-bg-hover);
+  }
+
+  .editor-wrapper :global(.due-date-upcoming) {
+    background: var(--date-upcoming-bg);
+    color: var(--date-upcoming);
+  }
+
+  .editor-wrapper :global(.due-date-upcoming:hover) {
+    background: var(--date-upcoming-bg-hover);
+  }
+
+  .editor-wrapper :global(.due-date-future) {
+    background: var(--date-future-bg);
+    color: var(--date-future);
+  }
+
+  .editor-wrapper :global(.due-date-future:hover) {
+    background: var(--date-future-bg-hover);
+  }
+
+  .editor-wrapper :global(.due-date-completed) {
+    background: var(--date-completed-bg);
+    color: var(--date-completed);
+    text-decoration: line-through;
+  }
+
+  .editor-wrapper :global(.due-date-completed:hover) {
+    background: var(--date-completed-bg-hover);
+  }
+
+  /* Indent guides - positioned absolutely within the item */
+  .indent-guide {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--indent-guide-color);
+    opacity: 0.5;
+  }
+
+  .hover-menu-btn {
+    position: absolute;
+    left: -20px;
+    top: 2px;
+    width: 16px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    padding: 0;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .hover-menu-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .hover-menu-btn:hover {
+    color: var(--text-primary);
+  }
+
+  .item-row:hover .hover-menu-btn,
+  .focused .hover-menu-btn {
+    opacity: 1;
+  }
+
+  .drag-handle {
+    width: 20px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    flex-shrink: 0;
+  }
+
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+
+  .bullet.has-children {
+    cursor: pointer;
+  }
+
+  .outline-item.dragging {
+    opacity: 0.4;
+  }
+
+  .outline-item.drop-before {
+    position: relative;
+  }
+
+  .outline-item.drop-before::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--drop-indicator);
+    border-radius: 1px;
+  }
+
+  .outline-item.drop-after {
+    position: relative;
+  }
+
+  .outline-item.drop-after::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--drop-indicator);
+    border-radius: 1px;
+  }
+
+  .outline-item.drop-child .item-row {
+    background: var(--selection-bg);
+    border-radius: 4px;
+  }
+</style>

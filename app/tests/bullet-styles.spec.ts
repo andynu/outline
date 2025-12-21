@@ -26,14 +26,12 @@ test.describe('Bullet styles', () => {
   });
 
   test('items with visible children show filled bullet (●)', async ({ page }) => {
-    // Find an item that has visible children (expanded)
-    // The "Getting Started" or "Features" items should have children in demo data
-    const itemWithChildren = page.locator('.outline-item').filter({
-      has: page.locator('.children-wrapper'),
-    }).first();
+    // Find an item that has children by looking for bullet with has-children class
+    // "Getting Started" has children in demo data
+    const itemWithChildren = page.locator('.outline-item').filter({ hasText: 'Getting Started' }).first();
 
     // Get the bullet for this item
-    const bullet = itemWithChildren.locator('> .item-row .bullet').first();
+    const bullet = itemWithChildren.locator('.bullet');
 
     // Should show filled bullet and have has-children class
     await expect(bullet).toHaveText('●');
@@ -44,7 +42,7 @@ test.describe('Bullet styles', () => {
   test('collapsed items with children show fisheye bullet (◉)', async ({ page }) => {
     // Find an item with children - "Getting Started" has children
     const itemWithChildren = page.locator('.outline-item').filter({ hasText: 'Getting Started' }).first();
-    const bullet = itemWithChildren.locator('> .item-row .bullet').first();
+    const bullet = itemWithChildren.locator('.bullet');
 
     // Start expanded - should show ●
     await expect(bullet).toHaveText('●');
@@ -69,7 +67,7 @@ test.describe('Bullet styles', () => {
 
     // Verify it starts as a leaf (filled bullet, no has-children class)
     const parentItem = page.locator('.outline-item').filter({ hasText: 'Parent to be' });
-    let bullet = parentItem.locator('> .item-row .bullet');
+    let bullet = parentItem.locator('.bullet');
     await expect(bullet).toHaveText('●');
     await expect(bullet).not.toHaveClass(/has-children/);
 
@@ -82,7 +80,7 @@ test.describe('Bullet styles', () => {
     await page.waitForTimeout(100);
 
     // Now the parent should have has-children class (still filled bullet)
-    bullet = parentItem.locator('> .item-row .bullet');
+    bullet = parentItem.locator('.bullet');
     await expect(bullet).toHaveText('●');
     await expect(bullet).toHaveClass(/has-children/);
   });
@@ -90,7 +88,7 @@ test.describe('Bullet styles', () => {
   test('bullet style updates when collapsing/expanding', async ({ page }) => {
     // Find an item with children - "Getting Started" has children
     const itemWithChildren = page.locator('.outline-item').filter({ hasText: 'Getting Started' }).first();
-    const bullet = itemWithChildren.locator('> .item-row .bullet').first();
+    const bullet = itemWithChildren.locator('.bullet');
 
     // Start expanded - should show ●
     await expect(bullet).toHaveText('●');
