@@ -52,23 +52,65 @@ let hideCompleted = $state(false);  // Hide completed items from view
 // Lock to prevent concurrent position-changing operations
 let isMoving = false;
 
+// Cached indexes - rebuilt when nodes change
+let cachedNodes: Node[] = [];
+let cachedNodesById: Map<string, Node> = new Map();
+let cachedChildrenByParent: Map<string | null, Node[]> = new Map();
+
+// Cached tree - rebuilt when nodes, filter, or hideCompleted changes
+let cachedTree: TreeNode[] = [];
+let cachedTreeNodes: Node[] = [];
+let cachedTreeFilter: string | null = null;
+let cachedTreeHideCompleted: boolean = false;
+
+function rebuildIndexes() {
+  if (cachedNodes === nodes) return; // No change
+
+  const startTime = performance.now();
+  cachedNodes = nodes;
+  cachedNodesById = new Map(nodes.map(n => [n.id, n]));
+
+  // Build children index - group by parent_id
+  const childrenMap = new Map<string | null, Node[]>();
+  for (const node of nodes) {
+    const parentId = node.parent_id ?? null;
+    let children = childrenMap.get(parentId);
+    if (!children) {
+      children = [];
+      childrenMap.set(parentId, children);
+    }
+    children.push(node);
+  }
+
+  // Sort each children array by position
+  for (const children of childrenMap.values()) {
+    children.sort((a, b) => a.position - b.position);
+  }
+
+  cachedChildrenByParent = childrenMap;
+
+  const elapsed = performance.now() - startTime;
+  if (elapsed > 5) {
+    console.log(`[perf] rebuildIndexes: ${elapsed.toFixed(1)}ms for ${nodes.length} nodes`);
+  }
+}
+
 // Derived: nodes indexed by ID
 function nodesById(): Map<string, Node> {
-  return new Map(nodes.map(n => [n.id, n]));
+  rebuildIndexes();
+  return cachedNodesById;
 }
 
 // Derived: root nodes (no parent)
 function rootNodes(): Node[] {
-  return nodes
-    .filter(n => n.parent_id == null)  // loose equality: matches null OR undefined
-    .sort((a, b) => a.position - b.position);
+  rebuildIndexes();
+  return cachedChildrenByParent.get(null) ?? [];
 }
 
 // Derived: children of a node
 function childrenOf(parentId: string): Node[] {
-  return nodes
-    .filter(n => n.parent_id === parentId)
-    .sort((a, b) => a.position - b.position);
+  rebuildIndexes();
+  return cachedChildrenByParent.get(parentId) ?? [];
 }
 
 // Get all ancestor IDs for a node
@@ -101,8 +143,14 @@ function getFilteredNodeIds(filter: string): Set<string> {
   return visibleIds;
 }
 
+// Performance tracking
+let lastBuildTreeTime = 0;
+let buildTreeCallCount = 0;
+
 // Build tree structure for rendering
 function buildTree(parentId: string | null, depth: number, filteredIds?: Set<string>, excludeCompleted: boolean = false): TreeNode[] {
+  const isRoot = parentId === null;
+  const startTime = isRoot ? performance.now() : 0;
   const children = parentId === null ? rootNodes() : childrenOf(parentId);
 
   // Filter children based on active filters
@@ -118,7 +166,7 @@ function buildTree(parentId: string | null, depth: number, filteredIds?: Set<str
     visibleChildren = visibleChildren.filter(n => !n.is_checked);
   }
 
-  return visibleChildren.map(node => {
+  const result = visibleChildren.map(node => {
     const nodeChildren = childrenOf(node.id);
     // When filtering, check if any children are visible
     let hasVisibleChildren = nodeChildren.length > 0;
@@ -137,6 +185,16 @@ function buildTree(parentId: string | null, depth: number, filteredIds?: Set<str
       children: (filteredIds || !node.collapsed) ? buildTree(node.id, depth + 1, filteredIds, excludeCompleted) : []
     };
   });
+
+  if (isRoot) {
+    lastBuildTreeTime = performance.now() - startTime;
+    buildTreeCallCount++;
+    if (lastBuildTreeTime > 10) {
+      console.log(`[perf] buildTree: ${lastBuildTreeTime.toFixed(1)}ms (call #${buildTreeCallCount}, ${nodes.length} nodes)`);
+    }
+  }
+
+  return result;
 }
 
 // Flatten tree for navigation (visible nodes only)
@@ -219,8 +277,19 @@ export const outline = {
 
   // Build tree for rendering (respects active filter and hideCompleted)
   getTree(): TreeNode[] {
+    // Check if cached tree is still valid
+    if (cachedTreeNodes === nodes &&
+        cachedTreeFilter === filterQuery &&
+        cachedTreeHideCompleted === hideCompleted) {
+      return cachedTree;
+    }
+
     const filteredIds = filterQuery ? getFilteredNodeIds(filterQuery) : undefined;
-    return buildTree(null, 0, filteredIds, hideCompleted);
+    cachedTree = buildTree(null, 0, filteredIds, hideCompleted);
+    cachedTreeNodes = nodes;
+    cachedTreeFilter = filterQuery;
+    cachedTreeHideCompleted = hideCompleted;
+    return cachedTree;
   },
 
   // Get visible nodes in order (respects active filter and hideCompleted)
@@ -470,6 +539,7 @@ export const outline = {
 
   // Delete node
   async deleteNode(nodeId: string): Promise<string | null> {
+    const deleteStart = performance.now();
     const visible = this.getVisibleNodes();
     const idx = visible.findIndex(n => n.id === nodeId);
 
@@ -478,16 +548,24 @@ export const outline = {
 
     startOperation();
     try {
+      const apiStart = performance.now();
       const state = await api.deleteNode(nodeId);
+      const apiTime = performance.now() - apiStart;
+
+      const updateStart = performance.now();
       updateFromState(state);
+      const updateTime = performance.now() - updateStart;
 
       // Focus previous or next
       const newFocusId = visible[idx - 1]?.id || visible[idx + 1]?.id;
       if (newFocusId) {
         focusedId = newFocusId;
-        return newFocusId;
       }
-      return null;
+
+      const totalTime = performance.now() - deleteStart;
+      console.log(`[perf] deleteNode: total=${totalTime.toFixed(1)}ms, api=${apiTime.toFixed(1)}ms, updateState=${updateTime.toFixed(1)}ms`);
+
+      return newFocusId || null;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       return null;
@@ -763,5 +841,47 @@ export const outline = {
     } finally {
       endOperation();
     }
+  },
+
+  // DEV ONLY: Generate test nodes for performance testing
+  _generateTestNodes(count: number) {
+    const startTime = performance.now();
+    const testNodes: Node[] = [];
+    const now = new Date().toISOString();
+
+    // Create flat list of nodes for simplicity
+    for (let i = 0; i < count; i++) {
+      testNodes.push({
+        id: `test-${i}`,
+        parent_id: null,
+        position: i,
+        content: `Test item ${i + 1} - Lorem ipsum dolor sit amet`,
+        node_type: 'bullet',
+        collapsed: false,
+        is_checked: false,
+        created_at: now,
+        updated_at: now,
+      });
+    }
+
+    // Replace all nodes
+    nodes = testNodes;
+    focusedId = testNodes[0]?.id || null;
+
+    console.log(`[perf] Generated ${count} test nodes in ${(performance.now() - startTime).toFixed(1)}ms`);
+  },
+
+  // DEV ONLY: Measure tree rendering time
+  _measureRender() {
+    const startTime = performance.now();
+    const tree = this.getTree();
+    const buildTime = performance.now() - startTime;
+    console.log(`[perf] getTree: ${buildTime.toFixed(1)}ms, ${nodes.length} nodes, ${tree.length} root items`);
+    return tree;
   }
 };
+
+// Expose to window for dev testing
+if (typeof window !== 'undefined') {
+  (window as any).outline = outline;
+}
