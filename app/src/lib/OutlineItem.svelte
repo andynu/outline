@@ -25,9 +25,10 @@
   interface Props {
     item: TreeNode;
     onNavigateToNode?: (nodeId: string) => void;
+    isInFocusedSubtree?: boolean;
   }
 
-  let { item, onNavigateToNode }: Props = $props();
+  let { item, onNavigateToNode, isInFocusedSubtree = false }: Props = $props();
 
   let editor: Editor | undefined = $state();
   let editorElement: HTMLDivElement | undefined = $state();
@@ -861,6 +862,7 @@
 <div
   class="outline-item"
   class:focused={isFocused}
+  class:in-focused-subtree={isInFocusedSubtree && !isFocused}
   class:checked={item.node.is_checked}
   class:drag-over={isDragOver}
   class:drop-before={dropPosition === 'before'}
@@ -960,7 +962,11 @@
       <div class="indent-guide"></div>
       <div class="children">
         {#each item.children as child (child.node.id)}
-          <OutlineItem item={child} {onNavigateToNode} />
+          <OutlineItem
+            item={child}
+            {onNavigateToNode}
+            isInFocusedSubtree={isFocused || isInFocusedSubtree}
+          />
         {/each}
       </div>
     </div>
@@ -1032,6 +1038,11 @@
 
   .focused .item-row {
     background-color: var(--selection-bg);
+  }
+
+  /* Subtler highlight for items in the focused item's subtree */
+  .in-focused-subtree .item-row {
+    background-color: var(--subtree-bg);
   }
 
   .bullet {

@@ -116,6 +116,7 @@
   /* Selection/Focus */
   --selection-bg: rgba(74, 124, 124, 0.15);
   --selection-bg-strong: rgba(74, 124, 124, 0.25);
+  --subtree-bg: rgba(74, 124, 124, 0.06);  /* Subtler highlight for focused subtree */
 
   /* Drop indicator */
   --drop-indicator: var(--accent-primary);
@@ -244,6 +245,7 @@
   /* Selection/Focus */
   --selection-bg: rgba(90, 148, 148, 0.2);
   --selection-bg-strong: rgba(90, 148, 148, 0.35);
+  --subtree-bg: rgba(90, 148, 148, 0.08);  /* Subtler highlight for focused subtree */
 
   /* Indent guide lines - slightly brighter in dark mode */
   --indent-guide-color: #4a4745;
