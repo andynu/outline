@@ -678,12 +678,15 @@ export const outline = {
 
   // Drop a node onto a target (as sibling after target, or as child)
   async dropOnNode(targetId: string, asChild: boolean = false): Promise<boolean> {
-    if (!draggedId || draggedId === targetId) {
+    // Capture draggedId locally since it's reactive and could change during async operations
+    const nodeIdToDrop = draggedId;
+
+    if (!nodeIdToDrop || nodeIdToDrop === targetId) {
       draggedId = null;
       return false;
     }
 
-    const draggedNode = nodesById().get(draggedId);
+    const draggedNode = nodesById().get(nodeIdToDrop);
     const targetNode = nodesById().get(targetId);
 
     if (!draggedNode || !targetNode) {
@@ -694,7 +697,7 @@ export const outline = {
     // Prevent dropping a node onto its own descendant
     let checkId: string | null = targetId;
     while (checkId) {
-      if (checkId === draggedId) {
+      if (checkId === nodeIdToDrop) {
         draggedId = null;
         return false;
       }
@@ -724,13 +727,13 @@ export const outline = {
         newPosition = targetIdx + 1;
         // Shift siblings after insertion point
         for (let i = targetIdx + 1; i < siblings.length; i++) {
-          if (siblings[i].id !== draggedId) {
+          if (siblings[i].id !== nodeIdToDrop) {
             await api.moveNode(siblings[i].id, newParentId, siblings[i].position + 1);
           }
         }
       }
 
-      const state = await api.moveNode(draggedId, newParentId, newPosition);
+      const state = await api.moveNode(nodeIdToDrop, newParentId, newPosition);
       updateFromState(state);
       draggedId = null;
       return true;
