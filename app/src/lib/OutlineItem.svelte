@@ -672,6 +672,38 @@
     }
   }
 
+  // URL pattern for linkifying notes
+  const NOTE_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.)[^\s<>[\]{}|\\^`"']+/g;
+
+  /** Convert URLs in text to clickable links, escaping HTML */
+  function linkifyNote(text: string): string {
+    if (!text) return '';
+    // Escape HTML first
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    // Replace URLs with links
+    return escaped.replace(NOTE_URL_PATTERN, (url) => {
+      const href = url.startsWith('www.') ? `https://${url}` : url;
+      return `<a href="${href}" class="note-link" target="_blank" rel="noopener noreferrer">${url}</a>`;
+    });
+  }
+
+  function handleNoteClick(e: MouseEvent) {
+    const target = e.target as HTMLElement;
+    // If clicking a link, let it navigate (don't enter edit mode)
+    if (target.tagName === 'A' && target.classList.contains('note-link')) {
+      e.stopPropagation();
+      return;
+    }
+    // Otherwise enter edit mode
+    outline.focus(item.node.id);
+    isEditingNote = true;
+    setTimeout(() => noteInputElement?.focus(), 0);
+  }
+
   function handleRowClick(e: MouseEvent) {
     // Don't handle if clicking on buttons or the editor itself
     const target = e.target as HTMLElement;
@@ -1058,9 +1090,9 @@
         <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
         <div
           class="note-content"
-          onclick={() => { outline.focus(item.node.id); isEditingNote = true; setTimeout(() => noteInputElement?.focus(), 0); }}
+          onclick={handleNoteClick}
         >
-          {item.node.note}
+          {@html linkifyNote(item.node.note || '')}
         </div>
       {/if}
     </div>
@@ -1284,6 +1316,16 @@
 
   .note-content:hover {
     background: var(--bg-tertiary);
+  }
+
+  .note-content :global(.note-link) {
+    color: var(--auto-link-color);
+    text-decoration: underline;
+    text-decoration-color: var(--auto-link-underline);
+  }
+
+  .note-content :global(.note-link:hover) {
+    text-decoration-color: var(--auto-link-color);
   }
 
   .note-input {
