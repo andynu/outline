@@ -1,6 +1,6 @@
 <script lang="ts">
   import { settings } from './settings.svelte';
-  import { theme } from './theme.svelte';
+  import { theme, type Theme } from './theme.svelte';
   import { getDataDirectory, setDataDirectory, pickDirectory, type DataDirectoryInfo } from './api';
 
   interface Props {
@@ -11,7 +11,7 @@
   let { isOpen, onClose }: Props = $props();
 
   // Local state for form values
-  let localTheme = $state<'light' | 'dark' | 'system'>('system');
+  let localTheme = $state<Theme>('system');
   let localFontSize = $state(14);
   let localFontFamily = $state('system');
   let localAutoSave = $state(30);
@@ -81,7 +81,7 @@
     }
   }
 
-  function handleThemeChange(newTheme: 'light' | 'dark' | 'system') {
+  function handleThemeChange(newTheme: Theme) {
     localTheme = newTheme;
     settings.update({ theme: newTheme });
     theme.setTheme(newTheme);
@@ -162,52 +162,20 @@
           <h3>Appearance</h3>
 
           <div class="setting-row">
-            <label class="setting-label">
+            <label class="setting-label" for="theme-select">
               <span class="label-text">Theme</span>
               <span class="label-hint">Choose your preferred color scheme</span>
             </label>
-            <div class="theme-buttons">
-              <button
-                class="theme-btn"
-                class:active={localTheme === 'light'}
-                onclick={() => handleThemeChange('light')}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="5"/>
-                  <line x1="12" y1="1" x2="12" y2="3"/>
-                  <line x1="12" y1="21" x2="12" y2="23"/>
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                  <line x1="1" y1="12" x2="3" y2="12"/>
-                  <line x1="21" y1="12" x2="23" y2="12"/>
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                </svg>
-                Light
-              </button>
-              <button
-                class="theme-btn"
-                class:active={localTheme === 'dark'}
-                onclick={() => handleThemeChange('dark')}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                </svg>
-                Dark
-              </button>
-              <button
-                class="theme-btn"
-                class:active={localTheme === 'system'}
-                onclick={() => handleThemeChange('system')}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                  <line x1="8" y1="21" x2="16" y2="21"/>
-                  <line x1="12" y1="17" x2="12" y2="21"/>
-                </svg>
-                System
-              </button>
-            </div>
+            <select
+              id="theme-select"
+              class="setting-select"
+              value={localTheme}
+              onchange={(e) => handleThemeChange(e.currentTarget.value as Theme)}
+            >
+              {#each theme.availableThemes as t}
+                <option value={t.id}>{t.name}</option>
+              {/each}
+            </select>
           </div>
 
           <div class="setting-row">
@@ -508,41 +476,6 @@
   .setting-select:focus {
     outline: none;
     border-color: var(--accent-primary);
-  }
-
-  /* Theme buttons */
-  .theme-buttons {
-    display: flex;
-    gap: 8px;
-  }
-
-  .theme-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    font-size: 13px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-primary);
-    border-radius: 6px;
-    cursor: pointer;
-    color: var(--text-primary);
-    transition: all 0.1s;
-  }
-
-  .theme-btn:hover {
-    background: var(--bg-tertiary);
-  }
-
-  .theme-btn.active {
-    background: var(--accent-primary-lighter);
-    border-color: var(--accent-primary);
-    color: var(--accent-primary);
-  }
-
-  .theme-btn svg {
-    width: 16px;
-    height: 16px;
   }
 
   /* Toggle switch */

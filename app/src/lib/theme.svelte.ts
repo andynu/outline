@@ -1,15 +1,28 @@
 /**
  * Theme Store
  *
- * Manages theme state (light/dark) with localStorage persistence
+ * Manages theme state with localStorage persistence
  * and system preference detection.
+ *
+ * Supports:
+ * - 'system' - follows OS preference (light or dark)
+ * - 'light' - light NASA theme
+ * - 'dark' - dark NASA theme
+ * - 'gruvbox-dark' - Gruvbox dark theme
+ * - 'gruvbox-light' - Gruvbox light theme
  */
 
-type Theme = 'light' | 'dark' | 'system';
+export type Theme = 'light' | 'dark' | 'system' | 'gruvbox-dark' | 'gruvbox-light';
+
+// Themes that are considered "dark" for UI purposes
+const DARK_THEMES = ['dark', 'gruvbox-dark'];
+
+// All available themes for cycling
+const THEME_ORDER: Theme[] = ['light', 'dark', 'gruvbox-light', 'gruvbox-dark', 'system'];
 
 class ThemeStore {
   private _theme = $state<Theme>('system');
-  private _effectiveTheme = $state<'light' | 'dark'>('light');
+  private _effectiveTheme = $state<Theme>('light');
 
   constructor() {
     // Will be initialized in init() to support SSR
@@ -18,7 +31,7 @@ class ThemeStore {
   init() {
     // Load saved preference
     const saved = localStorage.getItem('outline-theme') as Theme | null;
-    if (saved && ['light', 'dark', 'system'].includes(saved)) {
+    if (saved && THEME_ORDER.includes(saved)) {
       this._theme = saved;
     }
 
@@ -39,7 +52,30 @@ class ThemeStore {
   }
 
   get isDark() {
-    return this._effectiveTheme === 'dark';
+    return DARK_THEMES.includes(this._effectiveTheme);
+  }
+
+  /** Get display name for the current theme setting */
+  get displayName(): string {
+    switch (this._theme) {
+      case 'system': return 'System';
+      case 'light': return 'Light';
+      case 'dark': return 'Dark';
+      case 'gruvbox-light': return 'Gruvbox Light';
+      case 'gruvbox-dark': return 'Gruvbox Dark';
+      default: return this._theme;
+    }
+  }
+
+  /** Get all available themes */
+  get availableThemes(): { id: Theme; name: string; isDark: boolean }[] {
+    return [
+      { id: 'system', name: 'System', isDark: false },
+      { id: 'light', name: 'Light', isDark: false },
+      { id: 'dark', name: 'Dark', isDark: true },
+      { id: 'gruvbox-light', name: 'Gruvbox Light', isDark: false },
+      { id: 'gruvbox-dark', name: 'Gruvbox Dark', isDark: true },
+    ];
   }
 
   setTheme(theme: Theme) {
@@ -50,20 +86,19 @@ class ThemeStore {
 
   toggle() {
     // Simple toggle between light and dark
-    const newTheme = this._effectiveTheme === 'dark' ? 'light' : 'dark';
+    const newTheme = this.isDark ? 'light' : 'dark';
     this.setTheme(newTheme);
   }
 
   cycle() {
-    // Cycle through: light -> dark -> system -> light
-    const order: Theme[] = ['light', 'dark', 'system'];
-    const currentIndex = order.indexOf(this._theme);
-    const nextIndex = (currentIndex + 1) % order.length;
-    this.setTheme(order[nextIndex]);
+    // Cycle through all themes
+    const currentIndex = THEME_ORDER.indexOf(this._theme);
+    const nextIndex = (currentIndex + 1) % THEME_ORDER.length;
+    this.setTheme(THEME_ORDER[nextIndex]);
   }
 
   private updateEffectiveTheme() {
-    let effective: 'light' | 'dark';
+    let effective: Theme;
 
     if (this._theme === 'system') {
       effective = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -73,11 +108,11 @@ class ThemeStore {
 
     this._effectiveTheme = effective;
 
-    // Apply to document
-    if (effective === 'dark') {
-      document.documentElement.setAttribute('data-theme', 'dark');
-    } else {
+    // Apply to document - use the effective theme as data-theme attribute
+    if (effective === 'light') {
       document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', effective);
     }
   }
 }

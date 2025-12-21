@@ -221,12 +221,14 @@
   --date-soon-bg-hover: var(--status-warning-bg-hover);
   --date-future-bg-hover: #3a3835;
 
-  /* Wiki links */
-  --wiki-link-bg: #243434;
-  --wiki-link-bg-hover: #2a3d3d;
+  /* Wiki links - bright blue for dark mode readability */
+  --wiki-link-color: #6cb6ff;         /* Bright link blue (GitHub-style) */
+  --wiki-link-bg: #1a2633;            /* Subtle blue-tinted dark bg */
+  --wiki-link-bg-hover: #243442;
 
-  /* Auto links */
-  --auto-link-underline: #4a7070;
+  /* Auto links - bright blue */
+  --auto-link-color: #6cb6ff;         /* Bright link blue */
+  --auto-link-underline: #58a6ff;
 
   /* Hashtags */
   --hashtag-color: #9a8aaa;
@@ -264,6 +266,218 @@
   --scrollbar-track: #252320;
   --scrollbar-thumb: #3d3a36;
   --scrollbar-thumb-hover: #5a5650;
+}
+
+/* === GRUVBOX DARK THEME === */
+/* Apply with data-theme="gruvbox-dark" on html or body element */
+[data-theme="gruvbox-dark"] {
+  /* Gruvbox dark palette */
+  /* bg0: #282828, bg1: #3c3836, bg2: #504945, bg3: #665c54, bg4: #7c6f64 */
+  /* fg: #ebdbb2, fg1: #ebdbb2, fg2: #d5c4a1, fg3: #bdae93, fg4: #a89984 */
+
+  /* Background layers */
+  --bg-primary: #282828;
+  --bg-secondary: #1d2021;           /* bg0_h - harder */
+  --bg-tertiary: #3c3836;            /* bg1 */
+  --bg-elevated: #504945;            /* bg2 */
+
+  /* Text colors */
+  --text-primary: #ebdbb2;           /* fg */
+  --text-secondary: #d5c4a1;         /* fg2 */
+  --text-tertiary: #a89984;          /* fg4/gray */
+  --text-muted: #665c54;             /* bg3 */
+
+  /* Border colors */
+  --border-primary: #504945;         /* bg2 */
+  --border-secondary: #3c3836;       /* bg1 */
+  --border-focus: #d79921;           /* yellow */
+
+  /* Primary accent - Gruvbox aqua */
+  --accent-primary: #8ec07c;         /* aqua */
+  --accent-primary-hover: #b8bb26;   /* green */
+  --accent-primary-light: #3c4828;
+  --accent-primary-lighter: #32402a;
+
+  /* Secondary accent - Gruvbox orange */
+  --accent-secondary: #fe8019;       /* orange */
+  --accent-secondary-hover: #d65d0e; /* orange dark */
+  --accent-secondary-light: #4a3020;
+  --accent-secondary-lighter: #3d2818;
+
+  /* Status colors - Gruvbox palette */
+  --status-success: #b8bb26;         /* green */
+  --status-success-bg: #3c4028;
+  --status-success-bg-hover: #484c30;
+
+  --status-warning: #fabd2f;         /* yellow */
+  --status-warning-bg: #4a4020;
+  --status-warning-bg-hover: #584c28;
+
+  --status-error: #fb4934;           /* red */
+  --status-error-bg: #4a2828;
+  --status-error-bg-hover: #583030;
+
+  --status-info: #83a598;            /* blue */
+  --status-info-bg: #283838;
+  --status-info-bg-hover: #304545;
+
+  /* Date badges */
+  --date-today-bg-hover: #4a3828;
+  --date-urgent-bg-hover: #4a3828;
+  --date-soon-bg-hover: var(--status-warning-bg-hover);
+  --date-future-bg-hover: #3c3836;
+
+  /* Wiki links - Gruvbox blue for readability */
+  --wiki-link-color: #83a598;        /* blue */
+  --wiki-link-bg: #283838;
+  --wiki-link-bg-hover: #304545;
+
+  /* Auto links - Gruvbox blue */
+  --auto-link-color: #83a598;        /* blue */
+  --auto-link-underline: #458588;    /* blue dark */
+
+  /* Hashtags - Gruvbox purple */
+  --hashtag-color: #d3869b;          /* purple */
+  --hashtag-bg: #3c3040;
+  --hashtag-bg-hover: #483848;
+
+  /* Mentions - Gruvbox blue */
+  --mention-color: #83a598;
+  --mention-bg: #283838;
+  --mention-bg-hover: #304545;
+
+  /* Checkbox */
+  --checkbox-border: #7c6f64;        /* bg4 */
+  --checkbox-border-hover: #a89984;  /* gray */
+
+  /* Selection/Focus */
+  --selection-bg: rgba(142, 192, 124, 0.2);
+  --selection-bg-strong: rgba(142, 192, 124, 0.35);
+  --subtree-bg: rgba(142, 192, 124, 0.08);
+
+  /* Indent guide lines */
+  --indent-guide-color: #504945;
+
+  /* Highlight (search matches) - Gruvbox yellow */
+  --highlight-bg: #4a4020;
+
+  /* Button colors */
+  --btn-secondary-bg: #3c3836;
+  --btn-secondary-bg-hover: #504945;
+
+  /* Modal overlay */
+  --modal-overlay: rgba(0, 0, 0, 0.6);
+
+  /* Scrollbar */
+  --scrollbar-track: #1d2021;
+  --scrollbar-thumb: #504945;
+  --scrollbar-thumb-hover: #665c54;
+}
+
+/* === GRUVBOX LIGHT THEME === */
+/* Apply with data-theme="gruvbox-light" on html or body element */
+[data-theme="gruvbox-light"] {
+  /* Gruvbox light palette */
+  /* bg0: #fbf1c7, bg1: #ebdbb2, bg2: #d5c4a1, bg3: #bdae93, bg4: #a89984 */
+  /* fg: #3c3836, fg1: #3c3836, fg2: #504945, fg3: #665c54, fg4: #7c6f64 */
+
+  /* Background layers */
+  --bg-primary: #fbf1c7;             /* bg0 */
+  --bg-secondary: #f2e5bc;           /* bg0_s - soft */
+  --bg-tertiary: #ebdbb2;            /* bg1 */
+  --bg-elevated: #ffffff;
+
+  /* Text colors */
+  --text-primary: #3c3836;           /* fg1 */
+  --text-secondary: #504945;         /* fg2 */
+  --text-tertiary: #7c6f64;          /* fg4 */
+  --text-muted: #a89984;             /* gray */
+
+  /* Border colors */
+  --border-primary: #d5c4a1;         /* bg2 */
+  --border-secondary: #ebdbb2;       /* bg1 */
+  --border-focus: #d79921;           /* yellow */
+
+  /* Primary accent - Gruvbox aqua (darker for light theme) */
+  --accent-primary: #427b58;         /* aqua dark */
+  --accent-primary-hover: #689d6a;   /* aqua */
+  --accent-primary-light: #d4e8d8;
+  --accent-primary-lighter: #e4f0e6;
+
+  /* Secondary accent - Gruvbox orange */
+  --accent-secondary: #d65d0e;       /* orange dark */
+  --accent-secondary-hover: #af3a03; /* orange darker */
+  --accent-secondary-light: #f5e0d0;
+  --accent-secondary-lighter: #faeee5;
+
+  /* Status colors - Gruvbox palette (darker variants) */
+  --status-success: #79740e;         /* green dark */
+  --status-success-bg: #e8ecd0;
+  --status-success-bg-hover: #dce0c0;
+
+  --status-warning: #b57614;         /* yellow dark */
+  --status-warning-bg: #f5ecd0;
+  --status-warning-bg-hover: #ebe0c0;
+
+  --status-error: #cc241d;           /* red dark */
+  --status-error-bg: #f5d8d5;
+  --status-error-bg-hover: #ebc8c5;
+
+  --status-info: #076678;            /* blue dark */
+  --status-info-bg: #d0e8f0;
+  --status-info-bg-hover: #c0dce5;
+
+  /* Date badges */
+  --date-today-bg-hover: #ebdcc5;
+  --date-urgent-bg-hover: #ebdcc5;
+  --date-soon-bg-hover: var(--status-warning-bg-hover);
+  --date-future-bg-hover: #e0d5c0;
+
+  /* Wiki links - Gruvbox blue */
+  --wiki-link-color: #076678;        /* blue dark */
+  --wiki-link-bg: #d0e8f0;
+  --wiki-link-bg-hover: #c0dce5;
+
+  /* Auto links - Gruvbox blue */
+  --auto-link-color: #076678;
+  --auto-link-underline: #458588;
+
+  /* Hashtags - Gruvbox purple */
+  --hashtag-color: #8f3f71;          /* purple dark */
+  --hashtag-bg: #f0e0e8;
+  --hashtag-bg-hover: #e5d0dc;
+
+  /* Mentions - Gruvbox blue */
+  --mention-color: #076678;
+  --mention-bg: #d0e8f0;
+  --mention-bg-hover: #c0dce5;
+
+  /* Checkbox */
+  --checkbox-border: #a89984;
+  --checkbox-border-hover: #7c6f64;
+
+  /* Selection/Focus */
+  --selection-bg: rgba(66, 123, 88, 0.15);
+  --selection-bg-strong: rgba(66, 123, 88, 0.25);
+  --subtree-bg: rgba(66, 123, 88, 0.06);
+
+  /* Indent guide lines */
+  --indent-guide-color: #d5c4a1;
+
+  /* Highlight (search matches) */
+  --highlight-bg: #f9e8a8;
+
+  /* Button colors */
+  --btn-secondary-bg: #ebdbb2;
+  --btn-secondary-bg-hover: #d5c4a1;
+
+  /* Modal overlay */
+  --modal-overlay: rgba(60, 56, 54, 0.4);
+
+  /* Scrollbar */
+  --scrollbar-track: #ebdbb2;
+  --scrollbar-thumb: #d5c4a1;
+  --scrollbar-thumb-hover: #bdae93;
 }
 
 /* Optional: Scrollbar styling */

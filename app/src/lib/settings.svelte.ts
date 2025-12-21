@@ -4,9 +4,11 @@
  * Manages application settings with localStorage persistence.
  */
 
+import type { Theme } from './theme.svelte';
+
 export interface Settings {
   // Appearance
-  theme: 'light' | 'dark' | 'system';
+  theme: Theme;
   fontSize: number;
   fontFamily: string;
 
