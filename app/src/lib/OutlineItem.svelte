@@ -65,6 +65,10 @@
   let showContextMenu = $state(false);
   let contextMenuPosition = $state({ x: 0, y: 0 });
 
+  // Note editing state
+  let isEditingNote = $state(false);
+  let noteInputElement: HTMLTextAreaElement | undefined = $state();
+
   // Reactive checks
   let isFocused = $derived(outline.focusedId === item.node.id);
 
@@ -362,6 +366,15 @@
 
           // === EDITING ===
 
+          // Shift+Enter: toggle note editing
+          if (event.key === 'Enter' && !mod && event.shiftKey) {
+            event.preventDefault();
+            isEditingNote = true;
+            // Focus the note input after it renders
+            setTimeout(() => noteInputElement?.focus(), 0);
+            return true;
+          }
+
           // Enter: add sibling below
           if (event.key === 'Enter' && !mod && !event.shiftKey) {
             event.preventDefault();
@@ -629,6 +642,34 @@
   function handleDueDateClose() {
     showDueDateSuggestion = false;
     dueDateRange = null;
+  }
+
+  function handleNoteInput(e: Event) {
+    const target = e.target as HTMLTextAreaElement;
+    outline.updateNote(item.node.id, target.value);
+  }
+
+  function handleNoteKeydown(e: KeyboardEvent) {
+    // Escape: close note editor
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      isEditingNote = false;
+      // Re-focus the main editor
+      editor?.commands.focus('end');
+    }
+    // Shift+Enter in note: also close and return to main editor
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      isEditingNote = false;
+      editor?.commands.focus('end');
+    }
+  }
+
+  function handleNoteBlur() {
+    // Close note editing when focus leaves (unless note is empty - then also clear it)
+    if (!item.node.note?.trim()) {
+      isEditingNote = false;
+    }
   }
 
   function handleRowClick(e: MouseEvent) {
@@ -950,6 +991,31 @@
     {/if}
   </div>
 
+  {#if item.node.note || isEditingNote}
+    <div class="note-row">
+      {#if isEditingNote && isFocused}
+        <textarea
+          class="note-input"
+          bind:this={noteInputElement}
+          value={item.node.note || ''}
+          oninput={handleNoteInput}
+          onkeydown={handleNoteKeydown}
+          onblur={handleNoteBlur}
+          placeholder="Add a note..."
+          rows="1"
+        ></textarea>
+      {:else}
+        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+        <div
+          class="note-content"
+          onclick={() => { outline.focus(item.node.id); isEditingNote = true; setTimeout(() => noteInputElement?.focus(), 0); }}
+        >
+          {item.node.note}
+        </div>
+      {/if}
+    </div>
+  {/if}
+
   {#if isFocused}
     <BacklinksPanel
       nodeId={item.node.id}
@@ -1145,6 +1211,55 @@
 
   .recurrence-indicator:hover {
     opacity: 1;
+  }
+
+  /* Note field styles */
+  .note-row {
+    margin-left: 20px; /* Align with content after bullet */
+    margin-top: 2px;
+    margin-bottom: 4px;
+  }
+
+  .note-content {
+    font-size: 0.85em;
+    color: var(--text-tertiary);
+    line-height: 1.4;
+    cursor: text;
+    padding: 2px 4px;
+    border-radius: 3px;
+  }
+
+  .note-content:hover {
+    background: var(--bg-tertiary);
+  }
+
+  .note-input {
+    width: 100%;
+    font-size: 0.85em;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 4px;
+    padding: 4px 8px;
+    line-height: 1.4;
+    resize: vertical;
+    min-height: 24px;
+    font-family: inherit;
+  }
+
+  .note-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+  }
+
+  .note-input::placeholder {
+    color: var(--text-tertiary);
+  }
+
+  /* Dim note for completed items */
+  .outline-item.checked .note-content {
+    text-decoration: line-through;
+    opacity: 0.6;
   }
 
   .editor-wrapper {

@@ -620,6 +620,19 @@ export const outline = {
     }
   },
 
+  // Update note on a node (pass empty string to clear)
+  async updateNote(nodeId: string, note: string) {
+    startOperation();
+    try {
+      const state = await api.updateNode(nodeId, { note: note || undefined });
+      updateFromState(state);
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    } finally {
+      endOperation();
+    }
+  },
+
   // Get all tags used in the document with counts and associated node IDs
   getAllTags(): Map<string, { count: number; nodeIds: string[] }> {
     const tagMap = new Map<string, { count: number; nodeIds: string[] }>();
