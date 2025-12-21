@@ -679,23 +679,31 @@
   function linkifyNote(text: string): string {
     if (!text) return '';
     // Escape HTML first
-    const escaped = text
+    let result = text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
     // Replace URLs with links
-    return escaped.replace(NOTE_URL_PATTERN, (url) => {
+    result = result.replace(NOTE_URL_PATTERN, (url) => {
       const href = url.startsWith('www.') ? `https://${url}` : url;
       return `<a href="${href}" class="note-link" target="_blank" rel="noopener noreferrer">${url}</a>`;
     });
+    // Convert newlines to <br>
+    result = result.replace(/\n/g, '<br>');
+    return result;
   }
 
   function handleNoteClick(e: MouseEvent) {
     const target = e.target as HTMLElement;
-    // If clicking a link, let it navigate (don't enter edit mode)
+    // If clicking a link, open it externally
     if (target.tagName === 'A' && target.classList.contains('note-link')) {
+      e.preventDefault();
       e.stopPropagation();
+      const href = target.getAttribute('href');
+      if (href) {
+        window.open(href, '_blank', 'noopener,noreferrer');
+      }
       return;
     }
     // Otherwise enter edit mode
