@@ -131,16 +131,39 @@ function rebuildIndexes() {
   // If we can do a surgical update (have dirty parents and existing cache)
   if (!needsFullRebuild && dirtyParentIds.size > 0 && cachedNodesById.size > 0) {
     // Surgical update: only rebuild affected parent's children arrays
-    // First, update the node map with all new node objects
-    cachedNodesById = new Map(nodes.map(n => [n.id, n]));
-
-    // Rebuild only affected children arrays
+    // First, save old children for deletion detection
+    const oldChildrenByParent = new Map<string | null, Node[]>();
     for (const parentId of dirtyParentIds) {
-      const children = nodes.filter(n => (n.parent_id ?? null) === parentId);
-      children.sort((a, b) => a.position - b.position);
-      cachedChildrenByParent.set(parentId, children);
+      oldChildrenByParent.set(parentId, cachedChildrenByParent.get(parentId) ?? []);
     }
 
+    // Update the node map incrementally and rebuild children arrays
+    const newNodesById = new Map(cachedNodesById);
+
+    for (const parentId of dirtyParentIds) {
+      // Collect children for this parent from the new nodes array
+      const children: Node[] = [];
+      for (const node of nodes) {
+        if ((node.parent_id ?? null) === parentId) {
+          children.push(node);
+          // Update node in map (might have new content, position, etc.)
+          newNodesById.set(node.id, node);
+        }
+      }
+      children.sort((a, b) => a.position - b.position);
+      cachedChildrenByParent.set(parentId, children);
+
+      // Handle deleted nodes - remove from map if not in new children
+      const newChildIds = new Set(children.map(n => n.id));
+      const oldChildren = oldChildrenByParent.get(parentId) ?? [];
+      for (const oldChild of oldChildren) {
+        if (!newChildIds.has(oldChild.id)) {
+          newNodesById.delete(oldChild.id);
+        }
+      }
+    }
+
+    cachedNodesById = newNodesById;
     cachedNodes = nodes;
     const numDirty = dirtyParentIds.size;
     dirtyParentIds.clear();
