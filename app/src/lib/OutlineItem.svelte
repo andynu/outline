@@ -908,7 +908,17 @@
           {/if}
         </button>
       {:else}
-        <span class="bullet">•</span>
+        <!-- Bullet style varies by item state:
+             ● (filled) = has children, expanded
+             ◉ (with dot) = has children, collapsed
+             ○ (hollow) = no children (leaf) -->
+        <span class="bullet" class:has-children={item.hasChildren} class:collapsed={item.node.collapsed}>
+          {#if item.hasChildren}
+            {#if item.node.collapsed}◉{:else}●{/if}
+          {:else}
+            ○
+          {/if}
+        </span>
       {/if}
     </span>
 
@@ -1027,6 +1037,16 @@
   .bullet {
     font-size: 14px;
     color: var(--text-tertiary);
+  }
+
+  /* Bullet with children (filled or with dot) is slightly more prominent */
+  .bullet.has-children {
+    color: var(--text-secondary);
+  }
+
+  /* Collapsed bullet (◉) indicates hidden content */
+  .bullet.collapsed {
+    color: var(--accent-primary);
   }
 
   /* Dim bullet for completed non-checkbox items */
