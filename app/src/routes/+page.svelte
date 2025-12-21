@@ -15,6 +15,8 @@
   import type { InboxItem } from '$lib/api';
   import { theme } from '$lib/theme.svelte';
   import { zoom } from '$lib/zoom.svelte';
+  import { settings } from '$lib/settings.svelte';
+  import SettingsModal from '$lib/SettingsModal.svelte';
 
   let showSearchModal = $state(false);
   let searchDocumentScope: string | undefined = $state(undefined);
@@ -34,6 +36,7 @@
   let processingInboxItem: InboxItem | null = $state(null);
 
   let showKeyboardShortcuts = $state(false);
+  let showSettings = $state(false);
 
   let saveStatus: 'idle' | 'saving' | 'saved' = $state('idle');
 
@@ -85,6 +88,7 @@
   onMount(() => {
     theme.init();
     zoom.init();
+    settings.init();
     initSidebarState();
     initHideCompletedState();
     outline.load();
@@ -297,6 +301,11 @@
     else if (event.ctrlKey && event.key === '0') {
       event.preventDefault();
       zoom.reset();
+    }
+    // Ctrl+,: Open settings
+    else if (event.ctrlKey && event.key === ',') {
+      event.preventDefault();
+      showSettings = true;
     }
   }
 
@@ -511,6 +520,8 @@
   // Help menu items
   const helpMenuItems = [
     { label: 'Keyboard Shortcuts', shortcut: 'Ctrl+/', action: () => { showKeyboardShortcuts = true; }, separator: false as const },
+    { separator: true as const },
+    { label: 'Settings', shortcut: 'Ctrl+,', action: () => { showSettings = true; }, separator: false as const },
   ];
 </script>
 
@@ -653,6 +664,16 @@
           <circle cx="12" cy="12" r="10"/>
           <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
           <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </button>
+      <button
+        class="toolbar-btn settings-btn"
+        onclick={() => showSettings = true}
+        title="Settings (Ctrl+,)"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
         </svg>
       </button>
     </div>
@@ -820,6 +841,11 @@
 <KeyboardShortcutsModal
   isOpen={showKeyboardShortcuts}
   onClose={() => showKeyboardShortcuts = false}
+/>
+
+<SettingsModal
+  isOpen={showSettings}
+  onClose={() => showSettings = false}
 />
 
 <style>

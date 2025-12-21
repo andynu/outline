@@ -45,6 +45,7 @@
             <li><kbd>Ctrl+S</kbd> Save</li>
             <li><kbd>Ctrl+Q</kbd> Quit</li>
             <li><kbd>Ctrl+/</kbd> This help</li>
+            <li><kbd>Ctrl+,</kbd> Settings</li>
           </ul>
         </div>
         <div class="shortcut-group">
