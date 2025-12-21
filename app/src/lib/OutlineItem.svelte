@@ -725,8 +725,8 @@
       return;
     }
 
-    // Handle auto-link clicks
-    const autoLink = target.closest('.auto-link');
+    // Handle auto-link and markdown-link clicks
+    const autoLink = target.closest('.auto-link') || target.closest('.markdown-link');
     if (autoLink) {
       e.preventDefault();
       e.stopPropagation();
@@ -1371,6 +1371,18 @@
   }
 
   .editor-wrapper :global(.auto-link:hover) {
+    text-decoration-color: var(--auto-link-color);
+  }
+
+  /* Markdown links in static content: rendered as normal links */
+  .editor-wrapper :global(.markdown-link) {
+    color: var(--auto-link-color);
+    text-decoration: underline;
+    text-decoration-color: var(--auto-link-underline);
+    cursor: pointer;
+  }
+
+  .editor-wrapper :global(.markdown-link:hover) {
     text-decoration-color: var(--auto-link-color);
   }
 
