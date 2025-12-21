@@ -21,6 +21,7 @@
   import ContextMenu from './ContextMenu.svelte';
   import { processStaticContentElement, handleStaticContentClick } from './renderStaticContent';
   import { zoom } from './zoom.svelte';
+  import { openUrl } from './api';
 
   interface Props {
     item: TreeNode;
@@ -702,7 +703,7 @@
       e.stopPropagation();
       const href = target.getAttribute('href');
       if (href) {
-        window.open(href, '_blank', 'noopener,noreferrer');
+        openUrl(href);
       }
       return;
     }
@@ -772,7 +773,7 @@
       e.stopPropagation();
       const href = autoLink.getAttribute('href');
       if (href) {
-        window.open(href, '_blank');
+        openUrl(href);
       }
       return;
     }

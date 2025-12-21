@@ -1,6 +1,7 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { openUrl } from './api';
 
 export interface MarkdownLinkOptions {
   HTMLAttributes: Record<string, unknown>;
@@ -138,7 +139,7 @@ export const MarkdownLink = Mark.create<MarkdownLinkOptions>({
               const href = markdownLink.getAttribute('data-href');
               if (href) {
                 event.preventDefault();
-                window.open(href, '_blank', 'noopener,noreferrer');
+                openUrl(href);
                 return true;
               }
             }

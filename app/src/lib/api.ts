@@ -694,3 +694,16 @@ export async function pickDirectory(): Promise<string | null> {
   console.warn('Directory picker not available in browser-only mode');
   return null;
 }
+
+// Open a URL in the system's default browser
+export async function openUrl(url: string): Promise<void> {
+  await initTauri();
+  if (tauriInvoke) {
+    // Use Tauri shell plugin to open URL
+    const { open } = await import('@tauri-apps/plugin-shell');
+    await open(url);
+  } else {
+    // Browser-only mode: use window.open
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
