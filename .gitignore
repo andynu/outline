@@ -1,0 +1,14 @@
+# Personal data and temp files
+tmp/
+tags
+prototype/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
