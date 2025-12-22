@@ -2,6 +2,8 @@
 
 A self-hosted outliner for hierarchical notes, tasks, and knowledge management. Built as a Dynalist/Workflowy replacement with cross-linking, calendar integration, and offline-first sync.
 
+![Outline screenshot](docs/screenshot.png)
+
 ## Features
 
 - **Hierarchical outlining** - Infinite nesting with zoom/hoist, collapse/expand
