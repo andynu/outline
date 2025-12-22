@@ -728,6 +728,38 @@
           </svg>
         {/if}
       </button>
+      <button
+        class="toolbar-btn"
+        onclick={() => outline.collapseAll()}
+        title="Collapse All (Ctrl+Shift+.)"
+        aria-label="Collapse all items"
+      >
+        <!-- Collapse/minimize icon: lines getting closer together -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 14h16"/>
+          <path d="M4 10h16"/>
+          <path d="M12 6l-4 4"/>
+          <path d="M12 6l4 4"/>
+          <path d="M12 18l-4-4"/>
+          <path d="M12 18l4-4"/>
+        </svg>
+      </button>
+      <button
+        class="toolbar-btn"
+        onclick={() => outline.expandAll()}
+        title="Expand All"
+        aria-label="Expand all items"
+      >
+        <!-- Expand icon: lines spreading apart -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 14h16"/>
+          <path d="M4 10h16"/>
+          <path d="M12 2l-4 4"/>
+          <path d="M12 2l4 4"/>
+          <path d="M12 22l-4-4"/>
+          <path d="M12 22l4-4"/>
+        </svg>
+      </button>
       <div class="toolbar-separator"></div>
       <button
         class="toolbar-btn"
