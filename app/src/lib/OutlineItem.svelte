@@ -440,10 +440,10 @@
             return true;
           }
 
-          // Ctrl+. : indent (> without shift)
+          // Ctrl+. : toggle collapse/expand (matches context menu)
           if (event.key === '.' && mod) {
             event.preventDefault();
-            outline.indentNode(nodeId);
+            outline.toggleCollapse(nodeId);
             return true;
           }
 
