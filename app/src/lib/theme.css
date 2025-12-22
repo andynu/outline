@@ -7,6 +7,9 @@
  */
 
 :root {
+  /* Tell browser to use light styling for native controls (select, input, etc.) */
+  color-scheme: light;
+
   /* === BASE COLORS (Light Theme) === */
 
   /* Background layers - warm off-white to cream tones */
@@ -170,6 +173,9 @@
 /* === DARK THEME === */
 /* Apply with data-theme="dark" on html or body element */
 [data-theme="dark"] {
+  /* Tell browser to use dark styling for native controls (select, input, etc.) */
+  color-scheme: dark;
+
   /* Background layers - deep warm grays */
   --bg-primary: #1e1c1a;           /* Main content background */
   --bg-secondary: #252320;         /* Sidebar, panels */
@@ -271,6 +277,9 @@
 /* === GRUVBOX DARK THEME === */
 /* Apply with data-theme="gruvbox-dark" on html or body element */
 [data-theme="gruvbox-dark"] {
+  /* Tell browser to use dark styling for native controls (select, input, etc.) */
+  color-scheme: dark;
+
   /* Gruvbox dark palette */
   /* bg0: #282828, bg1: #3c3836, bg2: #504945, bg3: #665c54, bg4: #7c6f64 */
   /* fg: #ebdbb2, fg1: #ebdbb2, fg2: #d5c4a1, fg3: #bdae93, fg4: #a89984 */
@@ -377,6 +386,9 @@
 /* === GRUVBOX LIGHT THEME === */
 /* Apply with data-theme="gruvbox-light" on html or body element */
 [data-theme="gruvbox-light"] {
+  /* Tell browser to use light styling for native controls (select, input, etc.) */
+  color-scheme: light;
+
   /* Gruvbox light palette */
   /* bg0: #fbf1c7, bg1: #ebdbb2, bg2: #d5c4a1, bg3: #bdae93, bg4: #a89984 */
   /* fg: #3c3836, fg1: #3c3836, fg2: #504945, fg3: #665c54, fg4: #7c6f64 */
