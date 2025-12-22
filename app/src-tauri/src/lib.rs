@@ -53,6 +53,13 @@ pub fn run() {
             commands::get_data_directory,
             commands::set_data_directory,
             commands::pick_directory,
+            // Folder management
+            commands::get_folders,
+            commands::create_folder,
+            commands::update_folder,
+            commands::delete_folder,
+            commands::move_document_to_folder,
+            commands::reorder_folders,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

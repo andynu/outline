@@ -744,3 +744,105 @@ export async function openUrl(url: string): Promise<void> {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 }
+
+// ============================================================================
+// Folder Management
+// ============================================================================
+
+// Folder structure for organizing documents
+export interface Folder {
+  id: string;
+  name: string;
+  position: number;
+  collapsed: boolean;
+}
+
+// State of all folders and document assignments
+export interface FolderState {
+  folders: Folder[];
+  document_folders: Record<string, string>; // doc_id -> folder_id
+  document_order: Record<string, string[]>; // folder_id -> [doc_id, ...], "__root__" for root level
+}
+
+// Get all folders and document-folder assignments
+export async function getFolders(): Promise<FolderState> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('get_folders') as Promise<FolderState>;
+  }
+  // Browser-only mode: return empty state
+  return {
+    folders: [],
+    document_folders: {},
+    document_order: {},
+  };
+}
+
+// Create a new folder
+export async function createFolder(name: string): Promise<Folder> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('create_folder', { name }) as Promise<Folder>;
+  }
+  // Browser-only mode: create mock folder
+  return {
+    id: 'mock-folder-' + Date.now(),
+    name,
+    position: 0,
+    collapsed: false,
+  };
+}
+
+// Update a folder's name or collapsed state
+export async function updateFolder(
+  id: string,
+  name?: string,
+  collapsed?: boolean
+): Promise<Folder> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('update_folder', { id, name, collapsed }) as Promise<Folder>;
+  }
+  // Browser-only mode: return mock folder
+  return {
+    id,
+    name: name || 'Folder',
+    position: 0,
+    collapsed: collapsed || false,
+  };
+}
+
+// Delete a folder (documents move to root level)
+export async function deleteFolder(id: string): Promise<void> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('delete_folder', { id }) as Promise<void>;
+  }
+  // Browser-only mode: no-op
+}
+
+// Move a document to a folder (or root level if folderId is null)
+export async function moveDocumentToFolder(
+  docId: string,
+  folderId: string | null,
+  position?: number
+): Promise<void> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('move_document_to_folder', {
+      docId,
+      folderId,
+      position,
+    }) as Promise<void>;
+  }
+  // Browser-only mode: no-op
+}
+
+// Reorder folders by providing the new order of folder IDs
+export async function reorderFolders(folderIds: string[]): Promise<void> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('reorder_folders', { folderIds }) as Promise<void>;
+  }
+  // Browser-only mode: no-op
+}
