@@ -486,6 +486,22 @@
             return true;
           }
 
+          // === ZOOM ===
+
+          // Ctrl+] : zoom into current node's subtree
+          if (event.key === ']' && mod) {
+            event.preventDefault();
+            outline.zoomTo(nodeId);
+            return true;
+          }
+
+          // Ctrl+[ : zoom out one level
+          if (event.key === '[' && mod) {
+            event.preventDefault();
+            outline.zoomOut();
+            return true;
+          }
+
           return false;
         },
         handleDrop: (view, event, slice, moved) => {
@@ -955,6 +971,19 @@
     {
       label: 'Expand to Level 4',
       action: () => outline.expandToLevel(4),
+    },
+    { separator: true as const },
+    {
+      label: 'Zoom In',
+      action: () => outline.zoomTo(item.node.id),
+      shortcut: 'Ctrl+]',
+      disabled: !hasChildren,
+    },
+    {
+      label: 'Zoom Out',
+      action: () => outline.zoomOut(),
+      shortcut: 'Ctrl+[',
+      disabled: !outline.zoomedNodeId,
     },
     { separator: true as const },
     {
