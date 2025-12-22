@@ -2,6 +2,7 @@
 tmp/
 tags
 prototype/
+.playwright-mcp/
 
 # IDE
 .idea/
