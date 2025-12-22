@@ -16,7 +16,7 @@ A self-hosted outliner for hierarchical notes, tasks, and knowledge management. 
 
 ## Status
 
-Active development. Core outlining, search, tasks, and calendar features are working. See [PLAN.md](PLAN.md) for roadmap.
+Active development. Core outlining, search, tasks, and calendar features are working.
 
 ## Quick Start
 
