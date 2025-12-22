@@ -1,5 +1,8 @@
 # Outline
 
+> [!NOTE]
+> This is personal software, shared for reference or forking. No maintenance or support is intended.
+
 A self-hosted outliner for hierarchical notes, tasks, and knowledge management. Built as a Dynalist/Workflowy replacement with cross-linking, calendar integration, and offline-first sync.
 
 ![Outline screenshot](docs/screenshot.png)
