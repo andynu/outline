@@ -1,0 +1,249 @@
+# C4 Level 2: Container Diagram
+# Outline - System Containers
+
+direction: right
+
+# Styling
+classes: {
+  person: {
+    shape: person
+    style: {
+      fill: "#08427b"
+      stroke: "#052e56"
+      font-color: "#ffffff"
+    }
+  }
+  container: {
+    shape: rectangle
+    style: {
+      fill: "#438dd5"
+      stroke: "#2e6295"
+      font-color: "#ffffff"
+      border-radius: 8
+    }
+  }
+  database: {
+    shape: cylinder
+    style: {
+      fill: "#438dd5"
+      stroke: "#2e6295"
+      font-color: "#ffffff"
+    }
+  }
+  external: {
+    shape: rectangle
+    style: {
+      fill: "#999999"
+      stroke: "#6b6b6b"
+      font-color: "#ffffff"
+      border-radius: 8
+    }
+  }
+}
+
+# Title
+title: |md
+  # Outline Container Diagram
+  C4 Level 2 - Shows the containers that make up the Outline system
+|
+
+# ═══════════════════════════════════════════════════════════════
+# ACTORS
+# ═══════════════════════════════════════════════════════════════
+
+user: {
+  label: "User\n\n[Person]"
+  class: person
+}
+
+mobile_user: {
+  label: "Mobile User\n\n[Person]"
+  class: person
+}
+
+# ═══════════════════════════════════════════════════════════════
+# SYSTEM BOUNDARY
+# ═══════════════════════════════════════════════════════════════
+
+outline_system: {
+  label: "Outline System"
+  style: {
+    stroke: "#1168bd"
+    stroke-dash: 3
+    fill: transparent
+  }
+
+  # ─────────────────────────────────────────────────────────────
+  # DESKTOP APPLICATION
+  # ─────────────────────────────────────────────────────────────
+
+  desktop_app: {
+    label: "Desktop Application"
+    style: {
+      stroke: "#2e6295"
+      stroke-dash: 2
+      fill: "#f5f5f5"
+    }
+
+    frontend: {
+      label: |md
+        **Frontend**
+
+        [Container: Svelte 5 + TipTap]
+
+        Single-page application providing
+        the outliner UI, rich text editing,
+        wiki links, and keyboard navigation
+      |
+      class: container
+    }
+
+    backend: {
+      label: |md
+        **Rust Backend**
+
+        [Container: Tauri 2 / Rust]
+
+        Handles document I/O, operations,
+        search indexing, and iCalendar
+        generation
+      |
+      class: container
+    }
+
+    frontend -> backend: {
+      label: "Invokes commands\n\n[Tauri IPC]"
+      style.stroke: "#707070"
+    }
+  }
+
+  # ─────────────────────────────────────────────────────────────
+  # THIN SERVER (Optional)
+  # ─────────────────────────────────────────────────────────────
+
+  server: {
+    label: |md
+      **Thin Server**
+
+      [Container: Ruby/Sinatra]
+
+      Serves iCalendar feeds,
+      mobile capture form,
+      and read-only viewer
+    |
+    class: container
+    style: {
+      fill: "#5d9bd5"
+    }
+  }
+
+  # ─────────────────────────────────────────────────────────────
+  # DATA STORAGE
+  # ─────────────────────────────────────────────────────────────
+
+  storage: {
+    label: "Local Storage"
+    style: {
+      stroke: "#2e6295"
+      stroke-dash: 2
+      fill: "#f5f5f5"
+    }
+
+    document_files: {
+      label: |md
+        **Document Files**
+
+        [Container: JSONL Files]
+
+        state.json (merged state)
+        pending.*.jsonl (per-machine ops)
+        inbox.jsonl (captured items)
+      |
+      class: database
+    }
+
+    search_cache: {
+      label: |md
+        **Search Index**
+
+        [Container: SQLite FTS5]
+
+        Full-text search, backlinks
+        tracking, NOT synced across
+        machines
+      |
+      class: database
+    }
+  }
+}
+
+# ═══════════════════════════════════════════════════════════════
+# EXTERNAL SYSTEMS
+# ═══════════════════════════════════════════════════════════════
+
+file_sync: {
+  label: |md
+    **File Sync Service**
+
+    [External System]
+
+    Dropbox / Syncthing
+  |
+  class: external
+}
+
+calendar_app: {
+  label: |md
+    **Calendar App**
+
+    [External System]
+
+    Google / Apple / Outlook
+  |
+  class: external
+}
+
+# ═══════════════════════════════════════════════════════════════
+# RELATIONSHIPS
+# ═══════════════════════════════════════════════════════════════
+
+# User interactions
+user -> outline_system.desktop_app.frontend: {
+  label: "Uses\n\n[Desktop App]"
+  style.stroke: "#707070"
+}
+
+mobile_user -> outline_system.server: {
+  label: "Captures items\n\n[HTTPS]"
+  style.stroke: "#707070"
+}
+
+# Backend to storage
+outline_system.desktop_app.backend -> outline_system.storage.document_files: {
+  label: "Reads/writes\ndocuments\n\n[File I/O]"
+  style.stroke: "#707070"
+}
+
+outline_system.desktop_app.backend -> outline_system.storage.search_cache: {
+  label: "Indexes and\nqueries\n\n[SQLite]"
+  style.stroke: "#707070"
+}
+
+# Server to storage
+outline_system.server -> outline_system.storage.document_files: {
+  label: "Reads state,\nwrites inbox\n\n[File I/O]"
+  style.stroke: "#707070"
+}
+
+# External integrations
+outline_system.storage.document_files -> file_sync: {
+  label: "Syncs across\nmachines\n\n[File Sync]"
+  style.stroke: "#999999"
+  style.stroke-dash: 3
+}
+
+outline_system.server -> calendar_app: {
+  label: "iCalendar feed\n\n[HTTP/iCal]"
+  style.stroke: "#999999"
+  style.stroke-dash: 3
+}

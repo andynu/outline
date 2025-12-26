@@ -1,0 +1,337 @@
+# C4 Level 3: Frontend Component Diagram
+# Outline - Svelte 5 + TipTap Frontend
+
+direction: down
+
+# Styling
+classes: {
+  component: {
+    shape: rectangle
+    style: {
+      fill: "#85bbf0"
+      stroke: "#5d9bd5"
+      font-color: "#000000"
+      border-radius: 8
+    }
+  }
+  component-core: {
+    shape: rectangle
+    style: {
+      fill: "#438dd5"
+      stroke: "#2e6295"
+      font-color: "#ffffff"
+      border-radius: 8
+    }
+  }
+  external: {
+    shape: rectangle
+    style: {
+      fill: "#999999"
+      stroke: "#6b6b6b"
+      font-color: "#ffffff"
+      border-radius: 8
+    }
+  }
+}
+
+title: |md
+  # Frontend Components
+  C4 Level 3 - Internal structure of the Svelte 5 + TipTap frontend
+|
+
+# ═══════════════════════════════════════════════════════════════
+# FRONTEND CONTAINER BOUNDARY
+# ═══════════════════════════════════════════════════════════════
+
+frontend: {
+  label: "Frontend [Container: Svelte 5 + TipTap]"
+  style: {
+    stroke: "#438dd5"
+    stroke-dash: 3
+    fill: "#f8f8f8"
+  }
+
+  # ─────────────────────────────────────────────────────────────
+  # UI COMPONENTS LAYER
+  # ─────────────────────────────────────────────────────────────
+
+  ui: {
+    label: "UI Components"
+    style: {
+      stroke: "#85bbf0"
+      fill: "#fafafa"
+    }
+
+    outline_item: {
+      label: |md
+        **OutlineItem**
+
+        [Component: Svelte]
+
+        Individual node renderer with
+        lazy TipTap editor, context menu,
+        drag handle, checkbox, dates
+      |
+      class: component
+    }
+
+    sidebar: {
+      label: |md
+        **Sidebar**
+
+        [Component: Svelte]
+
+        Document/folder navigator
+        with drag-drop reordering
+      |
+      class: component
+    }
+
+    panels: {
+      label: |md
+        **Panels**
+
+        [Components: Svelte]
+
+        SearchModal, DateViewsPanel,
+        TagsPanel, InboxPanel,
+        BacklinksPanel
+      |
+      class: component
+    }
+
+    pickers: {
+      label: |md
+        **Pickers**
+
+        [Components: Svelte]
+
+        DatePicker, RecurrencePicker,
+        QuickNavigator, QuickMove
+      |
+      class: component
+    }
+
+    modals: {
+      label: |md
+        **Modals**
+
+        [Components: Svelte]
+
+        SettingsModal, KeyboardShortcuts,
+        RenameModal, ContextMenu
+      |
+      class: component
+    }
+  }
+
+  # ─────────────────────────────────────────────────────────────
+  # TIPTAP EXTENSIONS
+  # ─────────────────────────────────────────────────────────────
+
+  tiptap: {
+    label: "TipTap Extensions"
+    style: {
+      stroke: "#85bbf0"
+      fill: "#fafafa"
+    }
+
+    wikilink: {
+      label: |md
+        **WikiLink**
+
+        [Extension: TipTap]
+
+        [[wiki-link]] detection,
+        autocomplete suggestions,
+        navigation on click
+      |
+      class: component
+    }
+
+    hashtag: {
+      label: |md
+        **Hashtag**
+
+        [Extension: TipTap]
+
+        #tag extraction and
+        autocomplete from
+        existing tags
+      |
+      class: component
+    }
+
+    duedate: {
+      label: |md
+        **DueDate**
+
+        [Extension: TipTap]
+
+        Inline date marks with
+        date picker trigger
+      |
+      class: component
+    }
+
+    links: {
+      label: |md
+        **Links**
+
+        [Extensions: TipTap]
+
+        AutoLink (URLs),
+        MarkdownLink ([text](url))
+      |
+      class: component
+    }
+  }
+
+  # ─────────────────────────────────────────────────────────────
+  # STATE MANAGEMENT LAYER
+  # ─────────────────────────────────────────────────────────────
+
+  state: {
+    label: "State Management"
+    style: {
+      stroke: "#2e6295"
+      fill: "#e8f4fc"
+    }
+
+    outline_state: {
+      label: |md
+        **outline.svelte.ts**
+
+        [Component: Svelte 5 Runes]
+
+        Core reactive state: document tree,
+        node indexes, undo/redo stack,
+        tree caching, 60+ public methods
+      |
+      class: component-core
+    }
+
+    zoom_state: {
+      label: |md
+        **zoom.svelte.ts**
+
+        [Component: Svelte 5]
+
+        Zoom/focus mode for
+        viewing subtrees
+      |
+      class: component
+    }
+
+    settings_state: {
+      label: |md
+        **settings.svelte.ts**
+
+        [Component: Svelte 5]
+
+        User preferences
+        and app settings
+      |
+      class: component
+    }
+
+    theme_state: {
+      label: |md
+        **theme.svelte.ts**
+
+        [Component: Svelte 5]
+
+        Dark/light mode
+        theme state
+      |
+      class: component
+    }
+  }
+
+  # ─────────────────────────────────────────────────────────────
+  # API BRIDGE
+  # ─────────────────────────────────────────────────────────────
+
+  api: {
+    label: |md
+      **api.ts**
+
+      [Component: TypeScript]
+
+      Tauri invoke wrapper with browser
+      mock fallback. 30+ API methods for
+      documents, search, folders, inbox
+    |
+    class: component-core
+  }
+}
+
+# ═══════════════════════════════════════════════════════════════
+# EXTERNAL DEPENDENCIES
+# ═══════════════════════════════════════════════════════════════
+
+rust_backend: {
+  label: |md
+    **Rust Backend**
+
+    [Container: Tauri 2]
+  |
+  class: external
+}
+
+# ═══════════════════════════════════════════════════════════════
+# RELATIONSHIPS
+# ═══════════════════════════════════════════════════════════════
+
+# UI to State
+frontend.ui.outline_item -> frontend.state.outline_state: {
+  label: "reads/updates nodes"
+  style.stroke: "#707070"
+}
+frontend.ui.outline_item -> frontend.tiptap.wikilink: uses
+frontend.ui.outline_item -> frontend.tiptap.hashtag: uses
+frontend.ui.outline_item -> frontend.tiptap.duedate: uses
+frontend.ui.outline_item -> frontend.tiptap.links: uses
+
+frontend.ui.sidebar -> frontend.state.outline_state: {
+  label: "switches documents"
+  style.stroke: "#707070"
+}
+
+frontend.ui.panels -> frontend.state.outline_state: {
+  label: "queries nodes"
+  style.stroke: "#707070"
+}
+
+frontend.ui.pickers -> frontend.ui.outline_item: {
+  label: "updates node fields"
+  style.stroke: "#707070"
+}
+
+# State to API
+frontend.state.outline_state -> frontend.api: {
+  label: "CRUD operations"
+  style.stroke: "#2e6295"
+}
+
+frontend.state.settings_state -> frontend.api: {
+  label: "load/save settings"
+  style.stroke: "#707070"
+}
+
+# API to Backend
+frontend.api -> rust_backend: {
+  label: "Tauri IPC invoke"
+  style.stroke: "#2e6295"
+}
+
+# TipTap to State
+frontend.tiptap.wikilink -> frontend.state.outline_state: {
+  label: "resolves links"
+  style.stroke: "#707070"
+}
+
+frontend.tiptap.hashtag -> frontend.state.outline_state: {
+  label: "gets existing tags"
+  style.stroke: "#707070"
+}

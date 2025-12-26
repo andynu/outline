@@ -1,0 +1,345 @@
+# C4 Level 3: Backend Component Diagram
+# Outline - Rust/Tauri Backend
+
+direction: down
+
+# Styling
+classes: {
+  component: {
+    shape: rectangle
+    style: {
+      fill: "#85bbf0"
+      stroke: "#5d9bd5"
+      font-color: "#000000"
+      border-radius: 8
+    }
+  }
+  component-core: {
+    shape: rectangle
+    style: {
+      fill: "#438dd5"
+      stroke: "#2e6295"
+      font-color: "#ffffff"
+      border-radius: 8
+    }
+  }
+  database: {
+    shape: cylinder
+    style: {
+      fill: "#438dd5"
+      stroke: "#2e6295"
+      font-color: "#ffffff"
+    }
+  }
+  external: {
+    shape: rectangle
+    style: {
+      fill: "#999999"
+      stroke: "#6b6b6b"
+      font-color: "#ffffff"
+      border-radius: 8
+    }
+  }
+}
+
+title: |md
+  # Backend Components
+  C4 Level 3 - Internal structure of the Rust/Tauri backend
+|
+
+# ═══════════════════════════════════════════════════════════════
+# BACKEND CONTAINER BOUNDARY
+# ═══════════════════════════════════════════════════════════════
+
+backend: {
+  label: "Rust Backend [Container: Tauri 2 / Rust]"
+  style: {
+    stroke: "#438dd5"
+    stroke-dash: 3
+    fill: "#f8f8f8"
+  }
+
+  # ─────────────────────────────────────────────────────────────
+  # COMMAND LAYER
+  # ─────────────────────────────────────────────────────────────
+
+  commands: {
+    label: |md
+      **commands.rs**
+
+      [Component: Rust]
+
+      30+ Tauri command handlers:
+      load_document, create_node,
+      update_node, move_node, delete_node,
+      search, get_backlinks, compact,
+      import/export, folders, inbox
+    |
+    class: component-core
+  }
+
+  # ─────────────────────────────────────────────────────────────
+  # DATA LAYER
+  # ─────────────────────────────────────────────────────────────
+
+  data: {
+    label: "Data Layer"
+    style: {
+      stroke: "#85bbf0"
+      fill: "#fafafa"
+    }
+
+    document: {
+      label: |md
+        **document.rs**
+
+        [Component: Rust]
+
+        Document lifecycle: load, create,
+        save, compact. Merges state.json
+        with pending.*.jsonl files
+      |
+      class: component-core
+    }
+
+    operations: {
+      label: |md
+        **operations.rs**
+
+        [Component: Rust]
+
+        Operation types: Create, Update,
+        Move, Delete. LWW conflict
+        resolution via updated_at
+      |
+      class: component
+    }
+
+    node: {
+      label: |md
+        **node.rs**
+
+        [Component: Rust]
+
+        Node struct with 15+ fields:
+        id, parent_id, position, content,
+        dates, recurrence, tags, etc.
+      |
+      class: component
+    }
+
+    folders: {
+      label: |md
+        **folders.rs**
+
+        [Component: Rust]
+
+        Folder hierarchy and
+        document organization
+      |
+      class: component
+    }
+  }
+
+  # ─────────────────────────────────────────────────────────────
+  # SEARCH LAYER
+  # ─────────────────────────────────────────────────────────────
+
+  search: {
+    label: "Search Module"
+    style: {
+      stroke: "#85bbf0"
+      fill: "#fafafa"
+    }
+
+    search_index: {
+      label: |md
+        **search/mod.rs**
+
+        [Component: Rust]
+
+        SQLite FTS5 integration:
+        full-text search, backlinks
+        tracking, async indexing
+      |
+      class: component-core
+    }
+  }
+
+  # ─────────────────────────────────────────────────────────────
+  # IMPORT/EXPORT LAYER
+  # ─────────────────────────────────────────────────────────────
+
+  import_export: {
+    label: "Import/Export"
+    style: {
+      stroke: "#85bbf0"
+      fill: "#fafafa"
+    }
+
+    opml: {
+      label: |md
+        **opml.rs**
+
+        [Component: Rust]
+
+        OPML 2.0 import/export
+        for tree structure
+      |
+      class: component
+    }
+
+    markdown: {
+      label: |md
+        **markdown.rs**
+
+        [Component: Rust]
+
+        Markdown export with
+        hierarchy indentation
+      |
+      class: component
+    }
+
+    json: {
+      label: |md
+        **json.rs**
+
+        [Component: Rust]
+
+        JSON backup format
+        import/export
+      |
+      class: component
+    }
+  }
+
+  # ─────────────────────────────────────────────────────────────
+  # APP STATE
+  # ─────────────────────────────────────────────────────────────
+
+  app_state: {
+    label: |md
+      **AppState**
+
+      [Component: Rust]
+
+      Tauri managed state:
+      current_document (Mutex),
+      search_index (Mutex)
+    |
+    class: component
+  }
+}
+
+# ═══════════════════════════════════════════════════════════════
+# EXTERNAL DEPENDENCIES
+# ═══════════════════════════════════════════════════════════════
+
+frontend: {
+  label: |md
+    **Frontend**
+
+    [Container: Svelte 5]
+  |
+  class: external
+}
+
+document_files: {
+  label: |md
+    **Document Files**
+
+    [Container: JSONL]
+
+    state.json
+    pending.*.jsonl
+  |
+  class: database
+}
+
+search_db: {
+  label: |md
+    **Search Index**
+
+    [Container: SQLite FTS5]
+
+    nodes_fts, links
+  |
+  class: database
+}
+
+# ═══════════════════════════════════════════════════════════════
+# RELATIONSHIPS
+# ═══════════════════════════════════════════════════════════════
+
+# Frontend to Commands
+frontend -> backend.commands: {
+  label: "Tauri IPC"
+  style.stroke: "#2e6295"
+}
+
+# Commands to Data Layer
+backend.commands -> backend.data.document: {
+  label: "load, save, compact"
+  style.stroke: "#707070"
+}
+
+backend.commands -> backend.data.operations: {
+  label: "create ops"
+  style.stroke: "#707070"
+}
+
+backend.commands -> backend.data.folders: {
+  label: "folder CRUD"
+  style.stroke: "#707070"
+}
+
+backend.commands -> backend.search.search_index: {
+  label: "search, backlinks"
+  style.stroke: "#707070"
+}
+
+backend.commands -> backend.import_export.opml: {
+  label: "import/export"
+  style.stroke: "#707070"
+}
+
+backend.commands -> backend.import_export.markdown: export
+backend.commands -> backend.import_export.json: import/export
+
+backend.commands -> backend.app_state: {
+  label: "access state"
+  style.stroke: "#707070"
+}
+
+# Data Layer internal
+backend.data.document -> backend.data.operations: {
+  label: "apply ops"
+  style.stroke: "#5d9bd5"
+}
+
+backend.data.document -> backend.data.node: {
+  label: "node structs"
+  style.stroke: "#5d9bd5"
+}
+
+backend.data.operations -> backend.data.node: {
+  label: "modifies"
+  style.stroke: "#5d9bd5"
+}
+
+# Data to Storage
+backend.data.document -> document_files: {
+  label: "read/write"
+  style.stroke: "#2e6295"
+}
+
+# Search to Database
+backend.search.search_index -> search_db: {
+  label: "index/query"
+  style.stroke: "#2e6295"
+}
+
+# App State holds references
+backend.app_state -> backend.data.document: holds
+backend.app_state -> backend.search.search_index: holds
