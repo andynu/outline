@@ -1,0 +1,151 @@
+# C4 Level 1: System Context Diagram
+# Outline - Self-hosted hierarchical outliner
+
+direction: right
+
+# Styling
+classes: {
+  person: {
+    shape: person
+    style: {
+      fill: "#08427b"
+      stroke: "#052e56"
+      font-color: "#ffffff"
+    }
+  }
+  system: {
+    shape: rectangle
+    style: {
+      fill: "#1168bd"
+      stroke: "#0b4884"
+      font-color: "#ffffff"
+      border-radius: 8
+    }
+  }
+  external: {
+    shape: rectangle
+    style: {
+      fill: "#999999"
+      stroke: "#6b6b6b"
+      font-color: "#ffffff"
+      border-radius: 8
+    }
+  }
+}
+
+# Title
+title: |md
+  # Outline System Context
+  C4 Level 1 - Shows the system and its external dependencies
+|
+
+# ═══════════════════════════════════════════════════════════════
+# ACTORS
+# ═══════════════════════════════════════════════════════════════
+
+user: {
+  label: "User\n\n[Person]"
+  class: person
+  tooltip: "A person who uses Outline to organize thoughts, tasks, and notes"
+}
+
+mobile_user: {
+  label: "Mobile User\n\n[Person]"
+  class: person
+  tooltip: "A person capturing items on the go via web form or API"
+}
+
+# ═══════════════════════════════════════════════════════════════
+# THE SYSTEM
+# ═══════════════════════════════════════════════════════════════
+
+outline: {
+  label: |md
+    **Outline**
+
+    [Software System]
+
+    Self-hosted hierarchical outliner
+    with cross-linking, tasks, dates,
+    and calendar integration
+  |
+  class: system
+  style: {
+    fill: "#1168bd"
+  }
+}
+
+# ═══════════════════════════════════════════════════════════════
+# EXTERNAL SYSTEMS
+# ═══════════════════════════════════════════════════════════════
+
+file_sync: {
+  label: |md
+    **File Sync Service**
+
+    [External System]
+
+    Dropbox, Syncthing,
+    iCloud Drive, or similar
+  |
+  class: external
+}
+
+calendar: {
+  label: |md
+    **Calendar Application**
+
+    [External System]
+
+    Google Calendar, Apple Calendar,
+    Outlook via iCalendar feed
+  |
+  class: external
+}
+
+local_storage: {
+  label: |md
+    **Local File System**
+
+    [External System]
+
+    ~/.outline-data/
+    JSONL + SQLite storage
+  |
+  class: external
+}
+
+# ═══════════════════════════════════════════════════════════════
+# RELATIONSHIPS
+# ═══════════════════════════════════════════════════════════════
+
+user -> outline: {
+  label: "Creates and organizes\noutlines, tasks, and notes\n\n[Desktop App]"
+  style.stroke: "#707070"
+}
+
+mobile_user -> outline: {
+  label: "Captures items\nvia web form\n\n[HTTPS]"
+  style.stroke: "#707070"
+}
+
+outline -> local_storage: {
+  label: "Reads/writes document\nstate and operations\n\n[File I/O]"
+  style.stroke: "#707070"
+}
+
+outline -> file_sync: {
+  label: "Syncs data directory\nacross machines\n\n[File Sync]"
+  style.stroke: "#707070"
+}
+
+outline -> calendar: {
+  label: "Exports tasks with\ndates as calendar events\n\n[iCalendar Feed]"
+  style.stroke: "#707070"
+}
+
+file_sync -> local_storage: {
+  label: "Synchronizes\nfiles"
+  style.stroke: "#999999"
+  style.stroke-dash: 3
+}

@@ -280,6 +280,44 @@ fn config_path() -> PathBuf {
         .join("config.json")
 }
 
+/// Get the legacy config path (for migration from dirs 5.x to 6.x on macOS)
+/// In dirs 5.x, config_dir() on macOS returned ~/Library/Preferences
+/// In dirs 6.x, config_dir() on macOS returns ~/Library/Application Support
+#[cfg(target_os = "macos")]
+fn legacy_config_path() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join("Library/Preferences/outline/config.json"))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn legacy_config_path() -> Option<PathBuf> {
+    None // No migration needed on other platforms
+}
+
+/// Migrate config from legacy location if needed (macOS dirs 5.x -> 6.x)
+fn migrate_config_if_needed() {
+    let new_path = config_path();
+
+    // Only migrate if new config doesn't exist
+    if new_path.exists() {
+        return;
+    }
+
+    // Check for legacy config location
+    if let Some(legacy_path) = legacy_config_path() {
+        if legacy_path.exists() {
+            // Copy from legacy to new location
+            if let Some(parent) = new_path.parent() {
+                if fs::create_dir_all(parent).is_ok() {
+                    if let Ok(content) = fs::read_to_string(&legacy_path) {
+                        let _ = fs::write(&new_path, content);
+                        log::info!("Migrated config from {:?} to {:?}", legacy_path, new_path);
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// App configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
@@ -289,6 +327,9 @@ pub struct AppConfig {
 
 /// Load app configuration from disk
 pub fn load_config() -> AppConfig {
+    // Migrate from legacy location if needed (macOS dirs 5.x -> 6.x)
+    migrate_config_if_needed();
+
     let path = config_path();
     if path.exists() {
         if let Ok(content) = fs::read_to_string(&path) {

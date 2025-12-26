@@ -1,0 +1,358 @@
+# Data Flow Diagram
+# Shows how operations flow through the Outline system
+
+direction: down
+
+# Styling
+classes: {
+  action: {
+    shape: rectangle
+    style: {
+      fill: "#e3f2fd"
+      stroke: "#1976d2"
+      border-radius: 8
+    }
+  }
+  process: {
+    shape: rectangle
+    style: {
+      fill: "#fff3e0"
+      stroke: "#f57c00"
+      border-radius: 8
+    }
+  }
+  storage: {
+    shape: cylinder
+    style: {
+      fill: "#e8f5e9"
+      stroke: "#388e3c"
+    }
+  }
+  decision: {
+    shape: diamond
+    style: {
+      fill: "#fce4ec"
+      stroke: "#c2185b"
+    }
+  }
+}
+
+title: |md
+  # Outline Data Flow
+  How user actions become persisted state
+|
+
+# ═══════════════════════════════════════════════════════════════
+# USER EDIT FLOW
+# ═══════════════════════════════════════════════════════════════
+
+edit_flow: {
+  label: "Edit Flow: User Creates/Updates Node"
+  style: {
+    stroke: "#1976d2"
+    fill: "#fafafa"
+  }
+
+  user_action: {
+    label: |md
+      **1. User Action**
+      Types in TipTap editor,
+      checks box, moves node
+    |
+    class: action
+  }
+
+  svelte_handler: {
+    label: |md
+      **2. Svelte Handler**
+      OutlineItem calls
+      outline.updateContent()
+      or outline.moveNode()
+    |
+    class: process
+  }
+
+  api_call: {
+    label: |md
+      **3. API Bridge**
+      api.updateNode(id, changes)
+      → Tauri invoke
+    |
+    class: process
+  }
+
+  command_handler: {
+    label: |md
+      **4. Rust Command**
+      commands::update_node()
+      creates Operation::Update
+    |
+    class: process
+  }
+
+  append_op: {
+    label: |md
+      **5. Append Operation**
+      document.append_op()
+      writes to pending.jsonl
+    |
+    class: process
+  }
+
+  pending_file: {
+    label: |md
+      **pending.{host}.jsonl**
+      Append-only log
+    |
+    class: storage
+  }
+
+  apply_op: {
+    label: |md
+      **6. Apply Operation**
+      operations::apply()
+      updates in-memory state
+    |
+    class: process
+  }
+
+  return_state: {
+    label: |md
+      **7. Return State**
+      DocumentState returned
+      to frontend
+    |
+    class: process
+  }
+
+  update_ui: {
+    label: |md
+      **8. Update UI**
+      outline.updateFromState()
+      rebuilds tree cache
+    |
+    class: action
+  }
+
+  # Flow
+  user_action -> svelte_handler
+  svelte_handler -> api_call
+  api_call -> command_handler
+  command_handler -> append_op
+  append_op -> pending_file
+  append_op -> apply_op
+  apply_op -> return_state
+  return_state -> update_ui
+}
+
+# ═══════════════════════════════════════════════════════════════
+# DOCUMENT LOAD FLOW
+# ═══════════════════════════════════════════════════════════════
+
+load_flow: {
+  label: "Load Flow: Opening a Document"
+  style: {
+    stroke: "#388e3c"
+    fill: "#fafafa"
+  }
+
+  load_request: {
+    label: |md
+      **1. Load Request**
+      User opens document
+      or app starts
+    |
+    class: action
+  }
+
+  read_state: {
+    label: |md
+      **2. Read state.json**
+      Base document state
+      (last compacted)
+    |
+    class: process
+  }
+
+  state_file: {
+    label: |md
+      **state.json**
+      Merged state
+    |
+    class: storage
+  }
+
+  collect_pending: {
+    label: |md
+      **3. Collect Pending**
+      Find all pending.*.jsonl
+      from all machines
+    |
+    class: process
+  }
+
+  pending_files: {
+    label: |md
+      **pending.*.jsonl**
+      Per-machine ops
+    |
+    class: storage
+  }
+
+  sort_ops: {
+    label: |md
+      **4. Sort by Timestamp**
+      All ops sorted by
+      updated_at (chronological)
+    |
+    class: process
+  }
+
+  replay_ops: {
+    label: |md
+      **5. Replay Operations**
+      Apply each op in order
+      LWW for conflicts
+    |
+    class: process
+  }
+
+  index_search: {
+    label: |md
+      **6. Index for Search**
+      Background thread updates
+      SQLite FTS5
+    |
+    class: process
+  }
+
+  search_db: {
+    label: |md
+      **SQLite FTS5**
+      Search index
+    |
+    class: storage
+  }
+
+  render_tree: {
+    label: |md
+      **7. Render Tree**
+      Frontend builds tree,
+      displays nodes
+    |
+    class: action
+  }
+
+  # Flow
+  load_request -> read_state
+  read_state -> state_file
+  state_file -> sort_ops
+  load_request -> collect_pending
+  collect_pending -> pending_files
+  pending_files -> sort_ops
+  sort_ops -> replay_ops
+  replay_ops -> index_search
+  index_search -> search_db
+  replay_ops -> render_tree
+}
+
+# ═══════════════════════════════════════════════════════════════
+# SYNC/COMPACT FLOW
+# ═══════════════════════════════════════════════════════════════
+
+sync_flow: {
+  label: "Sync Flow: Multi-Machine & Compaction"
+  style: {
+    stroke: "#7b1fa2"
+    fill: "#fafafa"
+  }
+
+  machine_a: {
+    label: |md
+      **Machine A**
+      Edits offline
+    |
+    class: action
+  }
+
+  pending_a: {
+    label: "pending.macA.jsonl"
+    class: storage
+  }
+
+  machine_b: {
+    label: |md
+      **Machine B**
+      Edits offline
+    |
+    class: action
+  }
+
+  pending_b: {
+    label: "pending.macB.jsonl"
+    class: storage
+  }
+
+  file_sync: {
+    label: |md
+      **File Sync**
+      Dropbox/Syncthing
+      syncs pending files
+    |
+    class: process
+  }
+
+  merge_on_load: {
+    label: |md
+      **Merge on Load**
+      Both machines see
+      all pending files
+    |
+    class: process
+  }
+
+  conflict: {
+    label: |md
+      **Conflict?**
+      Same node edited
+      on both machines
+    |
+    class: decision
+  }
+
+  lww: {
+    label: |md
+      **LWW Resolution**
+      Latest updated_at wins
+      (per-field granularity)
+    |
+    class: process
+  }
+
+  compact: {
+    label: |md
+      **Compact**
+      User triggers compact:
+      merge → new state.json
+      delete pending files
+    |
+    class: process
+  }
+
+  new_state: {
+    label: "state.json (new)"
+    class: storage
+  }
+
+  # Flow
+  machine_a -> pending_a
+  machine_b -> pending_b
+  pending_a -> file_sync
+  pending_b -> file_sync
+  file_sync -> merge_on_load
+  merge_on_load -> conflict
+  conflict -> lww: "yes"
+  conflict -> compact: "no"
+  lww -> compact
+  compact -> new_state
+}
