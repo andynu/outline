@@ -28,7 +28,7 @@ pub fn get_opml_title(content: &str) -> Option<String> {
                 }
             }
             Ok(Event::Text(ref e)) if in_title => {
-                if let Ok(text) = e.unescape() {
+                if let Ok(text) = e.xml10_content() {
                     return Some(text.to_string());
                 }
             }
