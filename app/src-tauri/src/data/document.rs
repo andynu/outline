@@ -53,6 +53,8 @@ pub struct Document {
     pub state: DocumentState,
     /// Timestamp of last load (for change detection)
     pub last_load_time: std::time::SystemTime,
+    /// Count of pending operations since last compact (for auto-compact threshold)
+    pub pending_op_count: usize,
 }
 
 impl Document {
@@ -112,6 +114,7 @@ impl Document {
         }
 
         // Sort ops by timestamp and apply
+        let pending_op_count = ops.len();
         ops.sort_by_key(|op| op.updated_at());
         for op in ops {
             op.apply(&mut state);
@@ -122,6 +125,7 @@ impl Document {
             dir,
             state,
             last_load_time: std::time::SystemTime::now(),
+            pending_op_count,
         })
     }
 
@@ -142,6 +146,7 @@ impl Document {
             dir,
             state,
             last_load_time: std::time::SystemTime::now(),
+            pending_op_count: 0,
         };
         doc.save_state()?;
 
@@ -149,7 +154,7 @@ impl Document {
     }
 
     /// Append an operation to the pending file
-    pub fn append_op(&self, op: &Operation) -> Result<(), String> {
+    pub fn append_op(&mut self, op: &Operation) -> Result<(), String> {
         let pending_path = self.pending_path();
         log::info!("append_op: writing to {:?}", pending_path);
 
@@ -163,8 +168,31 @@ impl Document {
         writeln!(file, "{}", json).map_err(|e| format!("Write op: {}", e))?;
         file.flush().map_err(|e| format!("Flush pending file: {}", e))?;
 
-        log::info!("append_op: wrote {} bytes", json.len());
+        self.pending_op_count += 1;
+        log::info!("append_op: wrote {} bytes (pending ops: {})", json.len(), self.pending_op_count);
         Ok(())
+    }
+
+    /// Check if auto-compaction should be triggered
+    /// Threshold: 1000 operations or 1MB pending file size
+    pub fn should_auto_compact(&self) -> bool {
+        // Check op count threshold (1000 ops)
+        if self.pending_op_count >= 1000 {
+            log::info!("Auto-compact threshold reached: {} ops", self.pending_op_count);
+            return true;
+        }
+
+        // Check file size threshold (1MB)
+        let pending_path = self.pending_path();
+        if let Ok(meta) = fs::metadata(&pending_path) {
+            let size = meta.len();
+            if size >= 1_000_000 {
+                log::info!("Auto-compact threshold reached: {} bytes", size);
+                return true;
+            }
+        }
+
+        false
     }
 
     /// Save the current state to state.json
@@ -202,7 +230,9 @@ impl Document {
         // State is already up-to-date from load(), just save and clear
         self.save_state()?;
         self.clear_pending()?;
+        self.pending_op_count = 0;
         self.last_load_time = std::time::SystemTime::now();
+        log::info!("Compacted document, reset pending op count to 0");
         Ok(())
     }
 
@@ -243,6 +273,7 @@ impl Document {
     pub fn reload(&mut self) -> Result<(), String> {
         let new_doc = Document::load(self.dir.clone())?;
         self.state = new_doc.state;
+        self.pending_op_count = new_doc.pending_op_count;
         self.last_load_time = std::time::SystemTime::now();
         Ok(())
     }

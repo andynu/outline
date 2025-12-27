@@ -98,6 +98,15 @@ pub fn save_op(state: State<AppState>, op: Operation) -> Result<DocumentState, S
     // Apply operation to in-memory state
     op.apply(&mut doc.state);
 
+    // Auto-compact if threshold reached (1000 ops or 1MB)
+    if doc.should_auto_compact() {
+        log::info!("Auto-compacting document...");
+        if let Err(e) = doc.compact() {
+            log::error!("Auto-compact failed: {}", e);
+            // Don't fail the save_op, just log the error
+        }
+    }
+
     Ok(doc.state.clone())
 }
 
