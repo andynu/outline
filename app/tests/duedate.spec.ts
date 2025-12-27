@@ -117,4 +117,62 @@ test.describe('Inline due dates', () => {
     const editorContent = await firstEditor.textContent();
     expect(editorContent).toMatch(/!\(\d{4}-\d{2}-\d{2}\)/);
   });
+
+  test('clicking outside saves the selected date', async ({ page }) => {
+    // Click on first editor
+    const firstEditor = page.locator('.outline-editor').first();
+    await firstEditor.click();
+    await page.waitForTimeout(50);
+
+    // Type !( with delay
+    await page.keyboard.type('!(', { delay: 50 });
+    await page.waitForTimeout(100);
+
+    // Check that the suggestion popup appears
+    const suggestionPopup = page.locator('.suggestion-popup');
+    await expect(suggestionPopup).toBeVisible({ timeout: 3000 });
+
+    // Navigate to "Tomorrow" (second item) using arrow down
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(50);
+
+    // Click outside the popup to dismiss
+    await page.locator('body').click({ position: { x: 10, y: 10 } });
+    await page.waitForTimeout(200);
+
+    // Check that the popup is closed
+    await expect(suggestionPopup).not.toBeVisible();
+
+    // Check that the editor contains a due date (Tomorrow's date was saved)
+    const editorContent = await firstEditor.textContent();
+    expect(editorContent).toMatch(/!\(\d{4}-\d{2}-\d{2}\)/);
+  });
+
+  test('clicking outside with no selection saves the default (Today)', async ({ page }) => {
+    // Click on first editor
+    const firstEditor = page.locator('.outline-editor').first();
+    await firstEditor.click();
+    await page.waitForTimeout(50);
+
+    // Type !( with delay
+    await page.keyboard.type('!(', { delay: 50 });
+    await page.waitForTimeout(100);
+
+    // Check that the suggestion popup appears
+    const suggestionPopup = page.locator('.suggestion-popup');
+    await expect(suggestionPopup).toBeVisible({ timeout: 3000 });
+
+    // Don't navigate - just click outside (should save "Today" which is default)
+    await page.locator('body').click({ position: { x: 10, y: 10 } });
+    await page.waitForTimeout(200);
+
+    // Check that the popup is closed
+    await expect(suggestionPopup).not.toBeVisible();
+
+    // Check that the editor contains today's date
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0];
+    const editorContent = await firstEditor.textContent();
+    expect(editorContent).toContain(`!(${dateStr})`);
+  });
 });

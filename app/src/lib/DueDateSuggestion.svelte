@@ -12,6 +12,31 @@
   let { query, position, onSelect, onClose }: Props = $props();
 
   let selectedIndex = $state(0);
+  let popupElement: HTMLDivElement;
+
+  // Handle click outside - save the selected date
+  onMount(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popupElement && !popupElement.contains(e.target as Node)) {
+        const items = suggestions();
+        if (items[selectedIndex]) {
+          // Save the currently selected date before closing
+          onSelect(items[selectedIndex].date);
+        } else {
+          onClose();
+        }
+      }
+    };
+
+    // Delay adding listener to avoid capturing the click that opened the popup
+    setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+    }, 0);
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  });
 
   // Quick date suggestions
   const quickDates = [
@@ -119,6 +144,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
+  bind:this={popupElement}
   class="suggestion-popup"
   style="left: {position.x}px; top: {position.y}px"
 >
