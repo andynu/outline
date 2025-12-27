@@ -537,13 +537,31 @@ export const outline = {
   },
 
   // Load document from backend
-  async load(docId?: string) {
+  // If sessionState is provided, restores zoom and focus from it
+  async load(docId?: string, sessionState?: { zoomedNodeId?: string; focusedNodeId?: string }) {
     loading = true;
     error = null;
     try {
       const state = await api.loadDocument(docId);
       updateFromState(state);
-      // Focus first node if none focused
+
+      // Restore zoom state from session if provided and node exists
+      if (sessionState?.zoomedNodeId) {
+        const node = nodesById().get(sessionState.zoomedNodeId);
+        if (node) {
+          zoomedNodeId = sessionState.zoomedNodeId;
+        }
+      }
+
+      // Restore focused node from session if provided and node exists
+      if (sessionState?.focusedNodeId) {
+        const node = nodesById().get(sessionState.focusedNodeId);
+        if (node) {
+          focusedId = sessionState.focusedNodeId;
+        }
+      }
+
+      // Focus first node if none focused (fallback)
       if (!focusedId && nodes.length > 0) {
         const roots = rootNodes();
         if (roots.length > 0) {

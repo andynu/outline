@@ -17,6 +17,7 @@
   import { zoom } from '$lib/zoom.svelte';
   import { settings } from '$lib/settings.svelte';
   import SettingsModal from '$lib/SettingsModal.svelte';
+  import { loadSessionState, saveSessionState, type SessionState } from '$lib/sessionState';
 
   let showSearchModal = $state(false);
   let searchDocumentScope: string | undefined = $state(undefined);
@@ -70,9 +71,22 @@
     }
   }
 
+  // Save session state when relevant values change
+  function updateSessionState() {
+    const contentArea = document.querySelector('.content-area');
+    saveSessionState({
+      documentId: currentDocumentId,
+      zoomedNodeId: outline.zoomedNodeId ?? undefined,
+      focusedNodeId: outline.focusedId ?? undefined,
+      scrollTop: contentArea?.scrollTop ?? 0,
+    });
+  }
+
   async function handleSelectDocument(docId: string) {
     currentDocumentId = docId;
     await outline.load(docId);
+    // Save session state when switching documents
+    updateSessionState();
   }
 
   async function handleNewDocument() {
@@ -91,7 +105,63 @@
     settings.init();
     initSidebarState();
     initHideCompletedState();
-    outline.load();
+
+    // Load session state and restore last session
+    const sessionState = loadSessionState();
+    const docId = sessionState?.documentId;
+
+    // Set currentDocumentId before loading
+    if (docId) {
+      currentDocumentId = docId;
+    }
+
+    // Load the document with session state for zoom/focus restoration
+    outline.load(docId, sessionState ? {
+      zoomedNodeId: sessionState.zoomedNodeId,
+      focusedNodeId: sessionState.focusedNodeId,
+    } : undefined).then(() => {
+      // Restore scroll position after load is complete
+      if (sessionState?.scrollTop !== undefined) {
+        setTimeout(() => {
+          const contentArea = document.querySelector('.content-area');
+          if (contentArea) {
+            contentArea.scrollTop = sessionState.scrollTop!;
+          }
+        }, 100);
+      }
+    });
+
+    // Track scroll position for session state
+    const contentArea = document.querySelector('.content-area');
+    let scrollTimeout: number | null = null;
+    const handleScroll = () => {
+      // Debounce scroll tracking
+      if (scrollTimeout !== null) {
+        clearTimeout(scrollTimeout);
+      }
+      scrollTimeout = window.setTimeout(() => {
+        updateSessionState();
+        scrollTimeout = null;
+      }, 500);
+    };
+    contentArea?.addEventListener('scroll', handleScroll);
+
+    // Track focus changes for session state
+    // Use a MutationObserver to detect when focused class changes
+    let lastFocusedId: string | null = null;
+    let lastZoomedId: string | null = null;
+    const checkStateChanges = () => {
+      const currentFocusedId = outline.focusedId;
+      const currentZoomedId = outline.zoomedNodeId;
+      if (currentFocusedId !== lastFocusedId || currentZoomedId !== lastZoomedId) {
+        lastFocusedId = currentFocusedId;
+        lastZoomedId = currentZoomedId;
+        updateSessionState();
+      }
+    };
+    // Check for state changes periodically (simpler than observing all mutations)
+    const stateCheckInterval = setInterval(checkStateChanges, 1000);
+
     refreshInboxCount();
     // Poll inbox count every 30 seconds
     const inboxInterval = setInterval(refreshInboxCount, 30000);
@@ -157,11 +227,16 @@
     return () => {
       clearInterval(inboxInterval);
       clearInterval(syncInterval);
+      clearInterval(stateCheckInterval);
+      if (scrollTimeout !== null) {
+        clearTimeout(scrollTimeout);
+      }
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('keydown', handleTabKey, { capture: true });
       window.removeEventListener('hashtag-search', handleHashtagSearch);
       window.removeEventListener('mention-search', handleMentionSearch);
       document.removeEventListener('wheel', handleWheel);
+      contentArea?.removeEventListener('scroll', handleScroll);
     };
   });
 

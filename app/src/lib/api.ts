@@ -33,9 +33,10 @@ function generateId(): string {
 
 function createMockData(): DocumentState {
   const now = new Date().toISOString();
-  const root1Id = generateId();
-  const root2Id = generateId();
-  const root3Id = generateId();
+  // Use stable IDs for initial mock data so session state can restore correctly
+  const root1Id = 'mock-root-1';
+  const root2Id = 'mock-root-2';
+  const root3Id = 'mock-root-3';
 
   return {
     nodes: [
@@ -62,7 +63,7 @@ function createMockData(): DocumentState {
         updated_at: now,
       },
       {
-        id: generateId(),
+        id: 'mock-child-2-1',
         parent_id: root2Id,
         position: 0,
         content: 'Press Enter to create a new item',
@@ -73,7 +74,7 @@ function createMockData(): DocumentState {
         updated_at: now,
       },
       {
-        id: generateId(),
+        id: 'mock-child-2-2',
         parent_id: root2Id,
         position: 1,
         content: 'Press Tab to indent',
@@ -84,7 +85,7 @@ function createMockData(): DocumentState {
         updated_at: now,
       },
       {
-        id: generateId(),
+        id: 'mock-child-2-3',
         parent_id: root2Id,
         position: 2,
         content: 'Press Shift+Tab to outdent',
@@ -106,7 +107,7 @@ function createMockData(): DocumentState {
         updated_at: now,
       },
       {
-        id: generateId(),
+        id: 'mock-child-3-1',
         parent_id: root3Id,
         position: 0,
         content: 'Hierarchical notes',
@@ -117,7 +118,7 @@ function createMockData(): DocumentState {
         updated_at: now,
       },
       {
-        id: generateId(),
+        id: 'mock-child-3-2',
         parent_id: root3Id,
         position: 1,
         content: 'Rich text editing',
@@ -128,7 +129,7 @@ function createMockData(): DocumentState {
         updated_at: now,
       },
       {
-        id: generateId(),
+        id: 'mock-child-3-3',
         parent_id: root3Id,
         position: 2,
         content: 'Cross-device sync (coming soon)',
