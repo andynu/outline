@@ -22,6 +22,7 @@
   import { processStaticContentElement, handleStaticContentClick } from './renderStaticContent';
   import { zoom } from './zoom.svelte';
   import { openUrl } from './api';
+  import { parseMarkdownList, looksLikeMarkdownList } from './markdownPaste';
 
   interface Props {
     item: TreeNode;
@@ -510,6 +511,66 @@
             return true; // Prevent ProseMirror from handling
           }
           return false;
+        },
+        handlePaste: (view, event, slice) => {
+          // Check for markdown list in clipboard
+          const text = event.clipboardData?.getData('text/plain');
+          if (!text) return false;
+
+          // Quick check to avoid expensive parsing for non-list content
+          if (!looksLikeMarkdownList(text)) return false;
+
+          // Parse the markdown
+          const items = parseMarkdownList(text);
+          if (!items || items.length === 0) return false;
+
+          // Prevent default paste behavior
+          event.preventDefault();
+
+          // For single item, just insert the content in-place
+          if (items.length === 1) {
+            // Insert the formatted content from the single item
+            const singleItem = items[0];
+            view.dispatch(view.state.tr.insertText(singleItem.content.replace(/<[^>]*>/g, '')));
+
+            // If it's a checkbox, convert this node
+            if (singleItem.nodeType === 'checkbox' && item.node.node_type !== 'checkbox') {
+              outline.toggleNodeType(item.node.id);
+              if (singleItem.isChecked) {
+                outline.toggleCheckbox(item.node.id);
+              }
+            }
+            return true;
+          }
+
+          // Multiple items: use the first item for current node, create rest as siblings/children
+          const firstItem = items[0];
+
+          // Update current node with first item's content
+          outline.updateContent(item.node.id, firstItem.content);
+          if (firstItem.nodeType === 'checkbox' && item.node.node_type !== 'checkbox') {
+            outline.toggleNodeType(item.node.id);
+            if (firstItem.isChecked) {
+              outline.toggleCheckbox(item.node.id);
+            }
+          }
+
+          // Process remaining items
+          const remainingItems = items.slice(1);
+          if (remainingItems.length > 0) {
+            // Adjust indent levels: treat first item's indent as the "base"
+            // Items at firstItem.indent become siblings of current node
+            // Items at firstItem.indent+1 become children of current node
+            const baseIndent = firstItem.indent;
+            const adjustedItems = remainingItems.map(ri => ({
+              ...ri,
+              indent: ri.indent - baseIndent
+            }));
+
+            outline.createItemsFromMarkdown(item.node.id, adjustedItems);
+          }
+
+          return true;
         }
       },
       onUpdate: ({ editor }) => {

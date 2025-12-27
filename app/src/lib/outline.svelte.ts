@@ -1,4 +1,5 @@
 import type { DocumentState, Node, NodeChanges, TreeNode, UndoEntry, UndoAction } from './types';
+import type { ParsedItem } from './markdownPaste';
 import * as api from './api';
 
 // Hashtag pattern - matches #word (letters, numbers, underscores, hyphens)
@@ -588,6 +589,108 @@ export const outline = {
       }
 
       return result.id;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return null;
+    } finally {
+      endOperation();
+    }
+  },
+
+  // Create multiple items from parsed markdown list
+  // Returns the ID of the first created item, or null on failure
+  // Items with indent=0 become siblings after anchorNode
+  // Items with indent=1 become children of the anchor node (or the last indent=0 item)
+  async createItemsFromMarkdown(
+    afterNodeId: string,
+    items: ParsedItem[]
+  ): Promise<string | null> {
+    if (items.length === 0) return null;
+
+    const anchorNode = nodesById().get(afterNodeId);
+    if (!anchorNode) return null;
+
+    startOperation();
+    try {
+      // Get siblings and position for insertion
+      const siblings = getSiblings(afterNodeId);
+      const anchorIdx = siblings.findIndex(n => n.id === afterNodeId);
+
+      // Shift siblings after insertion point to make room
+      // Count how many top-level items we'll create (indent 0)
+      const topLevelCount = items.filter(i => i.indent === 0).length;
+      for (let i = anchorIdx + 1; i < siblings.length; i++) {
+        await api.moveNode(siblings[i].id, anchorNode.parent_id, siblings[i].position + topLevelCount);
+      }
+
+      // Track the most recent node at each indent level
+      // Key: indent level, Value: node ID created at that level
+      // For an item at indent N, its parent is lastNodeAtLevel[N-1]
+      // Initialize with anchor node at level 0 so that indent=1 items become children of anchor
+      const lastNodeAtLevel = new Map<number, string>();
+      lastNodeAtLevel.set(0, afterNodeId);
+
+      // Track position within each parent
+      const positionByParent = new Map<string | null, number>();
+      positionByParent.set(anchorNode.parent_id, anchorIdx + 1);
+      // Children of anchor node start at position 0 (or after existing children)
+      const existingChildren = childrenOf(afterNodeId);
+      positionByParent.set(afterNodeId, existingChildren.length);
+
+      let firstCreatedId: string | null = null;
+
+      for (const item of items) {
+        // Determine parent based on indent level
+        let parentId: string | null;
+
+        if (item.indent === 0) {
+          // Root level - parent is the anchor's parent (sibling of anchor)
+          parentId = anchorNode.parent_id;
+        } else {
+          // Nested item - parent is the last node at the previous indent level
+          parentId = lastNodeAtLevel.get(item.indent - 1) ?? anchorNode.parent_id;
+        }
+
+        // Get position within parent
+        const position = positionByParent.get(parentId) ?? 0;
+
+        // Create the node
+        const result = await api.createNode(parentId, position, item.content);
+
+        // Update node type if checkbox
+        if (item.nodeType === 'checkbox') {
+          await api.updateNode(result.id, {
+            node_type: 'checkbox',
+            is_checked: item.isChecked,
+          });
+        }
+
+        // Track the created node
+        if (!firstCreatedId) {
+          firstCreatedId = result.id;
+        }
+
+        // Record this node at its indent level (so future nested items can use it as parent)
+        lastNodeAtLevel.set(item.indent, result.id);
+
+        // Clear mappings for deeper indent levels (they're no longer valid after going back up)
+        for (let level = item.indent + 1; level <= 10; level++) {
+          lastNodeAtLevel.delete(level);
+        }
+
+        // Update position tracking
+        positionByParent.set(parentId, position + 1);
+
+        // Update state from the result
+        updateFromState(result.state);
+      }
+
+      // Focus the first created item
+      if (firstCreatedId) {
+        focusedId = firstCreatedId;
+      }
+
+      return firstCreatedId;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       return null;
