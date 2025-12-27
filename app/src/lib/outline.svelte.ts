@@ -514,10 +514,21 @@ export const outline = {
   },
 
   // Navigation: move to next visible node
+  // If no node is focused (or focused node is not visible), select the first visible node
   moveToNext(): string | null {
     const visible = this.getVisibleNodes();
-    const idx = visible.findIndex(n => n.id === focusedId);
-    if (idx >= 0 && idx < visible.length - 1) {
+    if (visible.length === 0) return null;
+
+    const idx = focusedId ? visible.findIndex(n => n.id === focusedId) : -1;
+
+    // If no node is focused or focused node is not in visible list, select first
+    if (idx < 0) {
+      focusedId = visible[0].id;
+      return focusedId;
+    }
+
+    // Move to next visible node
+    if (idx < visible.length - 1) {
       focusedId = visible[idx + 1].id;
       return focusedId;
     }

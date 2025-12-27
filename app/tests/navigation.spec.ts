@@ -162,4 +162,46 @@ test.describe('Navigation', () => {
     const focusedText = await page.locator('.outline-item.focused .editor-wrapper').first().textContent();
     expect(focusedText).toBe(lastItemText);
   });
+
+  test('Arrow Down after zoom-in selects first child', async ({ page }) => {
+    // First create a nested structure - create children under first item
+    const editors = page.locator('.editor-wrapper');
+    await editors.first().click();
+    await page.waitForTimeout(100);
+
+    // Create a child by pressing Enter then Tab to indent
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('Child item 1');
+    await page.keyboard.press('Tab'); // Indent to become child
+    await page.waitForTimeout(100);
+
+    // Create another child
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('Child item 2');
+    await page.waitForTimeout(100);
+
+    // Go back to parent and zoom into it
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowUp');
+    await page.waitForTimeout(100);
+
+    // Now zoom in with Ctrl+]
+    await page.keyboard.press('Control+]');
+    await page.waitForTimeout(200);
+
+    // After zooming, the zoomed node's children should be visible
+    // Verify we can see the zoom breadcrumbs
+    await expect(page.locator('.zoom-breadcrumbs')).toBeVisible();
+
+    // At this point, focusedId points to the zoomed node which is NOT visible
+    // (only its children are visible). Press ArrowDown should select first child.
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(100);
+
+    // Verify the first child is now focused
+    const focusedItem = page.locator('.outline-item.focused .editor-wrapper');
+    await expect(focusedItem).toContainText('Child item 1');
+  });
 });

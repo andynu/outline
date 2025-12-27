@@ -305,6 +305,20 @@
         outline.zoomOut();
       }
     }
+    // ArrowDown: Select first visible item when no item is focused (or focused item is not visible)
+    // This handles the case after zooming where focusedId points to the zoomed node which is not rendered
+    else if (event.key === 'ArrowDown' && !showSearchModal && !showQuickNav && !showQuickMove && !showDateViews && !showTags && !showInbox && !showKeyboardShortcuts && !showSettings) {
+      // Check if focused node is visible (has a TipTap editor)
+      const visibleNodes = outline.getVisibleNodes();
+      const focusedNodeVisible = outline.focusedId && visibleNodes.some(n => n.id === outline.focusedId);
+
+      // Only handle if no focused node OR focused node is not in visible list
+      // (If visible, the TipTap editor should have already handled this event)
+      if (!focusedNodeVisible) {
+        event.preventDefault();
+        outline.moveToNext();
+      }
+    }
     // Ctrl+= or Ctrl++: Zoom in
     else if (event.ctrlKey && (event.key === '=' || event.key === '+')) {
       event.preventDefault();
