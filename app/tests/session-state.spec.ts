@@ -197,4 +197,15 @@ test.describe('Session state restoration', () => {
     // Either there's a focused item or the page is still functional
     expect(count).toBeGreaterThanOrEqual(0);
   });
+
+  // Note: Collapse state persistence cannot be tested in browser-only mode (Playwright)
+  // because the mock API resets state on page reload. The Rust backend has unit tests
+  // that verify collapse state persistence in src-tauri/src/data/folders.rs and
+  // the operations system properly persists node collapse state to pending.*.jsonl files.
+  //
+  // To test collapse persistence manually:
+  // 1. Run the Tauri app with `npm run tauri dev`
+  // 2. Collapse an item or folder
+  // 3. Close and reopen the app
+  // 4. Verify the item/folder is still collapsed
 });

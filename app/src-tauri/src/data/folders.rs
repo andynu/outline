@@ -184,3 +184,66 @@ pub fn reorder_folders(folder_ids: Vec<String>) -> Result<(), String> {
     save_folders(&state)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+    use std::sync::Mutex;
+    use tempfile::TempDir;
+
+    // Mutex to ensure tests run serially (they share global state via env var)
+    static TEST_MUTEX: Mutex<()> = Mutex::new(());
+
+    fn setup_test_data_dir() -> TempDir {
+        let tmp = TempDir::new().unwrap();
+        // Override the data directory for testing
+        env::set_var("OUTLINE_DATA_DIR", tmp.path());
+        tmp
+    }
+
+    #[test]
+    fn test_folder_collapsed_state_persistence() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        let _tmp = setup_test_data_dir();
+
+        // Create a folder
+        let folder = create_folder("Test Folder").expect("Should create folder");
+        assert!(!folder.collapsed, "New folder should not be collapsed");
+
+        // Collapse the folder
+        let updated = update_folder(&folder.id, None, Some(true)).expect("Should update folder");
+        assert!(updated.collapsed, "Folder should be collapsed after update");
+
+        // Reload folders from disk
+        let state = load_folders().expect("Should load folders");
+        let loaded_folder = state.folders.iter().find(|f| f.id == folder.id)
+            .expect("Should find folder");
+        assert!(loaded_folder.collapsed, "Collapsed state should be persisted");
+    }
+
+    #[test]
+    fn test_folder_collapsed_state_toggle() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        let _tmp = setup_test_data_dir();
+
+        // Create and collapse a folder
+        let folder = create_folder("Toggle Test").expect("Should create folder");
+        update_folder(&folder.id, None, Some(true)).expect("Should collapse folder");
+
+        // Verify collapsed
+        let state1 = load_folders().expect("Should load folders");
+        let folder1 = state1.folders.iter().find(|f| f.id == folder.id)
+            .expect("Should find folder");
+        assert!(folder1.collapsed, "Should be collapsed");
+
+        // Expand the folder
+        update_folder(&folder.id, None, Some(false)).expect("Should expand folder");
+
+        // Verify expanded
+        let state2 = load_folders().expect("Should load folders");
+        let folder2 = state2.folders.iter().find(|f| f.id == folder.id)
+            .expect("Should find folder");
+        assert!(!folder2.collapsed, "Should be expanded");
+    }
+}
