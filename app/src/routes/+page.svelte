@@ -369,10 +369,22 @@
       event.preventDefault();
       handleQuit();
     }
-    // Escape: Clear filter or zoom (only when no modal is open)
+    // Ctrl+A: Select all visible items (when focus is not in an editor)
+    else if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key === 'a') {
+      // Check if focus is in an editor - if so, let native select all work
+      const activeElement = document.activeElement;
+      if (!activeElement?.closest('.outline-editor') && !activeElement?.closest('input') && !activeElement?.closest('textarea')) {
+        event.preventDefault();
+        outline.selectAll();
+      }
+    }
+    // Escape: Clear selection, then filter, then zoom (only when no modal is open)
     else if (event.key === 'Escape' && !showSearchModal && !showQuickNav && !showQuickMove && !showDateViews && !showTags && !showInbox && !showKeyboardShortcuts) {
-      // First clear filter, then zoom
-      if (outline.filterQuery) {
+      // Priority: selection > filter > zoom
+      if (outline.hasSelection) {
+        event.preventDefault();
+        outline.clearSelection();
+      } else if (outline.filterQuery) {
         event.preventDefault();
         outline.clearFilter();
       } else if (outline.zoomedNodeId) {

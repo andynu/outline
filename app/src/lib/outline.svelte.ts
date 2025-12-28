@@ -46,6 +46,7 @@ function nodeMatchesFilter(node: Node, filter: string): boolean {
 // Reactive state
 let nodes = $state<Node[]>([]);
 let focusedId = $state<string | null>(null);
+let selectedIds = $state<Set<string>>(new Set());  // Multi-selection (empty = single selection mode)
 let loading = $state(true);
 let error = $state<string | null>(null);
 let draggedId = $state<string | null>(null);
@@ -407,6 +408,8 @@ export const outline = {
   // Getters (reactive via $derived would need different approach)
   get nodes() { return nodes; },
   get focusedId() { return focusedId; },
+  get selectedIds() { return selectedIds; },
+  get hasSelection() { return selectedIds.size > 0; },
   get loading() { return loading; },
   get error() { return error; },
   get draggedId() { return draggedId; },
@@ -481,6 +484,80 @@ export const outline = {
       currentId = node.parent_id;
     }
     return path;
+  },
+
+  // --- Multi-Selection ---
+
+  // Check if a node is selected
+  isSelected(nodeId: string): boolean {
+    return selectedIds.has(nodeId);
+  },
+
+  // Toggle selection of a single node (Ctrl-click behavior)
+  toggleSelection(nodeId: string) {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(nodeId)) {
+      newSet.delete(nodeId);
+    } else {
+      newSet.add(nodeId);
+    }
+    selectedIds = newSet;
+    // Also update focus to the clicked node
+    focusedId = nodeId;
+  },
+
+  // Select a range of nodes from current focus to target (Shift-click behavior)
+  selectRange(toId: string) {
+    const visible = this.getVisibleNodes();
+    const fromId = focusedId;
+
+    if (!fromId) {
+      // No current focus, just select the target
+      selectedIds = new Set([toId]);
+      focusedId = toId;
+      return;
+    }
+
+    const fromIdx = visible.findIndex(n => n.id === fromId);
+    const toIdx = visible.findIndex(n => n.id === toId);
+
+    if (fromIdx < 0 || toIdx < 0) {
+      // One of the nodes isn't visible, just select the target
+      selectedIds = new Set([toId]);
+      focusedId = toId;
+      return;
+    }
+
+    // Select all nodes in the range
+    const startIdx = Math.min(fromIdx, toIdx);
+    const endIdx = Math.max(fromIdx, toIdx);
+    const newSet = new Set<string>();
+    for (let i = startIdx; i <= endIdx; i++) {
+      newSet.add(visible[i].id);
+    }
+    selectedIds = newSet;
+    // Move focus to the target, keeping the range selected
+    focusedId = toId;
+  },
+
+  // Clear all selections
+  clearSelection() {
+    if (selectedIds.size > 0) {
+      selectedIds = new Set();
+    }
+  },
+
+  // Select all visible nodes
+  selectAll() {
+    const visible = this.getVisibleNodes();
+    selectedIds = new Set(visible.map(n => n.id));
+  },
+
+  // Get all selected node IDs as an array (in visible order)
+  getSelectedNodes(): Node[] {
+    if (selectedIds.size === 0) return [];
+    const visible = this.getVisibleNodes();
+    return visible.filter(n => selectedIds.has(n.id));
   },
 
   // Build tree for rendering (respects active filter, hideCompleted, and zoom)

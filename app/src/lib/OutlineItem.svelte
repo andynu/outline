@@ -73,6 +73,7 @@
 
   // Reactive checks
   let isFocused = $derived(outline.focusedId === item.node.id);
+  let isSelected = $derived(outline.isSelected(item.node.id));
 
   // Sync content from store to editor when it changes externally
   $effect(() => {
@@ -797,10 +798,42 @@
     setTimeout(() => noteInputElement?.focus(), 0);
   }
 
-  function handleRowClick(e: MouseEvent) {
-    // Don't handle if clicking on buttons or the editor itself
+  // Handle modifier clicks in capture phase - intercepts before TipTap can handle
+  function handleModifierClick(e: MouseEvent) {
     const target = e.target as HTMLElement;
-    if (target.closest('button') || target.closest('.outline-editor') || target.closest('.drag-handle') || target.closest('.static-content')) {
+
+    // Don't intercept clicks on interactive elements like links and buttons
+    if (target.closest('.wiki-link') || target.closest('.hashtag') || target.closest('.mention') ||
+        target.closest('.auto-link') || target.closest('.markdown-link') || target.closest('.due-date') ||
+        target.closest('button') || target.closest('.hover-menu-btn')) {
+      return;
+    }
+
+    if (e.shiftKey) {
+      // Shift-click: select range
+      e.preventDefault();
+      e.stopPropagation();
+      outline.selectRange(item.node.id);
+      return;
+    }
+
+    if (e.ctrlKey || e.metaKey) {
+      // Ctrl/Cmd-click: toggle selection
+      e.preventDefault();
+      e.stopPropagation();
+      outline.toggleSelection(item.node.id);
+      return;
+    }
+
+    // For regular clicks, clear selection but let the event continue to bubble
+    outline.clearSelection();
+  }
+
+  function handleRowClick(e: MouseEvent) {
+    const target = e.target as HTMLElement;
+
+    // Don't handle if clicking on the editor itself or static-content (they have their own handlers)
+    if (target.closest('.outline-editor') || target.closest('.drag-handle') || target.closest('.static-content')) {
       return;
     }
     // Focus the editor at the end when clicking on empty space in the row
@@ -872,7 +905,11 @@
       return;
     }
 
+    // Modifier clicks are now handled by handleRowClick at the row level
+    // This handler only deals with focusing for regular clicks
+
     // Default: focus this node to enter edit mode
+    // Selection is cleared by handleRowClick already
     outline.focus(item.node.id);
   }
 
@@ -1092,6 +1129,7 @@
 <div
   class="outline-item"
   class:focused={isFocused}
+  class:selected={isSelected}
   class:in-focused-subtree={isInFocusedSubtree && !isFocused}
   class:checked={item.node.is_checked}
   class:drag-over={isDragOver}
@@ -1100,6 +1138,7 @@
   class:drop-child={dropPosition === 'child'}
   class:dragging={outline.draggedId === item.node.id}
   style="margin-left: {item.depth * 24}px"
+  onclickcapture={handleModifierClick}
   ondragover={handleDragOver}
   ondragleave={handleDragLeave}
   ondrop={handleDrop}
@@ -1300,6 +1339,20 @@
 
   .focused .item-row {
     background-color: var(--selection-bg);
+  }
+
+  /* Multi-selection styling - distinct from single focus */
+  .selected .item-row {
+    background-color: var(--multiselect-bg, rgba(59, 130, 246, 0.15));
+    outline: 1px solid var(--multiselect-border, rgba(59, 130, 246, 0.3));
+    outline-offset: -1px;
+  }
+
+  /* When both focused and selected, focused takes precedence for background */
+  .focused.selected .item-row {
+    background-color: var(--selection-bg);
+    outline: 1px solid var(--multiselect-border, rgba(59, 130, 246, 0.4));
+    outline-offset: -1px;
   }
 
   /* Subtler highlight for items in the focused item's subtree */
