@@ -2037,6 +2037,48 @@ export const outline = {
   clearUndoHistory() {
     undoStack = [];
     redoStack = [];
+  },
+
+  // Export selected nodes (or focused node) to markdown file
+  async exportSelection(includeCompletedChildren: boolean = true): Promise<boolean> {
+    // Get nodes to export: either selected nodes or focused node
+    let nodeIds: string[] = [];
+    if (selectedIds.size > 0) {
+      nodeIds = Array.from(selectedIds);
+    } else if (focusedId) {
+      nodeIds = [focusedId];
+    }
+
+    if (nodeIds.length === 0) {
+      return false;
+    }
+
+    try {
+      // Get markdown content from backend
+      const markdown = await api.exportSelectionMarkdown(nodeIds, includeCompletedChildren);
+
+      // Generate suggested filename based on first selected node's content
+      const firstNode = nodesById().get(nodeIds[0]);
+      let suggestedName = 'export';
+      if (firstNode) {
+        // Strip HTML and use first 30 chars of content
+        const plainText = firstNode.content.replace(/<[^>]*>/g, '').trim();
+        if (plainText) {
+          suggestedName = plainText.slice(0, 30).replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+        }
+      }
+      if (nodeIds.length > 1) {
+        suggestedName += ` (+${nodeIds.length - 1} more)`;
+      }
+      suggestedName += '.md';
+
+      // Open save dialog and write file
+      const savedPath = await api.saveToFileWithDialog(markdown, suggestedName, 'md');
+      return savedPath !== null;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
   }
 };
 

@@ -665,6 +665,81 @@ pub fn export_markdown(state: State<AppState>) -> Result<String, String> {
     Ok(crate::import_export::generate_markdown(&doc.state.nodes))
 }
 
+/// Export selected nodes and their children to markdown
+#[tauri::command]
+pub fn export_selection_markdown(
+    state: State<AppState>,
+    node_ids: Vec<String>,
+    include_completed_children: bool,
+) -> Result<String, String> {
+    let current = state.current_document.lock().unwrap();
+    let doc = current.as_ref().ok_or("No document loaded")?;
+
+    // Parse node IDs
+    let selected_ids: std::collections::HashSet<uuid::Uuid> = node_ids
+        .iter()
+        .filter_map(|id| uuid::Uuid::parse_str(id).ok())
+        .collect();
+
+    if selected_ids.is_empty() {
+        return Err("No valid node IDs provided".to_string());
+    }
+
+    // Collect all nodes to export: selected nodes + their descendants
+    let mut nodes_to_export: Vec<&crate::data::Node> = Vec::new();
+    let mut ids_to_export: std::collections::HashSet<uuid::Uuid> = std::collections::HashSet::new();
+
+    // First, add all selected nodes
+    for node in &doc.state.nodes {
+        if selected_ids.contains(&node.id) {
+            ids_to_export.insert(node.id);
+        }
+    }
+
+    // Then, recursively add all descendants
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for node in &doc.state.nodes {
+            if let Some(parent_id) = node.parent_id {
+                if ids_to_export.contains(&parent_id) && !ids_to_export.contains(&node.id) {
+                    // Skip completed children if not including them
+                    if !include_completed_children && node.is_checked {
+                        continue;
+                    }
+                    ids_to_export.insert(node.id);
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    // Collect nodes that are in our export set
+    for node in &doc.state.nodes {
+        if ids_to_export.contains(&node.id) {
+            nodes_to_export.push(node);
+        }
+    }
+
+    // Generate markdown - need to create owned nodes for the generate function
+    let owned_nodes: Vec<crate::data::Node> = nodes_to_export.iter().map(|n| (*n).clone()).collect();
+
+    // For selected nodes that are at root level in our export, we need to handle parent_id
+    // Create a modified version where selected nodes become roots
+    let mut export_nodes: Vec<crate::data::Node> = Vec::new();
+    for mut node in owned_nodes {
+        // If this node's parent is not in our export set, make it a root
+        if let Some(parent_id) = node.parent_id {
+            if !ids_to_export.contains(&parent_id) {
+                node.parent_id = None;
+            }
+        }
+        export_nodes.push(node);
+    }
+
+    Ok(crate::import_export::generate_markdown(&export_nodes))
+}
+
 /// Export current document to JSON backup format
 #[tauri::command]
 pub fn export_json(state: State<AppState>) -> Result<String, String> {
@@ -859,4 +934,37 @@ pub fn move_document_to_folder(doc_id: String, folder_id: Option<String>, positi
 #[tauri::command]
 pub fn reorder_folders(folder_ids: Vec<String>) -> Result<(), String> {
     reorder_folders_impl(folder_ids)
+}
+
+/// Save content to a file using the native save dialog
+#[tauri::command]
+pub async fn save_to_file_with_dialog(
+    app: tauri::AppHandle,
+    content: String,
+    suggested_filename: String,
+    extension: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    // Build the save dialog
+    let file_path = app
+        .dialog()
+        .file()
+        .add_filter(&format!("{} Files", extension.to_uppercase()), &[&extension])
+        .set_file_name(&suggested_filename)
+        .blocking_save_file();
+
+    match file_path {
+        Some(file_path) => {
+            // Convert FilePath to PathBuf for writing
+            let path = file_path
+                .into_path()
+                .map_err(|e| format!("Failed to get file path: {}", e))?;
+            // Write the content to the file
+            std::fs::write(&path, &content)
+                .map_err(|e| format!("Failed to write file: {}", e))?;
+            Ok(Some(path.to_string_lossy().to_string()))
+        }
+        None => Ok(None), // User cancelled
+    }
 }

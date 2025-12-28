@@ -547,6 +547,13 @@
             return true;
           }
 
+          // Ctrl+Shift+E: export selection to markdown file
+          if (event.key.toLowerCase() === 'e' && mod && event.shiftKey) {
+            event.preventDefault();
+            outline.exportSelection();
+            return true;
+          }
+
           // Ctrl+R: open recurrence picker
           if (event.key === 'r' && mod && !event.shiftKey) {
             event.preventDefault();
@@ -1165,6 +1172,12 @@
       label: 'Delete Completed Children',
       action: deleteCompletedChildren,
       disabled: !outline.nodes.some(n => n.parent_id === item.node.id && n.is_checked),
+    },
+    { separator: true as const },
+    {
+      label: 'Export to Markdown...',
+      action: () => outline.exportSelection(),
+      shortcut: 'Ctrl+Shift+E',
     },
     { separator: true as const },
     {

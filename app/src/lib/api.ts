@@ -847,3 +847,86 @@ export async function reorderFolders(folderIds: string[]): Promise<void> {
   }
   // Browser-only mode: no-op
 }
+
+// ============================================================================
+// Export Selection
+// ============================================================================
+
+// Export selected nodes to markdown format
+export async function exportSelectionMarkdown(
+  nodeIds: string[],
+  includeCompletedChildren: boolean = true
+): Promise<string> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('export_selection_markdown', {
+      nodeIds,
+      includeCompletedChildren,
+    }) as Promise<string>;
+  }
+  // Browser-only mode: generate markdown for selected nodes
+  return generateSelectionMarkdown(nodeIds, includeCompletedChildren);
+}
+
+// Save content to a file using a native file dialog
+export async function saveToFileWithDialog(
+  content: string,
+  suggestedFilename: string,
+  extension: string
+): Promise<string | null> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('save_to_file_with_dialog', {
+      content,
+      suggestedFilename,
+      extension,
+    }) as Promise<string | null>;
+  }
+  // Browser-only mode: use download link
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = suggestedFilename;
+  a.click();
+  URL.revokeObjectURL(url);
+  return suggestedFilename;
+}
+
+// Helper: Generate markdown for selected nodes in browser-only mode
+function generateSelectionMarkdown(nodeIds: string[], includeCompletedChildren: boolean): string {
+  const lines: string[] = [];
+  const nodeSet = new Set(nodeIds);
+
+  function addNode(node: Node, depth: number) {
+    if (!includeCompletedChildren && node.is_checked && !nodeSet.has(node.id)) {
+      return;
+    }
+
+    const indent = '  '.repeat(depth);
+    const text = stripHtml(node.content);
+    const bullet = node.is_checked ? '- [x]' : (node.node_type === 'checkbox' ? '- [ ]' : '-');
+    lines.push(`${indent}${bullet} ${text}`);
+
+    if (node.note) {
+      const noteIndent = '  '.repeat(depth + 1);
+      lines.push(`${noteIndent}${node.note}`);
+    }
+
+    const children = mockState.nodes.filter(n => n.parent_id === node.id);
+    children.sort((a, b) => a.position - b.position);
+    for (const child of children) {
+      addNode(child, depth + 1);
+    }
+  }
+
+  // Process each selected node as a root
+  for (const nodeId of nodeIds) {
+    const node = mockState.nodes.find(n => n.id === nodeId);
+    if (node) {
+      addNode(node, 0);
+    }
+  }
+
+  return lines.join('\n');
+}
