@@ -710,6 +710,98 @@ export const outline = {
     }
   },
 
+  // Create a new sibling before the current node (for Enter at beginning)
+  async addSiblingBefore(nodeId: string): Promise<string | null> {
+    const node = nodesById().get(nodeId);
+    if (!node) return null;
+
+    const siblings = getSiblings(nodeId);
+    const idx = siblings.findIndex(n => n.id === nodeId);
+    const newPosition = idx;
+
+    startOperation();
+    try {
+      // Shift current node and all siblings after it
+      for (let i = idx; i < siblings.length; i++) {
+        await api.moveNode(siblings[i].id, node.parent_id, i + 1);
+      }
+
+      const result = await api.createNode(node.parent_id, newPosition, '');
+      updateFromState(result.state);
+      // Keep focus on original node (now at idx + 1), don't move to blank line
+      focusedId = nodeId;
+
+      // Get the newly created node for undo
+      const newNode = nodesById().get(result.id);
+      if (newNode) {
+        pushUndo({
+          description: 'Create item above',
+          undo: { type: 'delete', id: result.id },
+          redo: { type: 'create', node: { ...newNode } },
+          timestamp: Date.now(),
+        });
+      }
+
+      return result.id;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return null;
+    } finally {
+      endOperation();
+    }
+  },
+
+  // Split a node at cursor position: update current with beforeContent, create new with afterContent
+  // Children of the original node move to the new node (the "continuation")
+  async splitNode(nodeId: string, beforeContent: string, afterContent: string): Promise<string | null> {
+    const node = nodesById().get(nodeId);
+    if (!node) return null;
+
+    const siblings = getSiblings(nodeId);
+    const idx = siblings.findIndex(n => n.id === nodeId);
+    const newPosition = idx + 1;
+
+    // Get children to move to new node
+    const children = childrenOf(nodeId);
+
+    startOperation();
+    try {
+      // Update current node with "before" content
+      await api.updateNode(nodeId, { content: beforeContent });
+
+      // Shift siblings after insertion point
+      for (let i = idx + 1; i < siblings.length; i++) {
+        await api.moveNode(siblings[i].id, node.parent_id, i + 1);
+      }
+
+      // Create new node with "after" content
+      const result = await api.createNode(node.parent_id, newPosition, afterContent);
+
+      // Move children from original node to new node
+      for (let i = 0; i < children.length; i++) {
+        await api.moveNode(children[i].id, result.id, i);
+      }
+
+      updateFromState(result.state);
+      // Reload to get final state after all moves
+      const finalState = await api.loadDocument();
+      updateFromState(finalState);
+
+      focusedId = result.id;
+
+      // Note: Undo for split is complex (would need to restore content and move children back)
+      // For now, we don't add undo support for split
+      // TODO: Add proper undo support for split
+
+      return result.id;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return null;
+    } finally {
+      endOperation();
+    }
+  },
+
   // Create multiple items from parsed markdown list
   // Returns the ID of the first created item, or null on failure
   // Items with indent=0 become siblings after anchorNode

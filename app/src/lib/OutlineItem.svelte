@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { Editor } from '@tiptap/core';
+  import { DOMSerializer } from '@tiptap/pm/model';
   import StarterKit from '@tiptap/starter-kit';
   import { outline } from './outline.svelte';
   import type { TreeNode } from './types';
@@ -378,10 +379,58 @@
             return true;
           }
 
-          // Enter: add sibling below
+          // Enter: split item at cursor position
           if (event.key === 'Enter' && !mod && !event.shiftKey) {
             event.preventDefault();
-            outline.addSiblingAfter(nodeId);
+
+            const { from, to } = view.state.selection;
+            const docSize = view.state.doc.content.size;
+            const isEmpty = view.state.doc.textContent.length === 0;
+
+            // Cursor at end of content (or empty): add empty sibling after (current behavior)
+            // Note: ProseMirror doc always has from=1 at start, and size includes wrapper
+            if (from >= docSize - 1 || isEmpty) {
+              outline.addSiblingAfter(nodeId);
+              return true;
+            }
+
+            // Cursor at beginning: insert blank item above
+            if (from <= 1) {
+              outline.addSiblingBefore(nodeId);
+              return true;
+            }
+
+            // Cursor in middle: split content
+            // Get HTML content before and after cursor
+            const beforeSlice = view.state.doc.slice(0, from);
+            const afterSlice = view.state.doc.slice(to, docSize);
+
+            // Convert slices to HTML using DOMSerializer
+            const serializer = DOMSerializer.fromSchema(view.state.schema);
+            const beforeFragment = serializer.serializeFragment(beforeSlice.content);
+            const afterFragment = serializer.serializeFragment(afterSlice.content);
+
+            // Convert fragments to HTML strings using XMLSerializer (safe serialization)
+            const xmlSerializer = new XMLSerializer();
+            const tempContainer = document.createElement('div');
+
+            tempContainer.appendChild(beforeFragment);
+            const beforeHtml = tempContainer.childNodes.length > 0
+              ? Array.from(tempContainer.childNodes).map(n =>
+                  n.nodeType === Node.TEXT_NODE ? n.textContent : xmlSerializer.serializeToString(n)
+                ).join('')
+              : '';
+
+            while (tempContainer.firstChild) tempContainer.removeChild(tempContainer.firstChild);
+            tempContainer.appendChild(afterFragment);
+            const afterHtml = tempContainer.childNodes.length > 0
+              ? Array.from(tempContainer.childNodes).map(n =>
+                  n.nodeType === Node.TEXT_NODE ? n.textContent : xmlSerializer.serializeToString(n)
+                ).join('')
+              : '';
+
+            // Split: update current item with before content, create new item with after content
+            outline.splitNode(nodeId, beforeHtml, afterHtml);
             return true;
           }
 
