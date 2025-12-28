@@ -80,10 +80,14 @@ let cachedChildrenByParent: Map<string | null, Node[]> = new Map();
 
 // Cached tree - rebuilt when nodes, filter, hideCompleted, or zoomedNodeId changes
 let cachedTree: TreeNode[] = [];
-let cachedTreeNodes: Node[] = [];
+let cachedTreeVersion: number = -1;  // Version when cache was built (-1 = never built)
 let cachedTreeFilter: string | null = null;
 let cachedTreeHideCompleted: boolean = false;
 let cachedTreeZoomedNodeId: string | null = null;
+
+// Version counter for nodes - incremented on every updateFromState call
+// Used to invalidate caches reliably (reference equality fails with Svelte 5 proxies)
+let nodesVersion: number = 0;
 
 // Change tracking for surgical cache invalidation
 // Tracks which parent IDs need their children array rebuilt
@@ -390,6 +394,7 @@ function updateFromState(state: DocumentState) {
     }
   }
   nodes = state.nodes;
+  nodesVersion++;  // Invalidate all node-dependent caches
 }
 
 // Track operation start/end for save status
@@ -563,7 +568,8 @@ export const outline = {
   // Build tree for rendering (respects active filter, hideCompleted, and zoom)
   getTree(): TreeNode[] {
     // Check if cached tree is still valid
-    if (cachedTreeNodes === nodes &&
+    // Use version counter instead of reference equality (Svelte 5 proxy references are unreliable)
+    if (cachedTreeVersion === nodesVersion &&
         cachedTreeFilter === filterQuery &&
         cachedTreeHideCompleted === hideCompleted &&
         cachedTreeZoomedNodeId === zoomedNodeId) {
@@ -574,7 +580,7 @@ export const outline = {
     // When zoomed, start tree from zoomed node instead of root
     const rootId = zoomedNodeId;
     cachedTree = buildTree(rootId, 0, filteredIds, hideCompleted);
-    cachedTreeNodes = nodes;
+    cachedTreeVersion = nodesVersion;
     cachedTreeFilter = filterQuery;
     cachedTreeHideCompleted = hideCompleted;
     cachedTreeZoomedNodeId = zoomedNodeId;
@@ -1868,6 +1874,7 @@ export const outline = {
 
     // Replace all nodes
     nodes = testNodes;
+    nodesVersion++;  // Invalidate caches
     focusedId = testNodes[0]?.id || null;
 
     console.log(`[perf] Generated ${count} test nodes in ${(performance.now() - startTime).toFixed(1)}ms`);
