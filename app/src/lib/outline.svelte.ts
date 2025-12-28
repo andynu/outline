@@ -757,10 +757,21 @@ export const outline = {
     const children = childrenOf(nodeId);
     if (children.length === 0) return;
 
+    // Save old state for undo
+    const wasCollapsed = node.collapsed;
+
     startOperation();
     try {
-      const state = await api.updateNode(nodeId, { collapsed: !node.collapsed });
+      const state = await api.updateNode(nodeId, { collapsed: !wasCollapsed });
       updateFromState(state);
+
+      // Push undo entry
+      pushUndo({
+        description: wasCollapsed ? 'Expand item' : 'Collapse item',
+        undo: { type: 'update', id: nodeId, changes: { collapsed: wasCollapsed } },
+        redo: { type: 'update', id: nodeId, changes: { collapsed: !wasCollapsed } },
+        timestamp: Date.now(),
+      });
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -782,6 +793,10 @@ export const outline = {
     const newParent = siblings[idx - 1];
     const newPosition = childrenOf(newParent.id).length;
 
+    // Save old position for undo
+    const oldParentId = node.parent_id;
+    const oldPosition = node.position;
+
     startOperation();
     try {
       const state = await api.moveNode(nodeId, newParent.id, newPosition);
@@ -791,6 +806,14 @@ export const outline = {
       if (newParent.collapsed) {
         await this.toggleCollapse(newParent.id);
       }
+
+      // Push undo entry
+      pushUndo({
+        description: 'Indent item',
+        undo: { type: 'move', id: nodeId, parentId: oldParentId, position: oldPosition },
+        redo: { type: 'move', id: nodeId, parentId: newParent.id, position: newPosition },
+        timestamp: Date.now(),
+      });
 
       return true;
     } catch (e) {
@@ -809,17 +832,31 @@ export const outline = {
     const parent = getParent(nodeId);
     if (!parent) return false;
 
+    // Save old position for undo
+    const oldParentId = node.parent_id;
+    const oldPosition = node.position;
+
     // Position after parent in grandparent's children
     const grandparentChildren = parent.parent_id === null
       ? rootNodes()
       : childrenOf(parent.parent_id);
     const parentIdx = grandparentChildren.findIndex(n => n.id === parent.id);
     const newPosition = parentIdx + 1;
+    const newParentId = parent.parent_id;
 
     startOperation();
     try {
-      const state = await api.moveNode(nodeId, parent.parent_id, newPosition);
+      const state = await api.moveNode(nodeId, newParentId, newPosition);
       updateFromState(state);
+
+      // Push undo entry
+      pushUndo({
+        description: 'Outdent item',
+        undo: { type: 'move', id: nodeId, parentId: oldParentId, position: oldPosition },
+        redo: { type: 'move', id: nodeId, parentId: newParentId, position: newPosition },
+        timestamp: Date.now(),
+      });
+
       return true;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -844,13 +881,26 @@ export const outline = {
 
     const prevNode = siblings[idx - 1];
 
+    // Save positions for undo
+    const nodeOldPosition = node.position;
+    const prevNodeOldPosition = prevNode.position;
+
     isMoving = true;
     startOperation();
     try {
       // Swap positions
-      await api.moveNode(nodeId, node.parent_id, prevNode.position);
-      const state = await api.moveNode(prevNode.id, prevNode.parent_id, node.position);
+      await api.moveNode(nodeId, node.parent_id, prevNodeOldPosition);
+      const state = await api.moveNode(prevNode.id, prevNode.parent_id, nodeOldPosition);
       updateFromState(state);
+
+      // Push undo entry - undo swaps them back to original positions
+      pushUndo({
+        description: 'Move item up',
+        undo: { type: 'swap', id: nodeId, position: nodeOldPosition, otherId: prevNode.id, otherPosition: prevNodeOldPosition },
+        redo: { type: 'swap', id: nodeId, position: prevNodeOldPosition, otherId: prevNode.id, otherPosition: nodeOldPosition },
+        timestamp: Date.now(),
+      });
+
       return true;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -876,13 +926,26 @@ export const outline = {
 
     const nextNode = siblings[idx + 1];
 
+    // Save positions for undo
+    const nodeOldPosition = node.position;
+    const nextNodeOldPosition = nextNode.position;
+
     isMoving = true;
     startOperation();
     try {
       // Swap positions
-      await api.moveNode(nodeId, node.parent_id, nextNode.position);
-      const state = await api.moveNode(nextNode.id, nextNode.parent_id, node.position);
+      await api.moveNode(nodeId, node.parent_id, nextNodeOldPosition);
+      const state = await api.moveNode(nextNode.id, nextNode.parent_id, nodeOldPosition);
       updateFromState(state);
+
+      // Push undo entry - undo swaps them back to original positions
+      pushUndo({
+        description: 'Move item down',
+        undo: { type: 'swap', id: nodeId, position: nodeOldPosition, otherId: nextNode.id, otherPosition: nextNodeOldPosition },
+        redo: { type: 'swap', id: nodeId, position: nextNodeOldPosition, otherId: nextNode.id, otherPosition: nodeOldPosition },
+        timestamp: Date.now(),
+      });
+
       return true;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -973,6 +1036,10 @@ export const outline = {
     const node = nodesById().get(nodeId);
     if (!node) return false;
 
+    // Save state for undo
+    const oldIsChecked = node.is_checked;
+    const oldDate = node.date;
+
     // If checking an item while hideCompleted is on, find next item to focus BEFORE hiding
     let nextFocusId: string | null = null;
     if (!node.is_checked && hideCompleted && focusedId === nodeId) {
@@ -998,15 +1065,33 @@ export const outline = {
             date: nextDate,
           });
           updateFromState(state);
+
+          // Push undo entry for recurring date change
+          pushUndo({
+            description: 'Complete recurring task',
+            undo: { type: 'update', id: nodeId, changes: { date: oldDate } },
+            redo: { type: 'update', id: nodeId, changes: { date: nextDate } },
+            timestamp: Date.now(),
+          });
+
           return true;
         }
       }
 
       // Normal toggle for non-recurring or already checked tasks
+      const newIsChecked = !node.is_checked;
       const state = await api.updateNode(nodeId, {
-        is_checked: !node.is_checked,
+        is_checked: newIsChecked,
       });
       updateFromState(state);
+
+      // Push undo entry
+      pushUndo({
+        description: newIsChecked ? 'Complete item' : 'Uncomplete item',
+        undo: { type: 'update', id: nodeId, changes: { is_checked: oldIsChecked } },
+        redo: { type: 'update', id: nodeId, changes: { is_checked: newIsChecked } },
+        timestamp: Date.now(),
+      });
 
       // Move focus to next item if the completed item is now hidden
       if (nextFocusId) {
@@ -1027,15 +1112,29 @@ export const outline = {
     const node = nodesById().get(nodeId);
     if (!node) return false;
 
+    // Save old state for undo
+    const oldType = node.node_type;
+    const oldIsChecked = node.is_checked;
+
     startOperation();
     try {
       const newType = node.node_type === 'checkbox' ? 'bullet' : 'checkbox';
+      const newIsChecked = newType === 'checkbox' ? node.is_checked : false;
       const state = await api.updateNode(nodeId, {
         node_type: newType,
         // Reset is_checked when converting back to bullet
-        is_checked: newType === 'checkbox' ? node.is_checked : false,
+        is_checked: newIsChecked,
       });
       updateFromState(state);
+
+      // Push undo entry
+      pushUndo({
+        description: newType === 'checkbox' ? 'Convert to checkbox' : 'Convert to bullet',
+        undo: { type: 'update', id: nodeId, changes: { node_type: oldType, is_checked: oldIsChecked } },
+        redo: { type: 'update', id: nodeId, changes: { node_type: newType, is_checked: newIsChecked } },
+        timestamp: Date.now(),
+      });
+
       return true;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -1047,13 +1146,29 @@ export const outline = {
 
   // Set date on a node (pass null or empty string to clear)
   async setDate(nodeId: string, date: string | null): Promise<boolean> {
+    const node = nodesById().get(nodeId);
+    if (!node) return false;
+
+    // Save old state for undo
+    const oldDate = node.date;
+    const newDate = date ?? '';
+
     startOperation();
     try {
       // Empty string signals to backend to clear the date
       const state = await api.updateNode(nodeId, {
-        date: date ?? '',
+        date: newDate,
       });
       updateFromState(state);
+
+      // Push undo entry
+      pushUndo({
+        description: newDate ? 'Set date' : 'Clear date',
+        undo: { type: 'update', id: nodeId, changes: { date: oldDate } },
+        redo: { type: 'update', id: nodeId, changes: { date: newDate } },
+        timestamp: Date.now(),
+      });
+
       return true;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -1070,13 +1185,29 @@ export const outline = {
 
   // Set recurrence on a node (pass null or empty string to clear)
   async setRecurrence(nodeId: string, rrule: string | null): Promise<boolean> {
+    const node = nodesById().get(nodeId);
+    if (!node) return false;
+
+    // Save old state for undo
+    const oldRecurrence = node.date_recurrence;
+    const newRecurrence = rrule ?? '';
+
     startOperation();
     try {
       // Empty string signals to backend to clear the recurrence
       const state = await api.updateNode(nodeId, {
-        date_recurrence: rrule ?? '',
+        date_recurrence: newRecurrence,
       });
       updateFromState(state);
+
+      // Push undo entry
+      pushUndo({
+        description: newRecurrence ? 'Set recurrence' : 'Clear recurrence',
+        undo: { type: 'update', id: nodeId, changes: { date_recurrence: oldRecurrence } },
+        redo: { type: 'update', id: nodeId, changes: { date_recurrence: newRecurrence } },
+        timestamp: Date.now(),
+      });
+
       return true;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -1550,6 +1681,17 @@ export const outline = {
         case 'move': {
           // Move a node
           const state = await api.moveNode(action.id, action.parentId, action.position);
+          updateFromState(state);
+          return true;
+        }
+        case 'swap': {
+          // Swap two nodes' positions
+          const node = nodesById().get(action.id);
+          const otherNode = nodesById().get(action.otherId);
+          if (!node || !otherNode) return false;
+          // Move both nodes to their target positions
+          await api.moveNode(action.id, node.parent_id, action.position);
+          const state = await api.moveNode(action.otherId, otherNode.parent_id, action.otherPosition);
           updateFromState(state);
           return true;
         }

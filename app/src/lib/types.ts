@@ -94,3 +94,4 @@ export type UndoAction =
   | { type: 'delete'; id: string }                          // Delete a created node
   | { type: 'update'; id: string; changes: NodeChanges }    // Revert field changes
   | { type: 'move'; id: string; parentId: string | null; position: number }  // Move back
+  | { type: 'swap'; id: string; position: number; otherId: string; otherPosition: number }  // Swap positions
