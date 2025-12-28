@@ -174,9 +174,9 @@
   }
 
   .modal {
-    background: white;
+    background: var(--bg-elevated);
     border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 8px 32px var(--modal-overlay);
     width: 100%;
     max-width: 400px;
     max-height: calc(100vh - 160px);
@@ -383,6 +383,8 @@
   .modal-footer {
     padding: 12px 20px;
     border-top: 1px solid var(--border-primary);
+    background: var(--bg-secondary);
+    border-radius: 0 0 12px 12px;
     text-align: center;
   }
 
