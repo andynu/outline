@@ -379,7 +379,7 @@
       }
     }
     // Escape: Clear selection, then filter, then zoom (only when no modal is open)
-    else if (event.key === 'Escape' && !showSearchModal && !showQuickNav && !showQuickMove && !showDateViews && !showTags && !showInbox && !showKeyboardShortcuts) {
+    else if (event.key === 'Escape' && !showSearchModal && !showQuickNav && !showQuickMove && !showDateViews && !showTags && !showInbox && !showKeyboardShortcuts && !showSettings) {
       // Priority: selection > filter > zoom
       if (outline.hasSelection) {
         event.preventDefault();
@@ -405,6 +405,16 @@
         event.preventDefault();
         outline.moveToNext();
       }
+    }
+    // Ctrl+Home: Jump to first item
+    else if (event.ctrlKey && event.key === 'Home') {
+      event.preventDefault();
+      outline.moveToFirst();
+    }
+    // Ctrl+End: Jump to last item
+    else if (event.ctrlKey && event.key === 'End') {
+      event.preventDefault();
+      outline.moveToLast();
     }
     // Ctrl+= or Ctrl++: Zoom in
     else if (event.ctrlKey && (event.key === '=' || event.key === '+')) {

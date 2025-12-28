@@ -631,6 +631,76 @@ export const outline = {
     return null;
   },
 
+  // Navigation: move to parent node (Alt+H)
+  moveToParent(): string | null {
+    if (!focusedId) return null;
+    const parent = getParent(focusedId);
+    if (parent) {
+      focusedId = parent.id;
+      return focusedId;
+    }
+    return null;
+  },
+
+  // Navigation: move to first child (Alt+L)
+  moveToFirstChild(): string | null {
+    if (!focusedId) return null;
+    const children = childrenOf(focusedId);
+    if (children.length > 0) {
+      // Only navigate if children are visible (not collapsed)
+      const node = nodesById().get(focusedId);
+      if (node && !node.collapsed) {
+        focusedId = children[0].id;
+        return focusedId;
+      }
+    }
+    return null;
+  },
+
+  // Navigation: move to next sibling (Alt+J)
+  moveToNextSibling(): string | null {
+    if (!focusedId) return null;
+    const siblings = getSiblings(focusedId);
+    const idx = siblings.findIndex(n => n.id === focusedId);
+    if (idx >= 0 && idx < siblings.length - 1) {
+      focusedId = siblings[idx + 1].id;
+      return focusedId;
+    }
+    return null;
+  },
+
+  // Navigation: move to previous sibling (Alt+K)
+  moveToPrevSibling(): string | null {
+    if (!focusedId) return null;
+    const siblings = getSiblings(focusedId);
+    const idx = siblings.findIndex(n => n.id === focusedId);
+    if (idx > 0) {
+      focusedId = siblings[idx - 1].id;
+      return focusedId;
+    }
+    return null;
+  },
+
+  // Navigation: move to first visible node (Ctrl+Home)
+  moveToFirst(): string | null {
+    const visible = this.getVisibleNodes();
+    if (visible.length > 0) {
+      focusedId = visible[0].id;
+      return focusedId;
+    }
+    return null;
+  },
+
+  // Navigation: move to last visible node (Ctrl+End)
+  moveToLast(): string | null {
+    const visible = this.getVisibleNodes();
+    if (visible.length > 0) {
+      focusedId = visible[visible.length - 1].id;
+      return focusedId;
+    }
+    return null;
+  },
+
   // Load document from backend
   // If sessionState is provided, restores zoom and focus from it
   async load(docId?: string, sessionState?: { zoomedNodeId?: string; focusedNodeId?: string }) {

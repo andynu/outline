@@ -496,6 +496,34 @@
             return true;
           }
 
+          // Alt+H: go to parent (vim-style hierarchy navigation)
+          if (event.key.toLowerCase() === 'h' && event.altKey && !mod && !event.shiftKey) {
+            event.preventDefault();
+            outline.moveToParent();
+            return true;
+          }
+
+          // Alt+L: go to first child (vim-style hierarchy navigation)
+          if (event.key.toLowerCase() === 'l' && event.altKey && !mod && !event.shiftKey) {
+            event.preventDefault();
+            outline.moveToFirstChild();
+            return true;
+          }
+
+          // Alt+J: next sibling (vim-style hierarchy navigation)
+          if (event.key.toLowerCase() === 'j' && event.altKey && !mod && !event.shiftKey) {
+            event.preventDefault();
+            outline.moveToNextSibling();
+            return true;
+          }
+
+          // Alt+K: previous sibling (vim-style hierarchy navigation)
+          if (event.key.toLowerCase() === 'k' && event.altKey && !mod && !event.shiftKey) {
+            event.preventDefault();
+            outline.moveToPrevSibling();
+            return true;
+          }
+
           // === INDENT/DEDENT (alternative shortcuts) ===
 
           // Ctrl+, : dedent (< without shift)
