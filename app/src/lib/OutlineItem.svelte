@@ -312,13 +312,22 @@
           // === TAB HANDLING (must be first to prevent browser focus navigation) ===
 
           // Tab: indent, Shift+Tab: outdent
+          // When there's a multi-selection, apply to all selected nodes
           if (event.key === 'Tab') {
             event.preventDefault();
             event.stopPropagation();
-            if (event.shiftKey) {
-              outline.outdentNode(nodeId);
+            if (outline.hasSelection) {
+              if (event.shiftKey) {
+                outline.outdentSelectedNodes();
+              } else {
+                outline.indentSelectedNodes();
+              }
             } else {
-              outline.indentNode(nodeId);
+              if (event.shiftKey) {
+                outline.outdentNode(nodeId);
+              } else {
+                outline.indentNode(nodeId);
+              }
             }
             return true;
           }
@@ -434,10 +443,14 @@
             return true;
           }
 
-          // Ctrl+Shift+Backspace: delete item
+          // Ctrl+Shift+Backspace: delete item (or all selected items)
           if (event.key === 'Backspace' && mod && event.shiftKey) {
             event.preventDefault();
-            outline.deleteNode(nodeId);
+            if (outline.hasSelection) {
+              outline.deleteSelectedNodes();
+            } else {
+              outline.deleteNode(nodeId);
+            }
             return true;
           }
 
@@ -500,10 +513,14 @@
 
           // === COMPLETION ===
 
-          // Ctrl+Enter: toggle completion (works for any item type)
+          // Ctrl+Enter: toggle completion (works for any item type, or all selected items)
           if (event.key === 'Enter' && mod && !event.shiftKey) {
             event.preventDefault();
-            outline.toggleCheckbox(nodeId);
+            if (outline.hasSelection) {
+              outline.toggleSelectedCheckboxes();
+            } else {
+              outline.toggleCheckbox(nodeId);
+            }
             return true;
           }
 

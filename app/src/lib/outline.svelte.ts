@@ -1175,6 +1175,166 @@ export const outline = {
     }
   },
 
+  // Delete all selected nodes
+  async deleteSelectedNodes(): Promise<string | null> {
+    const selected = this.getSelectedNodes();
+    if (selected.length === 0) return null;
+
+    const visible = this.getVisibleNodes();
+
+    // Don't delete if it would leave no nodes
+    const remainingCount = visible.length - selected.length;
+    if (remainingCount <= 0) return null;
+
+    // Find the first non-selected node to focus after deletion
+    // Prefer the node just after the last selected node
+    const selectedSet = new Set(selected.map(n => n.id));
+    let newFocusId: string | null = null;
+    for (const node of visible) {
+      if (!selectedSet.has(node.id)) {
+        newFocusId = node.id;
+        // Keep looking for a node after any selected one
+      }
+    }
+
+    startOperation();
+    try {
+      // Delete nodes in reverse order to maintain valid indices
+      // (deleting from end first)
+      const sortedSelected = [...selected].reverse();
+      for (const node of sortedSelected) {
+        await api.deleteNode(node.id);
+      }
+
+      // Reload state after all deletions
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      // Clear selection and set focus
+      selectedIds = new Set();
+      if (newFocusId) {
+        focusedId = newFocusId;
+      }
+
+      return newFocusId;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return null;
+    } finally {
+      endOperation();
+    }
+  },
+
+  // Toggle completion on all selected nodes
+  async toggleSelectedCheckboxes(): Promise<boolean> {
+    const selected = this.getSelectedNodes();
+    if (selected.length === 0) return false;
+
+    startOperation();
+    try {
+      // Determine what the toggle should do:
+      // If any are unchecked, check them all; otherwise uncheck them all
+      const anyUnchecked = selected.some(n => !n.is_checked);
+      const newState = anyUnchecked;
+
+      for (const node of selected) {
+        if (node.is_checked !== newState) {
+          await api.updateNode(node.id, { is_checked: newState });
+        }
+      }
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return false;
+    } finally {
+      endOperation();
+    }
+  },
+
+  // Indent all selected nodes
+  async indentSelectedNodes(): Promise<boolean> {
+    const selected = this.getSelectedNodes();
+    if (selected.length === 0) return false;
+
+    startOperation();
+    try {
+      // Process nodes in order - indent each one
+      for (const node of selected) {
+        const siblings = getSiblings(node.id);
+        const idx = siblings.findIndex(n => n.id === node.id);
+
+        // Can't indent first child
+        if (idx === 0) continue;
+
+        const newParent = siblings[idx - 1];
+        // Skip if new parent is also selected (would cause issues)
+        if (selectedIds.has(newParent.id)) continue;
+
+        const newPosition = childrenOf(newParent.id).length;
+        await api.moveNode(node.id, newParent.id, newPosition);
+
+        // Uncollapse new parent
+        if (newParent.collapsed) {
+          await api.updateNode(newParent.id, { collapsed: false });
+        }
+      }
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return false;
+    } finally {
+      endOperation();
+    }
+  },
+
+  // Outdent all selected nodes
+  async outdentSelectedNodes(): Promise<boolean> {
+    const selected = this.getSelectedNodes();
+    if (selected.length === 0) return false;
+
+    startOperation();
+    try {
+      // Process nodes in reverse order to avoid index shifting issues
+      const reversed = [...selected].reverse();
+      for (const node of reversed) {
+        if (!node.parent_id) continue; // Can't outdent root nodes
+
+        const parent = getParent(node.id);
+        if (!parent) continue;
+
+        // Position after parent in grandparent's children
+        const grandparentChildren = parent.parent_id === null
+          ? rootNodes()
+          : childrenOf(parent.parent_id);
+        const parentIdx = grandparentChildren.findIndex(n => n.id === parent.id);
+        const newPosition = parentIdx + 1;
+
+        await api.moveNode(node.id, parent.parent_id, newPosition);
+      }
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return false;
+    } finally {
+      endOperation();
+    }
+  },
+
   // Compact (save state.json, clear pending)
   async compact() {
     try {
