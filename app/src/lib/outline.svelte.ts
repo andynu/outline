@@ -632,11 +632,17 @@ export const outline = {
   },
 
   // Navigation: move to parent node (Alt+H)
+  // If at root of zoomed view, zooms out instead
   moveToParent(): string | null {
     if (!focusedId) return null;
     const parent = getParent(focusedId);
     if (parent) {
       focusedId = parent.id;
+      return focusedId;
+    }
+    // No parent - if zoomed in, zoom out
+    if (zoomedNodeId) {
+      this.zoomOut();
       return focusedId;
     }
     return null;
