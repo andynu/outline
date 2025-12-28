@@ -89,20 +89,10 @@
     try {
       // Move the focused node to be a child of the target node
       // Position it at the end of the target's children
-      const targetNode = outline.getNode(targetNodeId);
       const targetChildren = outline.nodes.filter(n => n.parent_id === targetNodeId);
       const newPosition = targetChildren.length;
 
-      const state = await api.moveNode(sourceId, targetNodeId, newPosition);
-
-      // Update state from the result
-      // @ts-ignore - accessing internal method
-      outline.nodes = state.nodes;
-
-      // Uncollapse target if collapsed so we can see the moved node
-      if (targetNode?.collapsed) {
-        await outline.toggleCollapse(targetNodeId);
-      }
+      await outline.moveNodeTo(sourceId, targetNodeId, newPosition);
 
       handleClose();
     } catch (e) {

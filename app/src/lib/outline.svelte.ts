@@ -1121,6 +1121,48 @@ export const outline = {
     }
   },
 
+  // Move node to a new parent (used by QuickMove, supports undo)
+  async moveNodeTo(nodeId: string, newParentId: string | null, newPosition: number): Promise<boolean> {
+    const node = nodesById().get(nodeId);
+    if (!node) return false;
+
+    // Save old position for undo
+    const oldParentId = node.parent_id;
+    const oldPosition = node.position;
+
+    // Don't move if nothing changed
+    if (oldParentId === newParentId && oldPosition === newPosition) return true;
+
+    startOperation();
+    try {
+      const state = await api.moveNode(nodeId, newParentId, newPosition);
+      updateFromState(state);
+
+      // Uncollapse new parent so we can see the moved node
+      if (newParentId) {
+        const newParent = nodesById().get(newParentId);
+        if (newParent?.collapsed) {
+          await this.toggleCollapse(newParentId);
+        }
+      }
+
+      // Push undo entry
+      pushUndo({
+        description: 'Move item',
+        undo: { type: 'move', id: nodeId, parentId: oldParentId, position: oldPosition },
+        redo: { type: 'move', id: nodeId, parentId: newParentId, position: newPosition },
+        timestamp: Date.now(),
+      });
+
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return false;
+    } finally {
+      endOperation();
+    }
+  },
+
   // Swap with previous sibling
   async swapWithPrevious(nodeId: string): Promise<boolean> {
     // Prevent concurrent moves
