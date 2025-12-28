@@ -19,6 +19,10 @@ export interface Settings {
 
   // Data
   dataDirectory: string;  // Read-only display of data location
+
+  // Web Search
+  searchEngine: string;  // Search engine preset or 'custom'
+  searchEngineUrl: string;  // Custom URL template with %s placeholder
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -29,7 +33,18 @@ const DEFAULT_SETTINGS: Settings = {
   confirmDelete: true,
   startCollapsed: false,
   dataDirectory: '~/.outline-data',
+  searchEngine: 'duckduckgo',
+  searchEngineUrl: '',
 };
+
+export const SEARCH_ENGINES = [
+  { value: 'duckduckgo', label: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=%s' },
+  { value: 'google', label: 'Google', url: 'https://www.google.com/search?q=%s' },
+  { value: 'bing', label: 'Bing', url: 'https://www.bing.com/search?q=%s' },
+  { value: 'kagi', label: 'Kagi', url: 'https://kagi.com/search?q=%s' },
+  { value: 'brave', label: 'Brave', url: 'https://search.brave.com/search?q=%s' },
+  { value: 'custom', label: 'Custom...', url: '' },
+];
 
 const FONT_FAMILIES = [
   { value: 'system', label: 'System Default' },
@@ -79,6 +94,30 @@ class SettingsStore {
 
   get fontSizes() {
     return FONT_SIZES;
+  }
+
+  get searchEngines() {
+    return SEARCH_ENGINES;
+  }
+
+  /**
+   * Get the search URL template for the current search engine setting.
+   * Returns the URL template with %s as placeholder for the query.
+   */
+  getSearchUrl(): string {
+    if (this._settings.searchEngine === 'custom') {
+      return this._settings.searchEngineUrl;
+    }
+    const engine = SEARCH_ENGINES.find(e => e.value === this._settings.searchEngine);
+    return engine?.url || SEARCH_ENGINES[0].url;
+  }
+
+  /**
+   * Build a search URL for the given query text.
+   */
+  buildSearchUrl(query: string): string {
+    const template = this.getSearchUrl();
+    return template.replace('%s', encodeURIComponent(query));
   }
 
   update(partial: Partial<Settings>) {

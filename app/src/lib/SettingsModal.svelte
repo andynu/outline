@@ -17,6 +17,8 @@
   let localAutoSave = $state(30);
   let localConfirmDelete = $state(true);
   let localStartCollapsed = $state(false);
+  let localSearchEngine = $state('duckduckgo');
+  let localSearchEngineUrl = $state('');
 
   // Data directory state
   let dataDir = $state<DataDirectoryInfo | null>(null);
@@ -34,6 +36,8 @@
       localAutoSave = s.autoSaveInterval;
       localConfirmDelete = s.confirmDelete;
       localStartCollapsed = s.startCollapsed;
+      localSearchEngine = s.searchEngine;
+      localSearchEngineUrl = s.searchEngineUrl;
 
       // Load data directory info
       loadDataDirectory();
@@ -112,6 +116,16 @@
     settings.update({ startCollapsed: value });
   }
 
+  function handleSearchEngineChange(engine: string) {
+    localSearchEngine = engine;
+    settings.update({ searchEngine: engine });
+  }
+
+  function handleSearchEngineUrlChange(url: string) {
+    localSearchEngineUrl = url;
+    settings.update({ searchEngineUrl: url });
+  }
+
   function handleReset() {
     settings.reset();
     theme.setTheme('system');
@@ -122,6 +136,8 @@
     localAutoSave = s.autoSaveInterval;
     localConfirmDelete = s.confirmDelete;
     localStartCollapsed = s.startCollapsed;
+    localSearchEngine = s.searchEngine;
+    localSearchEngineUrl = s.searchEngineUrl;
   }
 
   function handleKeydown(event: KeyboardEvent) {
@@ -267,6 +283,45 @@
               <span class="toggle-slider"></span>
             </label>
           </div>
+        </section>
+
+        <!-- Web Search Section -->
+        <section class="settings-section">
+          <h3>Web Search</h3>
+
+          <div class="setting-row">
+            <label class="setting-label" for="search-engine">
+              <span class="label-text">Search Engine</span>
+              <span class="label-hint">Used when searching from context menu (Ctrl+Shift+G)</span>
+            </label>
+            <select
+              id="search-engine"
+              class="setting-select"
+              value={localSearchEngine}
+              onchange={(e) => handleSearchEngineChange(e.currentTarget.value)}
+            >
+              {#each settings.searchEngines as engine}
+                <option value={engine.value}>{engine.label}</option>
+              {/each}
+            </select>
+          </div>
+
+          {#if localSearchEngine === 'custom'}
+            <div class="setting-row">
+              <label class="setting-label" for="search-url">
+                <span class="label-text">Custom Search URL</span>
+                <span class="label-hint">Use %s as placeholder for the search query</span>
+              </label>
+              <input
+                id="search-url"
+                type="text"
+                class="setting-input"
+                placeholder="https://example.com/search?q=%s"
+                value={localSearchEngineUrl}
+                oninput={(e) => handleSearchEngineUrlChange(e.currentTarget.value)}
+              />
+            </div>
+          {/if}
         </section>
 
         <!-- Keyboard Shortcuts Section -->
@@ -476,6 +531,26 @@
   .setting-select:focus {
     outline: none;
     border-color: var(--accent-primary);
+  }
+
+  .setting-input {
+    padding: 8px 12px;
+    font-size: 13px;
+    border: 1px solid var(--border-primary);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    min-width: 250px;
+    flex: 1;
+  }
+
+  .setting-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+  }
+
+  .setting-input::placeholder {
+    color: var(--text-tertiary);
   }
 
   /* Toggle switch */

@@ -24,6 +24,7 @@
   import { zoom } from './zoom.svelte';
   import { openUrl } from './api';
   import { parseMarkdownList, looksLikeMarkdownList } from './markdownPaste';
+  import { settings } from './settings.svelte';
 
   interface Props {
     item: TreeNode;
@@ -551,6 +552,13 @@
           if (event.key.toLowerCase() === 'e' && mod && event.shiftKey) {
             event.preventDefault();
             outline.exportSelection();
+            return true;
+          }
+
+          // Ctrl+Shift+G: web search for item content
+          if (event.key.toLowerCase() === 'g' && mod && event.shiftKey) {
+            event.preventDefault();
+            webSearch();
             return true;
           }
 
@@ -1090,6 +1098,21 @@
     await navigator.clipboard.writeText(plainText);
   }
 
+  // Get plain text content from the node
+  function getPlainText(): string {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(item.node.content, 'text/html');
+    return doc.body.textContent || '';
+  }
+
+  // Open web search for the item content
+  function webSearch() {
+    const query = getPlainText().trim();
+    if (!query) return;
+    const url = settings.buildSearchUrl(query);
+    openUrl(url);
+  }
+
   const hasChildren = $derived(outline.hasChildren(item.node.id));
   const isCollapsed = $derived(outline.isCollapsed(item.node.id));
 
@@ -1109,6 +1132,12 @@
       label: 'Copy',
       action: copyToClipboard,
       shortcut: 'Ctrl+C',
+    },
+    {
+      label: 'Web Search',
+      action: webSearch,
+      shortcut: 'Ctrl+Shift+G',
+      disabled: !getPlainText().trim(),
     },
     { separator: true as const },
     {
