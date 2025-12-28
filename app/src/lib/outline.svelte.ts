@@ -87,7 +87,8 @@ let cachedTreeZoomedNodeId: string | null = null;
 
 // Version counter for nodes - incremented on every updateFromState call
 // Used to invalidate caches reliably (reference equality fails with Svelte 5 proxies)
-let nodesVersion: number = 0;
+// This is a $state so template can react to changes via outline.nodesVersion
+let nodesVersion = $state(0);
 
 // Change tracking for surgical cache invalidation
 // Tracks which parent IDs need their children array rebuilt
@@ -412,6 +413,7 @@ function endOperation() {
 export const outline = {
   // Getters (reactive via $derived would need different approach)
   get nodes() { return nodes; },
+  get nodesVersion() { return nodesVersion; },  // For triggering tree re-renders
   get focusedId() { return focusedId; },
   get selectedIds() { return selectedIds; },
   get hasSelection() { return selectedIds.size > 0; },

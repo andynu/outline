@@ -1002,11 +1002,13 @@
             </button>
           </div>
         {/if}
+        {#key outline.nodes}
         <div class="outline-container">
           {#each outline.getTree() as item (item.node.id)}
             <OutlineItem {item} />
           {/each}
         </div>
+        {/key}
       {/if}
     </main>
   </div>
