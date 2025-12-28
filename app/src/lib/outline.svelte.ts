@@ -1373,6 +1373,56 @@ export const outline = {
     }
   },
 
+  // Merge with next sibling: append next sibling's content and children to current node
+  // Used when Delete is pressed at end of item content
+  // Returns the cursor position where the merge happened (end of original content)
+  async mergeWithNextSibling(nodeId: string): Promise<{ cursorPos: number } | null> {
+    const node = nodesById().get(nodeId);
+    if (!node) return null;
+
+    const siblings = getSiblings(nodeId);
+    const idx = siblings.findIndex(n => n.id === nodeId);
+
+    // Check if there's a next sibling
+    if (idx < 0 || idx >= siblings.length - 1) return null;
+    const nextSibling = siblings[idx + 1];
+
+    // Calculate cursor position (end of current content, before merge)
+    // Strip HTML tags to get text length
+    const plainTextLength = node.content.replace(/<[^>]*>/g, '').length;
+
+    startOperation();
+    try {
+      // Merge content: append next sibling's content to current node
+      const mergedContent = node.content + nextSibling.content;
+      await api.updateNode(nodeId, { content: mergedContent });
+
+      // Move next sibling's children to current node (after current's children)
+      const currentChildren = childrenOf(nodeId);
+      const nextChildren = childrenOf(nextSibling.id);
+      for (let i = 0; i < nextChildren.length; i++) {
+        await api.moveNode(nextChildren[i].id, nodeId, currentChildren.length + i);
+      }
+
+      // Delete the next sibling (now empty)
+      await api.deleteNode(nextSibling.id);
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      // Note: Undo for merge is complex (would need to restore split content and move children back)
+      // TODO: Add proper undo support for merge
+
+      return { cursorPos: plainTextLength };
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return null;
+    } finally {
+      endOperation();
+    }
+  },
+
   // Toggle completion on all selected nodes
   async toggleSelectedCheckboxes(): Promise<boolean> {
     const selected = this.getSelectedNodes();

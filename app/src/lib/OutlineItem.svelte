@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import { Editor } from '@tiptap/core';
   import { DOMSerializer } from '@tiptap/pm/model';
   import StarterKit from '@tiptap/starter-kit';
@@ -462,6 +462,40 @@
             if (from === 1 && isEmpty) {
               event.preventDefault();
               outline.deleteNode(nodeId);
+              return true;
+            }
+          }
+
+          // Delete at end of content: merge with next sibling
+          // Delete on empty node: delete the node
+          if (event.key === 'Delete' && !mod && !event.shiftKey) {
+            const { from, to } = view.state.selection;
+            const docSize = view.state.doc.content.size;
+            const isEmpty = view.state.doc.textContent.length === 0;
+            const isAtEnd = from === to && to === docSize - 1;
+
+            if (isEmpty) {
+              // Empty node: just delete it
+              event.preventDefault();
+              outline.deleteNode(nodeId);
+              return true;
+            } else if (isAtEnd) {
+              // At end of content: merge with next sibling
+              event.preventDefault();
+              outline.mergeWithNextSibling(nodeId).then(result => {
+                if (result && editor) {
+                  // Position cursor at the merge point (end of original content)
+                  // Use tick to wait for the editor to update with new content
+                  tick().then(() => {
+                    if (editor) {
+                      // +1 because TipTap uses 1-based positions
+                      const pos = Math.min(result.cursorPos + 1, editor.state.doc.content.size);
+                      editor.commands.setTextSelection(pos);
+                      editor.commands.focus();
+                    }
+                  });
+                }
+              });
               return true;
             }
           }
