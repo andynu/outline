@@ -82,35 +82,34 @@ test.describe('Settings panel', () => {
     await expect(modal).not.toBeVisible();
   });
 
-  test('theme buttons are visible and work', async ({ page }) => {
+  test('theme dropdown is visible and works', async ({ page }) => {
     await page.keyboard.press('Control+,');
     await page.waitForTimeout(100);
 
     const modal = page.locator('.modal[aria-labelledby="settings-title"]');
     await expect(modal).toBeVisible();
 
-    // Check theme buttons exist
-    const lightBtn = modal.locator('.theme-btn:has-text("Light")');
-    const darkBtn = modal.locator('.theme-btn:has-text("Dark")');
-    const systemBtn = modal.locator('.theme-btn:has-text("System")');
+    // Check theme dropdown exists
+    const themeSelect = modal.locator('#theme-select');
+    await expect(themeSelect).toBeVisible();
 
-    await expect(lightBtn).toBeVisible();
-    await expect(darkBtn).toBeVisible();
-    await expect(systemBtn).toBeVisible();
+    // Check theme options exist
+    const options = themeSelect.locator('option');
+    await expect(options).toHaveCount(5); // system, light, dark, gruvbox-light, gruvbox-dark
 
-    // Click dark theme
-    await darkBtn.click();
+    // Select dark theme
+    await themeSelect.selectOption('dark');
     await page.waitForTimeout(100);
 
     // Verify dark mode is applied
     const html = page.locator('html');
     await expect(html).toHaveAttribute('data-theme', 'dark');
 
-    // Click light theme
-    await lightBtn.click();
+    // Select light theme
+    await themeSelect.selectOption('light');
     await page.waitForTimeout(100);
 
-    // Verify light mode is applied (no data-theme attribute)
+    // Verify light mode is applied (light theme removes data-theme attribute)
     await expect(html).not.toHaveAttribute('data-theme');
   });
 

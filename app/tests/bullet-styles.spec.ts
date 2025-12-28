@@ -8,16 +8,19 @@ test.describe('Bullet styles', () => {
   });
 
   test('leaf items show filled bullet (●)', async ({ page }) => {
+    // Click on an existing item to ensure focus
+    const firstEditor = page.locator('.outline-editor').first();
+    await firstEditor.click();
+    await page.waitForTimeout(100);
+
     // Create a new item with no children
-    await page.keyboard.press('End'); // Go to last item
     await page.keyboard.press('Enter');
     await page.keyboard.type('Leaf item test');
-
-    // Wait for the new item to be rendered
     await page.waitForTimeout(100);
 
     // The new item should show a filled bullet (same as expanded parents)
     const newItem = page.locator('.outline-item').filter({ hasText: 'Leaf item test' });
+    await expect(newItem).toBeVisible();
     const bullet = newItem.locator('.bullet');
 
     // Check that it's a filled bullet
@@ -62,13 +65,19 @@ test.describe('Bullet styles', () => {
   });
 
   test('bullet gets has-children class when item gets children', async ({ page }) => {
-    // Create a new leaf item
-    await page.keyboard.press('End');
+    // Click on an existing item to ensure focus
+    const firstEditor = page.locator('.outline-editor').first();
+    await firstEditor.click();
+    await page.waitForTimeout(100);
+
+    // Create a new leaf item using Enter
     await page.keyboard.press('Enter');
     await page.keyboard.type('Parent to be');
+    await page.waitForTimeout(100);
 
     // Verify it starts as a leaf (filled bullet, no has-children class)
     const parentItem = page.locator('.outline-item').filter({ hasText: 'Parent to be' });
+    await expect(parentItem).toBeVisible();
     let bullet = parentItem.locator('> .item-row .bullet');
     await expect(bullet).toHaveText('●');
     await expect(bullet).not.toHaveClass(/has-children/);
@@ -79,7 +88,7 @@ test.describe('Bullet styles', () => {
     await page.keyboard.press('Tab');
 
     // Wait for update
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(200);
 
     // Now the parent should have has-children class (still filled bullet)
     bullet = parentItem.locator('> .item-row .bullet');
@@ -107,17 +116,25 @@ test.describe('Bullet styles', () => {
   });
 
   test('checkbox items do not show bullets', async ({ page }) => {
-    // Find or create a checkbox item
-    // First create a new item
-    await page.keyboard.press('End');
+    // Click on an existing item to ensure focus
+    const firstEditor = page.locator('.outline-editor').first();
+    await firstEditor.click();
+    await page.waitForTimeout(100);
+
+    // Create a new item
     await page.keyboard.press('Enter');
     await page.keyboard.type('Checkbox test');
+    await page.waitForTimeout(100);
+
+    // Verify the item was created
+    const checkboxItem = page.locator('.outline-item').filter({ hasText: 'Checkbox test' });
+    await expect(checkboxItem).toBeVisible();
 
     // Convert to checkbox with Ctrl+Shift+X
     await page.keyboard.press('Control+Shift+X');
+    await page.waitForTimeout(100);
 
     // The item should show a checkbox, not a bullet
-    const checkboxItem = page.locator('.outline-item').filter({ hasText: 'Checkbox test' });
     await expect(checkboxItem.locator('.checkbox-btn')).toBeVisible();
     await expect(checkboxItem.locator('.bullet')).not.toBeVisible();
   });
