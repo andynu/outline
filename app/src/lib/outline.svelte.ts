@@ -2,6 +2,10 @@ import type { DocumentState, Node, NodeChanges, TreeNode, UndoEntry, UndoAction 
 import type { ParsedItem } from './markdownPaste';
 import * as api from './api';
 
+// Debounce timers for text updates (content and note)
+const pendingTextUpdates = new Map<string, { timer: ReturnType<typeof setTimeout>; field: 'content' | 'note'; value: string }>();
+const TEXT_UPDATE_DEBOUNCE_MS = 300;
+
 // Hashtag pattern - matches #word (letters, numbers, underscores, hyphens)
 const HASHTAG_PATTERN = /(?:^|(?<=\s))#([a-zA-Z][a-zA-Z0-9_-]*)/g;
 
@@ -340,6 +344,20 @@ function flattenTree(tree: TreeNode[]): Node[] {
     }
   }
   return result;
+}
+
+// Update a node in the cached tree in-place (for optimistic text updates)
+function updateTreeNodeInPlace(tree: TreeNode[], nodeId: string, updatedNode: Node): boolean {
+  for (const item of tree) {
+    if (item.node.id === nodeId) {
+      item.node = updatedNode;
+      return true;
+    }
+    if (updateTreeNodeInPlace(item.children, nodeId, updatedNode)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Get parent of a node
@@ -1069,16 +1087,47 @@ export const outline = {
   },
 
   // Update note on a node (pass empty string to clear)
-  async updateNote(nodeId: string, note: string) {
-    startOperation();
-    try {
-      const state = await api.updateNode(nodeId, { note: note || undefined });
-      updateFromState(state);
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
+  // This is debounced to avoid excessive API calls
+  updateNote(nodeId: string, note: string) {
+    // Cancel any pending update for this node
+    const pending = pendingTextUpdates.get(nodeId);
+    if (pending) {
+      clearTimeout(pending.timer);
     }
+
+    // Optimistic in-place update - modify the node directly in all caches
+    const idx = nodes.findIndex(n => n.id === nodeId);
+    if (idx !== -1) {
+      const updatedNode = { ...nodes[idx], note: note || undefined };
+      nodes[idx] = updatedNode;
+      // Update the cached map
+      cachedNodesById.set(nodeId, updatedNode);
+      // Update the node in childrenByParent cache
+      const parentId = updatedNode.parent_id;
+      const siblings = cachedChildrenByParent.get(parentId) ?? [];
+      const siblingIdx = siblings.findIndex(n => n.id === nodeId);
+      if (siblingIdx !== -1) {
+        siblings[siblingIdx] = updatedNode;
+      }
+      // Update cached tree if it exists - find and update the TreeNode
+      updateTreeNodeInPlace(cachedTree, nodeId, updatedNode);
+    }
+
+    // Debounce the API call
+    const timer = setTimeout(async () => {
+      pendingTextUpdates.delete(nodeId);
+      startOperation();
+      try {
+        // Send to backend - don't update from state since we already have the value
+        await api.updateNode(nodeId, { note: note || undefined });
+      } catch (e) {
+        error = e instanceof Error ? e.message : String(e);
+      } finally {
+        endOperation();
+      }
+    }, TEXT_UPDATE_DEBOUNCE_MS);
+
+    pendingTextUpdates.set(nodeId, { timer, field: 'note', value: note });
   },
 
   // Get all tags used in the document with counts and associated node IDs

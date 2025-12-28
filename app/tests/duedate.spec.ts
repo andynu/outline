@@ -162,16 +162,16 @@ test.describe('Inline due dates', () => {
     const suggestionPopup = page.locator('.suggestion-popup');
     await expect(suggestionPopup).toBeVisible({ timeout: 3000 });
 
-    // Don't navigate - just click outside (should save "Today" which is default)
-    await page.locator('body').click({ position: { x: 10, y: 10 } });
+    // Click outside the popup (use main content area, not menu bar)
+    await page.locator('.content-area').click({ position: { x: 10, y: 300 } });
     await page.waitForTimeout(200);
 
     // Check that the popup is closed
     await expect(suggestionPopup).not.toBeVisible();
 
-    // Check that the editor contains today's date
+    // Check that the editor contains today's date (use local date format)
     const today = new Date();
-    const dateStr = today.toISOString().split('T')[0];
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const editorContent = await firstEditor.textContent();
     expect(editorContent).toContain(`!(${dateStr})`);
   });

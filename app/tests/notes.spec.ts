@@ -52,15 +52,17 @@ test.describe('Secondary notes field', () => {
     const firstItem = page.locator('.outline-item').first();
     await firstItem.click();
     await page.waitForSelector('.outline-item.focused');
+    await page.waitForTimeout(100);
 
     // Open note editor
     await page.keyboard.press('Shift+Enter');
     const noteInput = page.locator('.note-input');
     await expect(noteInput).toBeVisible();
+    await page.waitForTimeout(100);
 
     // Press Escape
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(200);
 
     // Note input should be gone (no note content yet)
     await expect(noteInput).not.toBeVisible();
