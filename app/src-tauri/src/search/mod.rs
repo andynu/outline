@@ -48,6 +48,7 @@ impl SearchIndex {
                 id TEXT PRIMARY KEY,
                 document_id TEXT NOT NULL,
                 parent_id TEXT,
+                depth INTEGER NOT NULL DEFAULT 0,
                 content TEXT NOT NULL,
                 note TEXT,
                 tags TEXT,
@@ -100,6 +101,16 @@ impl SearchIndex {
             "#,
         )?;
 
+        // Migration: add depth column if it doesn't exist (for existing databases)
+        // SQLite doesn't have ALTER TABLE ADD COLUMN IF NOT EXISTS, so we check first
+        let has_depth: bool = conn
+            .prepare("SELECT depth FROM nodes LIMIT 1")
+            .is_ok();
+        if !has_depth {
+            // Column doesn't exist, add it and rebuild index
+            conn.execute("ALTER TABLE nodes ADD COLUMN depth INTEGER NOT NULL DEFAULT 0", [])?;
+        }
+
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -119,12 +130,40 @@ impl SearchIndex {
             params![doc_id_str],
         )?;
 
+        // Build a map of node_id -> node for depth calculation
+        let node_map: std::collections::HashMap<_, _> = nodes
+            .iter()
+            .map(|n| (n.id, n))
+            .collect();
+
+        // Compute depth for a node (memoized via cache)
+        fn compute_depth(
+            node_id: Uuid,
+            node_map: &std::collections::HashMap<Uuid, &Node>,
+            depth_cache: &mut std::collections::HashMap<Uuid, i32>,
+        ) -> i32 {
+            if let Some(&cached) = depth_cache.get(&node_id) {
+                return cached;
+            }
+            let depth = match node_map.get(&node_id) {
+                Some(node) => match node.parent_id {
+                    Some(parent_id) => 1 + compute_depth(parent_id, node_map, depth_cache),
+                    None => 0,
+                },
+                None => 0,
+            };
+            depth_cache.insert(node_id, depth);
+            depth
+        }
+
+        let mut depth_cache = std::collections::HashMap::new();
+
         // Insert new entries
         {
             let mut stmt = tx.prepare(
                 r#"
-                INSERT INTO nodes (id, document_id, parent_id, content, note, tags, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO nodes (id, document_id, parent_id, depth, content, note, tags, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 "#,
             )?;
 
@@ -135,10 +174,13 @@ impl SearchIndex {
                     Some(node.tags.join(" "))
                 };
 
+                let depth = compute_depth(node.id, &node_map, &mut depth_cache);
+
                 stmt.execute(params![
                     node.id.to_string(),
                     doc_id_str,
                     node.parent_id.map(|id| id.to_string()),
+                    depth,
                     strip_html(&node.content),
                     node.note,
                     tags_str,
@@ -177,7 +219,7 @@ impl SearchIndex {
             JOIN nodes n ON nodes_fts.id = n.id
             WHERE nodes_fts MATCH ?
             AND n.document_id = ?
-            ORDER BY rank
+            ORDER BY n.depth ASC, rank ASC
             LIMIT ?
             "#
         } else {
@@ -192,7 +234,7 @@ impl SearchIndex {
             FROM nodes_fts
             JOIN nodes n ON nodes_fts.id = n.id
             WHERE nodes_fts MATCH ?
-            ORDER BY rank
+            ORDER BY n.depth ASC, rank ASC
             LIMIT ?
             "#
         };
@@ -482,6 +524,7 @@ mod tests {
                 id TEXT PRIMARY KEY,
                 document_id TEXT NOT NULL,
                 parent_id TEXT,
+                depth INTEGER NOT NULL DEFAULT 0,
                 content TEXT NOT NULL,
                 note TEXT,
                 tags TEXT,
