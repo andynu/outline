@@ -1062,6 +1062,13 @@ export const outline = {
       const state = await api.moveNode(prevNode.id, prevNode.parent_id, nodeOldPosition);
       updateFromState(state);
 
+      // Force focus update after DOM reorder - toggle off then on to trigger effect
+      const savedFocusId = focusedId;
+      focusedId = null;
+      // Allow DOM to update, then restore focus
+      await new Promise(resolve => setTimeout(resolve, 0));
+      focusedId = savedFocusId;
+
       // Push undo entry - undo swaps them back to original positions
       pushUndo({
         description: 'Move item up',
@@ -1106,6 +1113,13 @@ export const outline = {
       await api.moveNode(nodeId, node.parent_id, nextNodeOldPosition);
       const state = await api.moveNode(nextNode.id, nextNode.parent_id, nodeOldPosition);
       updateFromState(state);
+
+      // Force focus update after DOM reorder - toggle off then on to trigger effect
+      const savedFocusId = focusedId;
+      focusedId = null;
+      // Allow DOM to update, then restore focus
+      await new Promise(resolve => setTimeout(resolve, 0));
+      focusedId = savedFocusId;
 
       // Push undo entry - undo swaps them back to original positions
       pushUndo({
