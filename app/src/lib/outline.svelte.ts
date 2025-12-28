@@ -764,6 +764,10 @@ export const outline = {
     // Get children to move to new node
     const children = childrenOf(nodeId);
 
+    // Check if we're zoomed into the node being split and it has children
+    // If so, we need to zoom out after the split to avoid an empty view
+    const wasZoomedIntoSplitNode = zoomedNodeId === nodeId && children.length > 0;
+
     startOperation();
     try {
       // Update current node with "before" content
@@ -788,6 +792,12 @@ export const outline = {
       updateFromState(finalState);
 
       focusedId = result.id;
+
+      // If we were zoomed into the split node, zoom out to its parent
+      // This prevents an empty view since the original node's children moved away
+      if (wasZoomedIntoSplitNode) {
+        zoomedNodeId = node.parent_id;
+      }
 
       // Note: Undo for split is complex (would need to restore content and move children back)
       // For now, we don't add undo support for split

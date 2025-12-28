@@ -235,4 +235,70 @@ test.describe('Enter key split behavior', () => {
     const countAfter = await page.locator('.outline-item').count();
     expect(countAfter).toBe(countBefore + 1);
   });
+
+  test('Split while zoomed into a node with children zooms out instead of showing empty view', async ({ page }) => {
+    // Create a parent item with children
+    const firstEditor = page.locator('.editor-wrapper').first();
+    await firstEditor.click();
+    await page.waitForTimeout(100);
+
+    // Clear any existing content and type parent content
+    await page.keyboard.press('Control+a');
+    await page.keyboard.type('Parent item with children');
+    await page.waitForTimeout(100);
+
+    // Create a child by pressing Enter then Tab (indent)
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('Child item 1');
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(100);
+
+    // Create another child
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('Child item 2');
+    await page.waitForTimeout(100);
+
+    // Go back to parent (navigate up twice)
+    await page.keyboard.press('ArrowUp');
+    await page.waitForTimeout(50);
+    await page.keyboard.press('ArrowUp');
+    await page.waitForTimeout(100);
+
+    // Verify we're on the parent with children
+    const focusedEditor = page.locator('.outline-item.focused .outline-editor');
+    const parentContent = await focusedEditor.textContent();
+    expect(parentContent).toBe('Parent item with children');
+
+    // Zoom into this parent (Ctrl+])
+    await page.keyboard.press('Control+]');
+    await page.waitForTimeout(200);
+
+    // Verify zoom breadcrumbs appear
+    await expect(page.locator('.zoom-breadcrumbs')).toBeVisible();
+
+    // Count items before split
+    const itemsBefore = await page.locator('.outline-item').count();
+    expect(itemsBefore).toBeGreaterThan(0);
+
+    // Now split the zoomed parent in the middle
+    await page.keyboard.press('Home');
+    // Move to middle (after "Parent ")
+    for (let i = 0; i < 7; i++) {
+      await page.keyboard.press('ArrowRight');
+    }
+    await page.waitForTimeout(50);
+
+    // Press Enter to split
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+
+    // The key test: outline should NOT be empty - items should still be visible
+    const itemsAfter = await page.locator('.outline-item').count();
+    expect(itemsAfter).toBeGreaterThan(0);
+
+    // Should have zoomed out (breadcrumbs may or may not be visible depending on parent)
+    // The main assertion is that items are still visible (not empty view)
+  });
 });
