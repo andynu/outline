@@ -250,6 +250,37 @@ function App() {
     };
   }, []);
 
+  // Poll for external changes (Dropbox/Syncthing sync)
+  useEffect(() => {
+    const updateFromState = useOutlineStore.getState().updateFromState;
+
+    const checkForChanges = async () => {
+      try {
+        const newState = await api.reloadIfChanged();
+        if (newState) {
+          console.log('[Sync] External changes detected, reloading...');
+          updateFromState(newState);
+        }
+      } catch (e) {
+        console.error('[Sync] Error checking for changes:', e);
+      }
+    };
+
+    // Poll every 5 seconds
+    const pollInterval = setInterval(checkForChanges, 5000);
+
+    // Also check when window gains focus
+    const handleFocus = () => {
+      checkForChanges();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
+
   // Toggle sidebar
   const toggleSidebar = useCallback(() => {
     setSidebarOpen(prev => {
