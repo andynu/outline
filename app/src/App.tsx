@@ -1,8 +1,15 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useOutlineStore } from './store/outlineStore';
 import { OutlineItem } from './components/OutlineItem';
 import { VirtualOutlineList } from './components/VirtualOutlineList';
+import { Sidebar, SidebarRef } from './components/Sidebar';
+import { MenuDropdown, type MenuEntry } from './components/ui/MenuDropdown';
+import { KeyboardShortcutsModal } from './components/ui/KeyboardShortcutsModal';
+import { SettingsModal } from './components/ui/SettingsModal';
+import { SearchModal } from './components/ui/SearchModal';
 import type { Node, TreeNode } from './lib/types';
+import * as api from './lib/api';
+import React from 'react';
 
 // Build tree from nodes array
 function buildTreeFromNodes(nodes: Node[]): TreeNode[] {
@@ -38,8 +45,60 @@ function buildTreeFromNodes(nodes: Node[]): TreeNode[] {
   return buildLevel(null, 0);
 }
 
+// Calculate document statistics
+function calculateDocumentStats(nodes: Node[]) {
+  let totalWords = 0;
+  let contentWords = 0;
+  let noteWords = 0;
+
+  for (const node of nodes) {
+    // Strip HTML and count words in content
+    const contentText = (node.content || '').replace(/<[^>]*>/g, '');
+    const cWords = contentText.split(/\s+/).filter(w => w.length > 0).length;
+    contentWords += cWords;
+    totalWords += cWords;
+
+    // Count words in notes
+    const noteText = (node.note || '').replace(/<[^>]*>/g, '');
+    const nWords = noteText.split(/\s+/).filter(w => w.length > 0).length;
+    noteWords += nWords;
+    totalWords += nWords;
+  }
+
+  return {
+    totalWords,
+    contentWords,
+    noteWords,
+    itemCount: nodes.length,
+  };
+}
+
 function App() {
-  const [useVirtual, setUseVirtual] = useState(false);
+  // UI state
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('outline-sidebar-open') === 'true';
+    }
+    return false;
+  });
+  const [currentDocumentId, setCurrentDocumentId] = useState<string | undefined>();
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return document.documentElement.classList.contains('dark');
+    }
+    return false;
+  });
+
+  // Modal state
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [searchDocumentScope, setSearchDocumentScope] = useState<string | undefined>();
+  const [searchInitialQuery, setSearchInitialQuery] = useState('');
+
+  // Save state
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   // Store state and actions
   const loading = useOutlineStore(state => state.loading);
@@ -47,10 +106,179 @@ function App() {
   const nodes = useOutlineStore(state => state.nodes);
   const load = useOutlineStore(state => state.load);
 
+  // Sidebar ref for refresh
+  const sidebarRef = React.useRef<SidebarRef>(null);
+
   // Load document on mount
   useEffect(() => {
     load();
   }, [load]);
+
+  // Toggle theme
+  const toggleTheme = useCallback(() => {
+    const newDark = !isDark;
+    setIsDark(newDark);
+    document.documentElement.classList.toggle('dark', newDark);
+    localStorage.setItem('theme', newDark ? 'dark' : 'light');
+  }, [isDark]);
+
+  // Initialize theme from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem('theme');
+    if (stored === 'dark') {
+      setIsDark(true);
+      document.documentElement.classList.add('dark');
+    } else if (stored === 'light') {
+      setIsDark(false);
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+
+  // Toggle sidebar
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen(prev => {
+      const newValue = !prev;
+      localStorage.setItem('outline-sidebar-open', String(newValue));
+      return newValue;
+    });
+  }, []);
+
+  // Handle save
+  const handleSave = useCallback(async () => {
+    setSaveStatus('saving');
+    try {
+      await api.compactDocument();
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (e) {
+      console.error('Save failed:', e);
+      setSaveStatus('idle');
+    }
+  }, []);
+
+  // Handle document selection
+  const handleSelectDocument = useCallback(async (docId: string) => {
+    setCurrentDocumentId(docId);
+    await load(docId);
+  }, [load]);
+
+  // Handle new document
+  const handleNewDocument = useCallback(async () => {
+    try {
+      const newId = await api.createDocument();
+      setCurrentDocumentId(newId);
+      await load(newId);
+      sidebarRef.current?.refresh();
+    } catch (e) {
+      console.error('Failed to create document:', e);
+    }
+  }, [load]);
+
+  // Handle search navigation
+  const handleSearchNavigate = useCallback((nodeId: string, documentId: string) => {
+    if (documentId !== currentDocumentId) {
+      setCurrentDocumentId(documentId);
+      load(documentId);
+    }
+    // Focus the node
+    useOutlineStore.getState().setFocusedId(nodeId);
+    setShowSearchModal(false);
+  }, [currentDocumentId, load]);
+
+  // Menu dropdown handlers
+  const openMenuDropdown = useCallback((menu: string) => {
+    setOpenMenu(menu);
+  }, []);
+
+  const closeMenuDropdown = useCallback(() => {
+    setOpenMenu(null);
+  }, []);
+
+  // File menu items
+  const fileMenuItems: MenuEntry[] = useMemo(() => [
+    { label: 'New Document', shortcut: 'Ctrl+N', action: handleNewDocument, separator: false },
+    { separator: true },
+    { label: 'Save', shortcut: 'Ctrl+S', action: handleSave, separator: false },
+    { separator: true },
+    { label: 'Export OPML', action: () => { /* TODO */ }, separator: false },
+    { label: 'Export Markdown', action: () => { /* TODO */ }, separator: false },
+    { label: 'Export JSON', action: () => { /* TODO */ }, separator: false },
+    { separator: true },
+    { label: 'Import OPML...', action: () => { /* TODO */ }, separator: false },
+  ], [handleNewDocument, handleSave]);
+
+  // View menu items
+  const viewMenuItems: MenuEntry[] = useMemo(() => [
+    { label: 'Toggle Sidebar', shortcut: 'Ctrl+B', action: toggleSidebar, separator: false },
+    { separator: true },
+    { label: 'Collapse All', shortcut: 'Ctrl+Shift+.', action: () => { /* TODO */ }, separator: false },
+    { label: 'Expand All', action: () => { /* TODO */ }, separator: false },
+    { separator: true },
+    { label: isDark ? 'Light Mode' : 'Dark Mode', action: toggleTheme, separator: false },
+  ], [toggleSidebar, toggleTheme, isDark]);
+
+  // Help menu items
+  const helpMenuItems: MenuEntry[] = useMemo(() => [
+    { label: 'Keyboard Shortcuts', shortcut: 'Ctrl+/', action: () => setShowKeyboardShortcuts(true), separator: false },
+    { separator: true },
+    { label: 'Settings', shortcut: 'Ctrl+,', action: () => setShowSettings(true), separator: false },
+  ], []);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeydown = (event: KeyboardEvent) => {
+      const mod = event.ctrlKey || event.metaKey;
+
+      // Search
+      if (mod && event.key === 'f') {
+        event.preventDefault();
+        setSearchDocumentScope(currentDocumentId);
+        setSearchInitialQuery('');
+        setShowSearchModal(true);
+        return;
+      }
+
+      // Global search
+      if (mod && event.shiftKey && event.key === 'f') {
+        event.preventDefault();
+        setSearchDocumentScope(undefined);
+        setSearchInitialQuery('');
+        setShowSearchModal(true);
+        return;
+      }
+
+      // Save
+      if (mod && event.key === 's') {
+        event.preventDefault();
+        handleSave();
+        return;
+      }
+
+      // Toggle sidebar
+      if (mod && event.key === 'b') {
+        event.preventDefault();
+        toggleSidebar();
+        return;
+      }
+
+      // Keyboard shortcuts
+      if (mod && event.key === '/') {
+        event.preventDefault();
+        setShowKeyboardShortcuts(true);
+        return;
+      }
+
+      // Settings
+      if (mod && event.key === ',') {
+        event.preventDefault();
+        setShowSettings(true);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeydown);
+    return () => window.removeEventListener('keydown', handleKeydown);
+  }, [currentDocumentId, handleSave, toggleSidebar]);
 
   // Compute tree from nodes with useMemo for performance
   const tree = useMemo(() => buildTreeFromNodes(nodes), [nodes]);
@@ -61,55 +289,292 @@ function App() {
     return count(tree);
   }, [tree]);
 
-  if (loading) {
-    return (
-      <div className="app">
-        <div className="loading">Loading...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="app">
-        <div className="error">Error: {error}</div>
-      </div>
-    );
-  }
+  // Calculate stats
+  const stats = useMemo(() => calculateDocumentStats(nodes), [nodes]);
 
   return (
-    <div className="app">
-      <div className="stats">
-        <strong>React 18 {useVirtual ? '(Virtual)' : '(Tree)'}</strong><br />
-        Nodes: {nodes.length}<br />
-        Visible: {visibleCount}
-        <div style={{ marginTop: '10px' }}>
+    <div className="app-chrome">
+      {/* Menu Bar */}
+      <nav className="menu-bar">
+        <MenuDropdown
+          label="File"
+          items={fileMenuItems}
+          isOpen={openMenu === 'file'}
+          onOpen={() => openMenuDropdown('file')}
+          onClose={closeMenuDropdown}
+        />
+        <button className="menu-item">Edit</button>
+        <MenuDropdown
+          label="View"
+          items={viewMenuItems}
+          isOpen={openMenu === 'view'}
+          onOpen={() => openMenuDropdown('view')}
+          onClose={closeMenuDropdown}
+        />
+        <MenuDropdown
+          label="Help"
+          items={helpMenuItems}
+          isOpen={openMenu === 'help'}
+          onOpen={() => openMenuDropdown('help')}
+          onClose={closeMenuDropdown}
+        />
+      </nav>
+
+      {/* Icon Toolbar */}
+      <div className="toolbar">
+        <div className="toolbar-left">
           <button
-            onClick={() => setUseVirtual(!useVirtual)}
-            style={{
-              padding: '4px 8px',
-              cursor: 'pointer',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border-primary)',
-              borderRadius: '4px',
-            }}
+            className={`toolbar-btn sidebar-toggle ${sidebarOpen ? 'active' : ''}`}
+            onClick={toggleSidebar}
+            title="Toggle sidebar"
+            aria-label="Toggle sidebar"
           >
-            Toggle: {useVirtual ? 'Virtual' : 'Tree'}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="9" y1="3" x2="9" y2="21"/>
+            </svg>
           </button>
+          <div className="toolbar-separator"></div>
+          <button
+            className={`toolbar-btn ${saveStatus === 'saving' ? 'saving' : ''} ${saveStatus === 'saved' ? 'saved' : ''}`}
+            onClick={handleSave}
+            title="Save (Ctrl+S)"
+            disabled={saveStatus === 'saving'}
+          >
+            {saveStatus === 'saving' ? (
+              <svg className="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="32"/>
+              </svg>
+            ) : saveStatus === 'saved' ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/>
+                <polyline points="7 3 7 8 15 8"/>
+              </svg>
+            )}
+          </button>
+          <button
+            className="toolbar-btn"
+            onClick={() => { /* TODO: Inbox */ }}
+            title="Inbox (Ctrl+I)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+              <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+            </svg>
+          </button>
+          <button
+            className="toolbar-btn"
+            onClick={() => { /* TODO: Date Views */ }}
+            title="Date Views (Ctrl+Shift+T)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+          </button>
+          <button
+            className="toolbar-btn"
+            onClick={() => { /* TODO: Tags */ }}
+            title="Tags (Ctrl+Shift+#)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+              <line x1="7" y1="7" x2="7.01" y2="7"/>
+            </svg>
+          </button>
+          <button
+            className="toolbar-btn hide-completed-toggle"
+            onClick={() => { /* TODO: Hide completed */ }}
+            title="Hide completed items (Ctrl+Shift+H)"
+            aria-label="Hide completed items"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+          <button
+            className="toolbar-btn"
+            onClick={() => { /* TODO: Collapse all */ }}
+            title="Collapse All (Ctrl+Shift+.)"
+            aria-label="Collapse all items"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 14h16"/>
+              <path d="M4 10h16"/>
+              <path d="M12 6l-4 4"/>
+              <path d="M12 6l4 4"/>
+              <path d="M12 18l-4-4"/>
+              <path d="M12 18l4-4"/>
+            </svg>
+          </button>
+          <button
+            className="toolbar-btn"
+            onClick={() => { /* TODO: Expand all */ }}
+            title="Expand All"
+            aria-label="Expand all items"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 14h16"/>
+              <path d="M4 10h16"/>
+              <path d="M12 2l-4 4"/>
+              <path d="M12 2l4 4"/>
+              <path d="M12 22l-4-4"/>
+              <path d="M12 22l4-4"/>
+            </svg>
+          </button>
+          <div className="toolbar-separator"></div>
+          <button
+            className="toolbar-btn"
+            onClick={() => setShowKeyboardShortcuts(true)}
+            title="Keyboard Shortcuts (?)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </button>
+          <button
+            className="toolbar-btn settings-btn"
+            onClick={() => setShowSettings(true)}
+            title="Settings (Ctrl+,)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+        </div>
+        <div className="toolbar-right">
+          <button
+            className="toolbar-btn theme-toggle"
+            onClick={toggleTheme}
+            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {isDark ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="5"/>
+                <line x1="12" y1="1" x2="12" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1" y1="12" x2="3" y2="12"/>
+                <line x1="21" y1="12" x2="23" y2="12"/>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            )}
+          </button>
+          <div className="toolbar-separator"></div>
+          <div className="toolbar-search">
+            <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input
+              type="text"
+              placeholder="Search (Ctrl+F)"
+              readOnly
+              onClick={() => {
+                setSearchDocumentScope(currentDocumentId);
+                setSearchInitialQuery('');
+                setShowSearchModal(true);
+              }}
+            />
+          </div>
         </div>
       </div>
 
-      <h1>Outline - React 18</h1>
+      {/* Main Area with Sidebar */}
+      <div className="main-wrapper">
+        <Sidebar
+          ref={sidebarRef}
+          isOpen={sidebarOpen}
+          currentDocumentId={currentDocumentId}
+          onToggle={toggleSidebar}
+          onSelectDocument={handleSelectDocument}
+          onNewDocument={handleNewDocument}
+        />
 
-      {useVirtual ? (
-        <VirtualOutlineList />
-      ) : (
-        <div className="outline-container">
-          {tree.map(item => (
-            <OutlineItem key={item.node.id} item={item} />
-          ))}
-        </div>
-      )}
+        {/* Main Content Area */}
+        <main className="content-area">
+          {loading ? (
+            <div className="loading">Loading...</div>
+          ) : error ? (
+            <div className="error">Error: {error}</div>
+          ) : (
+            <>
+              <div className="outline-container">
+                {tree.map(item => (
+                  <OutlineItem key={item.node.id} item={item} />
+                ))}
+              </div>
+            </>
+          )}
+        </main>
+      </div>
+
+      {/* Status Bar */}
+      <footer className="status-bar">
+        <span className="status-left">
+          {loading ? (
+            'Loading...'
+          ) : (
+            <>
+              <span className="stat-item" title="Total words in document">
+                {stats.totalWords.toLocaleString()} words
+              </span>
+              <span className="stat-separator">•</span>
+              <span className="stat-item" title="Words in item content">
+                {stats.contentWords.toLocaleString()} in items
+              </span>
+              <span className="stat-separator">•</span>
+              <span className="stat-item" title="Words in notes">
+                {stats.noteWords.toLocaleString()} in notes
+              </span>
+              <span className="stat-separator">•</span>
+              <span className="stat-item" title="Total items">
+                {stats.itemCount.toLocaleString()} items
+              </span>
+            </>
+          )}
+        </span>
+        <span className="status-right">
+          {saveStatus === 'saving' && <span className="save-status saving">Saving...</span>}
+          {saveStatus === 'saved' && <span className="save-status saved">Saved</span>}
+        </span>
+      </footer>
+
+      {/* Modals */}
+      <SearchModal
+        isOpen={showSearchModal}
+        documentScope={searchDocumentScope}
+        initialQuery={searchInitialQuery}
+        onClose={() => { setShowSearchModal(false); setSearchInitialQuery(''); }}
+        onNavigate={handleSearchNavigate}
+      />
+
+      <KeyboardShortcutsModal
+        isOpen={showKeyboardShortcuts}
+        onClose={() => setShowKeyboardShortcuts(false)}
+      />
+
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </div>
   );
 }
