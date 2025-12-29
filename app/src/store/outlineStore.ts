@@ -103,7 +103,15 @@ function buildTree(
   zoomedNodeId: string | null = null
 ): TreeNode[] {
   // When zoomed, start from the zoomed node's children (only at root level)
-  const effectiveParentId = (depth === 0 && zoomedNodeId) ? zoomedNodeId : parentId;
+  let effectiveParentId = parentId;
+  if (depth === 0 && zoomedNodeId) {
+    // Validate zoomed node exists, fall back to root if not
+    if (nodesById.has(zoomedNodeId)) {
+      effectiveParentId = zoomedNodeId;
+    } else {
+      console.warn('[buildTree] Zoomed node not found, falling back to root:', zoomedNodeId);
+    }
+  }
   const children = childrenByParent.get(effectiveParentId) ?? [];
 
   // Filter out completed items if hideCompleted is enabled
@@ -182,7 +190,13 @@ function flattenTree(
   zoomedNodeId: string | null = null
 ): FlatItem[] {
   // When zoomed, start from the zoomed node's children (only at root level)
-  const effectiveParentId = (depth === 0 && zoomedNodeId) ? zoomedNodeId : parentId;
+  let effectiveParentId = parentId;
+  if (depth === 0 && zoomedNodeId) {
+    // Validate zoomed node exists, fall back to root if not
+    if (nodesById.has(zoomedNodeId)) {
+      effectiveParentId = zoomedNodeId;
+    }
+  }
   const children = childrenByParent.get(effectiveParentId) ?? [];
   const result: FlatItem[] = [];
 

@@ -121,13 +121,16 @@ function App() {
         setCurrentDocumentId(session.documentId);
         await load(session.documentId);
 
-        // Restore zoom state after document loads
-        if (session.zoomedNodeId) {
+        // Get the store state to validate node IDs
+        const store = useOutlineStore.getState();
+
+        // Restore zoom state after document loads (only if node exists)
+        if (session.zoomedNodeId && store.getNode(session.zoomedNodeId)) {
           zoomTo(session.zoomedNodeId);
         }
 
-        // Restore focus state after document loads
-        if (session.focusedNodeId) {
+        // Restore focus state after document loads (only if node exists)
+        if (session.focusedNodeId && store.getNode(session.focusedNodeId)) {
           setFocusedId(session.focusedNodeId);
         }
 
