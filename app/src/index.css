@@ -2950,3 +2950,73 @@ body {
   width: 14px;
   height: 14px;
 }
+
+/* =============================================================================
+   Zoom Breadcrumbs
+   ============================================================================= */
+
+.zoom-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+  font-size: 13px;
+}
+
+.breadcrumb-item {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.breadcrumb-item:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.breadcrumb-item.current {
+  color: var(--text-primary);
+  font-weight: 500;
+  cursor: default;
+}
+
+.breadcrumb-item.current:hover {
+  background: transparent;
+}
+
+.breadcrumb-separator {
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+
+.zoom-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  margin-left: auto;
+  padding: 0;
+}
+
+.zoom-close-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.zoom-close-btn svg {
+  width: 14px;
+  height: 14px;
+}

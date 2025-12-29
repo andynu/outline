@@ -13,6 +13,7 @@ import { InboxPanel } from './components/ui/InboxPanel';
 import { QuickNavigator } from './components/ui/QuickNavigator';
 import { QuickMove } from './components/ui/QuickMove';
 import { FilterBar } from './components/ui/FilterBar';
+import { ZoomBreadcrumbs } from './components/ui/ZoomBreadcrumbs';
 import type { InboxItem } from './lib/api';
 import type { Node, TreeNode } from './lib/types';
 import * as api from './lib/api';
@@ -126,6 +127,8 @@ function App() {
   const filterQuery = useOutlineStore(state => state.filterQuery);
   const setFilterQuery = useOutlineStore(state => state.setFilterQuery);
   const clearFilter = useOutlineStore(state => state.clearFilter);
+  const zoomedNodeId = useOutlineStore(state => state.zoomedNodeId);
+  const zoomReset = useOutlineStore(state => state.zoomReset);
 
   // Sidebar ref for refresh
   const sidebarRef = React.useRef<SidebarRef>(null);
@@ -423,17 +426,25 @@ function App() {
         return;
       }
 
-      // Escape clears filter (when no modal is open)
-      if (event.key === 'Escape' && filterQuery && !showSearchModal && !showQuickNavigator && !showQuickMove && !showDateViews && !showTagsPanel && !showInboxPanel && !showKeyboardShortcuts && !showSettings) {
-        event.preventDefault();
-        clearFilter();
-        return;
+      // Escape clears filter or exits zoom (when no modal is open)
+      if (event.key === 'Escape' && !showSearchModal && !showQuickNavigator && !showQuickMove && !showDateViews && !showTagsPanel && !showInboxPanel && !showKeyboardShortcuts && !showSettings) {
+        // First clear filter if active, then exit zoom
+        if (filterQuery) {
+          event.preventDefault();
+          clearFilter();
+          return;
+        }
+        if (zoomedNodeId) {
+          event.preventDefault();
+          zoomReset();
+          return;
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings]);
 
   // Compute tree from nodes with useMemo for performance
   const tree = useMemo(() => buildTreeFromNodes(nodes), [nodes]);
@@ -673,6 +684,7 @@ function App() {
 
         {/* Main Content Area */}
         <main className="content-area">
+          <ZoomBreadcrumbs />
           <FilterBar />
           {loading ? (
             <div className="loading">Loading...</div>

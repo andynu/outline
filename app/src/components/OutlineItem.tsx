@@ -43,6 +43,7 @@ export const OutlineItem = memo(function OutlineItem({
   const moveToNext = useOutlineStore(state => state.moveToNext);
   const moveToFirst = useOutlineStore(state => state.moveToFirst);
   const moveToLast = useOutlineStore(state => state.moveToLast);
+  const zoomTo = useOutlineStore(state => state.zoomTo);
 
   const isFocused = focusedId === node.id;
   const editorContainerRef = useRef<HTMLDivElement>(null);
@@ -307,8 +308,8 @@ export const OutlineItem = memo(function OutlineItem({
   const handleBulletDblClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setFocusedId(node.id);
-  }, [node.id, setFocusedId]);
+    zoomTo(node.id);
+  }, [node.id, zoomTo]);
 
   const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

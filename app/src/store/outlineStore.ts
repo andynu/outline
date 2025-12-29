@@ -18,6 +18,7 @@ interface OutlineState {
   pendingOperations: number;
   hideCompleted: boolean;
   filterQuery: string | null;  // Hashtag filter, e.g., "#project"
+  zoomedNodeId: string | null;  // Subtree zoom - show only this node's children
 
   // Cached indexes (rebuilt when nodes change)
   _nodesById: Map<string, Node>;
@@ -31,6 +32,9 @@ interface OutlineState {
   setHideCompleted: (hide: boolean) => void;
   setFilterQuery: (query: string | null) => void;
   clearFilter: () => void;
+  zoomTo: (nodeId: string | null) => void;
+  zoomReset: () => void;
+  getZoomBreadcrumbs: () => { id: string | null; title: string }[];
 
   // Computed
   getTree: () => TreeNode[];
@@ -95,9 +99,12 @@ function buildTree(
   depth: number,
   hideCompleted: boolean = false,
   filterQuery: string | null = null,
-  nodesById: Map<string, Node> = new Map()
+  nodesById: Map<string, Node> = new Map(),
+  zoomedNodeId: string | null = null
 ): TreeNode[] {
-  const children = childrenByParent.get(parentId) ?? [];
+  // When zoomed, start from the zoomed node's children (only at root level)
+  const effectiveParentId = (depth === 0 && zoomedNodeId) ? zoomedNodeId : parentId;
+  const children = childrenByParent.get(effectiveParentId) ?? [];
 
   // Filter out completed items if hideCompleted is enabled
   let visibleChildren = hideCompleted
@@ -132,7 +139,7 @@ function buildTree(
       hasChildren,
       // When filtering, expand all nodes to show matches
       children: hasChildren && (!node.collapsed || filterQuery)
-        ? buildTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById)
+        ? buildTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById, null)
         : []
     };
   });
@@ -171,9 +178,12 @@ function flattenTree(
   depth: number,
   hideCompleted: boolean = false,
   filterQuery: string | null = null,
-  nodesById: Map<string, Node> = new Map()
+  nodesById: Map<string, Node> = new Map(),
+  zoomedNodeId: string | null = null
 ): FlatItem[] {
-  const children = childrenByParent.get(parentId) ?? [];
+  // When zoomed, start from the zoomed node's children (only at root level)
+  const effectiveParentId = (depth === 0 && zoomedNodeId) ? zoomedNodeId : parentId;
+  const children = childrenByParent.get(effectiveParentId) ?? [];
   const result: FlatItem[] = [];
 
   // Filter out completed items if hideCompleted is enabled
@@ -206,7 +216,7 @@ function flattenTree(
 
     // Recursively add children if not collapsed (always expand when filtering)
     if (hasChildren && (!node.collapsed || filterQuery)) {
-      result.push(...flattenTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById));
+      result.push(...flattenTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById, null));
     }
   }
 
@@ -235,6 +245,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     ? localStorage.getItem('outline-hide-completed') === 'true'
     : false,
   filterQuery: null,
+  zoomedNodeId: null,
   _nodesById: new Map(),
   _childrenByParent: new Map(),
 
@@ -277,16 +288,54 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     set({ filterQuery: null });
   },
 
+  zoomTo: (nodeId: string | null) => {
+    set({ zoomedNodeId: nodeId });
+  },
+
+  zoomReset: () => {
+    set({ zoomedNodeId: null });
+  },
+
+  getZoomBreadcrumbs: () => {
+    const { zoomedNodeId, _nodesById } = get();
+    if (!zoomedNodeId) return [];
+
+    const breadcrumbs: { id: string | null; title: string }[] = [];
+
+    // Walk up the tree from zoomed node to root
+    let currentId: string | null = zoomedNodeId;
+    while (currentId) {
+      const node = _nodesById.get(currentId);
+      if (!node) break;
+
+      // Strip HTML from content for title
+      const title = node.content
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .trim();
+      const shortTitle = title.length > 25 ? title.substring(0, 25) + '...' : title;
+
+      breadcrumbs.unshift({ id: currentId, title: shortTitle || 'Untitled' });
+      currentId = node.parent_id;
+    }
+
+    // Add "Home" at the beginning
+    breadcrumbs.unshift({ id: null, title: 'Home' });
+
+    return breadcrumbs;
+  },
+
   // === Computed getters ===
 
   getTree: () => {
-    const { _childrenByParent, _nodesById, hideCompleted, filterQuery } = get();
-    return buildTree(_childrenByParent, null, 0, hideCompleted, filterQuery, _nodesById);
+    const { _childrenByParent, _nodesById, hideCompleted, filterQuery, zoomedNodeId } = get();
+    return buildTree(_childrenByParent, null, 0, hideCompleted, filterQuery, _nodesById, zoomedNodeId);
   },
 
   getFlatList: () => {
-    const { _childrenByParent, _nodesById, hideCompleted, filterQuery } = get();
-    return flattenTree(_childrenByParent, null, 0, hideCompleted, filterQuery, _nodesById);
+    const { _childrenByParent, _nodesById, hideCompleted, filterQuery, zoomedNodeId } = get();
+    return flattenTree(_childrenByParent, null, 0, hideCompleted, filterQuery, _nodesById, zoomedNodeId);
   },
 
   getVisibleNodes: () => {
