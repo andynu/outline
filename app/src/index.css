@@ -83,6 +83,10 @@ body {
   flex: 1;
   min-height: 24px;
   line-height: 24px;
+  /* Truncate long content to prevent overlap in virtualized list */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .content.checked {
