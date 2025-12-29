@@ -403,6 +403,21 @@ function App() {
     }
   }, [nodes]);
 
+  const handleImportOpml = useCallback(async () => {
+    try {
+      const result = await api.importOpmlFromPicker();
+      if (result) {
+        // Navigate to the newly imported document
+        setCurrentDocumentId(result.doc_id);
+        await load(result.doc_id);
+        // Refresh sidebar
+        sidebarRef.current?.refresh();
+      }
+    } catch (e) {
+      console.error('Import OPML failed:', e);
+    }
+  }, [load]);
+
   // File menu items
   const fileMenuItems: MenuEntry[] = useMemo(() => [
     { label: 'New Document', shortcut: 'Ctrl+N', action: handleNewDocument, separator: false },
@@ -413,8 +428,8 @@ function App() {
     { label: 'Export Markdown', action: handleExportMarkdown, separator: false },
     { label: 'Export JSON', action: handleExportJson, separator: false },
     { separator: true },
-    { label: 'Import OPML...', action: () => { /* TODO - otl-1gp8.13 */ }, separator: false },
-  ], [handleNewDocument, handleSave, handleExportOpml, handleExportMarkdown, handleExportJson]);
+    { label: 'Import OPML...', action: handleImportOpml, separator: false },
+  ], [handleNewDocument, handleSave, handleExportOpml, handleExportMarkdown, handleExportJson, handleImportOpml]);
 
   // View menu items
   const viewMenuItems: MenuEntry[] = useMemo(() => [
