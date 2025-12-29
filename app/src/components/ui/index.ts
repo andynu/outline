@@ -9,3 +9,6 @@ export { BacklinksPanel } from './BacklinksPanel';
 export { DateBadge } from './DateBadge';
 export { SearchModal } from './SearchModal';
 export { SettingsModal } from './SettingsModal';
+export { RenameModal } from './RenameModal';
+export { MenuDropdown, type MenuEntry } from './MenuDropdown';
+export { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
