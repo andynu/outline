@@ -1,6 +1,8 @@
 node_modules/
 build/
+dist/
 .svelte-kit/
+*.tsbuildinfo
 
 # Playwright
 /test-results/
