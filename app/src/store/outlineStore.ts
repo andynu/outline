@@ -58,6 +58,7 @@ interface OutlineState {
   addSiblingAfter: (nodeId: string) => Promise<string | null>;
   updateContent: (nodeId: string, content: string) => Promise<void>;
   deleteNode: (nodeId: string) => Promise<string | null>;
+  deleteAllCompleted: () => Promise<number>;
   toggleCollapse: (nodeId: string) => Promise<void>;
   collapseAll: () => Promise<void>;
   expandAll: () => Promise<void>;
@@ -544,6 +545,58 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
       return null;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  deleteAllCompleted: async () => {
+    const { nodes, updateFromState, focusedId } = get();
+
+    // Find all completed nodes (is_checked = true)
+    const completedNodes = nodes.filter(n => n.is_checked);
+    if (completedNodes.length === 0) return 0;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      // Delete each completed node
+      // Note: We delete from the list, so child nodes that are also completed
+      // will be deleted when their parent is deleted
+      let lastState;
+      let deletedCount = 0;
+
+      // Get IDs of all completed nodes
+      const completedIds = new Set(completedNodes.map(n => n.id));
+
+      // Only delete "root" completed nodes (completed nodes whose parent is NOT completed)
+      // This avoids trying to delete nodes that were already deleted as children
+      const rootCompletedNodes = completedNodes.filter(n => {
+        const parentId = n.parent_id ?? null;
+        return !parentId || !completedIds.has(parentId);
+      });
+
+      for (const node of rootCompletedNodes) {
+        try {
+          lastState = await api.deleteNode(node.id);
+          deletedCount++;
+        } catch {
+          // Node may have already been deleted as child of another
+        }
+      }
+
+      if (lastState) {
+        updateFromState(lastState);
+      }
+
+      // Clear focus if focused node was deleted
+      if (focusedId && completedIds.has(focusedId)) {
+        set({ focusedId: null });
+      }
+
+      return deletedCount;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return 0;
     } finally {
       set(s => ({ pendingOperations: s.pendingOperations - 1 }));
     }

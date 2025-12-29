@@ -434,6 +434,12 @@ function App() {
     { label: 'Import OPML...', action: handleImportOpml, separator: false },
   ], [handleNewDocument, handleSave, handleExportOpml, handleExportMarkdown, handleExportJson, handleImportOpml]);
 
+  // Edit menu items
+  const deleteAllCompleted = useOutlineStore(state => state.deleteAllCompleted);
+  const editMenuItems: MenuEntry[] = useMemo(() => [
+    { label: 'Delete All Completed', action: deleteAllCompleted, separator: false },
+  ], [deleteAllCompleted]);
+
   // View menu items
   const viewMenuItems: MenuEntry[] = useMemo(() => [
     { label: 'Toggle Sidebar', shortcut: 'Ctrl+B', action: toggleSidebar, separator: false },
@@ -612,7 +618,13 @@ function App() {
           onOpen={() => openMenuDropdown('file')}
           onClose={closeMenuDropdown}
         />
-        <button className="menu-item">Edit</button>
+        <MenuDropdown
+          label="Edit"
+          items={editMenuItems}
+          isOpen={openMenu === 'edit'}
+          onOpen={() => openMenuDropdown('edit')}
+          onClose={closeMenuDropdown}
+        />
         <MenuDropdown
           label="View"
           items={viewMenuItems}
