@@ -2901,3 +2901,52 @@ body {
   font-size: 11px;
   margin-right: 4px;
 }
+
+/* =============================================================================
+   Filter Bar
+   ============================================================================= */
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--accent-primary-lighter);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.filter-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.filter-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-primary);
+}
+
+.filter-clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  margin-left: 4px;
+  padding: 0;
+}
+
+.filter-clear-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.filter-clear-btn svg {
+  width: 14px;
+  height: 14px;
+}

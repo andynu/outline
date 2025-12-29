@@ -17,6 +17,7 @@ interface OutlineState {
   error: string | null;
   pendingOperations: number;
   hideCompleted: boolean;
+  filterQuery: string | null;  // Hashtag filter, e.g., "#project"
 
   // Cached indexes (rebuilt when nodes change)
   _nodesById: Map<string, Node>;
@@ -28,6 +29,8 @@ interface OutlineState {
   updateFromState: (state: DocumentState) => void;
   toggleHideCompleted: () => void;
   setHideCompleted: (hide: boolean) => void;
+  setFilterQuery: (query: string | null) => void;
+  clearFilter: () => void;
 
   // Computed
   getTree: () => TreeNode[];
@@ -63,34 +66,73 @@ interface OutlineState {
   moveNodeTo: (nodeId: string, newParentId: string | null, newPosition: number) => Promise<boolean>;
 }
 
+// Check if a node matches the filter query
+function nodeMatchesFilter(node: Node, filterQuery: string | null): boolean {
+  if (!filterQuery) return true;
+  // Check if content contains the hashtag
+  return node.content.toLowerCase().includes(filterQuery.toLowerCase());
+}
+
+// Check if a node or any of its descendants match the filter
+function hasMatchingDescendant(
+  nodeId: string,
+  childrenByParent: Map<string | null, Node[]>,
+  filterQuery: string | null,
+  nodesById: Map<string, Node>
+): boolean {
+  const children = childrenByParent.get(nodeId) ?? [];
+  for (const child of children) {
+    if (nodeMatchesFilter(child, filterQuery)) return true;
+    if (hasMatchingDescendant(child.id, childrenByParent, filterQuery, nodesById)) return true;
+  }
+  return false;
+}
+
 // Build tree structure from flat nodes
 function buildTree(
   childrenByParent: Map<string | null, Node[]>,
   parentId: string | null,
   depth: number,
-  hideCompleted: boolean = false
+  hideCompleted: boolean = false,
+  filterQuery: string | null = null,
+  nodesById: Map<string, Node> = new Map()
 ): TreeNode[] {
   const children = childrenByParent.get(parentId) ?? [];
 
   // Filter out completed items if hideCompleted is enabled
-  const visibleChildren = hideCompleted
+  let visibleChildren = hideCompleted
     ? children.filter(n => !n.is_checked)
     : children;
 
+  // If filtering, only show nodes that match OR have matching descendants
+  if (filterQuery) {
+    visibleChildren = visibleChildren.filter(n =>
+      nodeMatchesFilter(n, filterQuery) ||
+      hasMatchingDescendant(n.id, childrenByParent, filterQuery, nodesById)
+    );
+  }
+
   return visibleChildren.map(node => {
     const nodeChildren = childrenByParent.get(node.id) ?? [];
-    // Check if there are visible children (accounting for hideCompleted)
-    const visibleNodeChildren = hideCompleted
+    // Check if there are visible children (accounting for hideCompleted and filter)
+    let visibleNodeChildren = hideCompleted
       ? nodeChildren.filter(n => !n.is_checked)
       : nodeChildren;
+    if (filterQuery) {
+      visibleNodeChildren = visibleNodeChildren.filter(n =>
+        nodeMatchesFilter(n, filterQuery) ||
+        hasMatchingDescendant(n.id, childrenByParent, filterQuery, nodesById)
+      );
+    }
     const hasChildren = visibleNodeChildren.length > 0;
 
     return {
       node,
       depth,
       hasChildren,
-      children: hasChildren && !node.collapsed
-        ? buildTree(childrenByParent, node.id, depth + 1, hideCompleted)
+      // When filtering, expand all nodes to show matches
+      children: hasChildren && (!node.collapsed || filterQuery)
+        ? buildTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById)
         : []
     };
   });
@@ -127,28 +169,44 @@ function flattenTree(
   childrenByParent: Map<string | null, Node[]>,
   parentId: string | null,
   depth: number,
-  hideCompleted: boolean = false
+  hideCompleted: boolean = false,
+  filterQuery: string | null = null,
+  nodesById: Map<string, Node> = new Map()
 ): FlatItem[] {
   const children = childrenByParent.get(parentId) ?? [];
   const result: FlatItem[] = [];
 
   // Filter out completed items if hideCompleted is enabled
-  const visibleChildren = hideCompleted
+  let visibleChildren = hideCompleted
     ? children.filter(n => !n.is_checked)
     : children;
 
+  // If filtering, only show nodes that match OR have matching descendants
+  if (filterQuery) {
+    visibleChildren = visibleChildren.filter(n =>
+      nodeMatchesFilter(n, filterQuery) ||
+      hasMatchingDescendant(n.id, childrenByParent, filterQuery, nodesById)
+    );
+  }
+
   for (const node of visibleChildren) {
     const nodeChildren = childrenByParent.get(node.id) ?? [];
-    const visibleNodeChildren = hideCompleted
+    let visibleNodeChildren = hideCompleted
       ? nodeChildren.filter(n => !n.is_checked)
       : nodeChildren;
+    if (filterQuery) {
+      visibleNodeChildren = visibleNodeChildren.filter(n =>
+        nodeMatchesFilter(n, filterQuery) ||
+        hasMatchingDescendant(n.id, childrenByParent, filterQuery, nodesById)
+      );
+    }
     const hasChildren = visibleNodeChildren.length > 0;
 
     result.push({ node, depth, hasChildren });
 
-    // Recursively add children if not collapsed
-    if (hasChildren && !node.collapsed) {
-      result.push(...flattenTree(childrenByParent, node.id, depth + 1, hideCompleted));
+    // Recursively add children if not collapsed (always expand when filtering)
+    if (hasChildren && (!node.collapsed || filterQuery)) {
+      result.push(...flattenTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById));
     }
   }
 
@@ -176,6 +234,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   hideCompleted: typeof localStorage !== 'undefined'
     ? localStorage.getItem('outline-hide-completed') === 'true'
     : false,
+  filterQuery: null,
   _nodesById: new Map(),
   _childrenByParent: new Map(),
 
@@ -210,16 +269,24 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     set({ hideCompleted: hide });
   },
 
+  setFilterQuery: (query: string | null) => {
+    set({ filterQuery: query });
+  },
+
+  clearFilter: () => {
+    set({ filterQuery: null });
+  },
+
   // === Computed getters ===
 
   getTree: () => {
-    const { _childrenByParent, hideCompleted } = get();
-    return buildTree(_childrenByParent, null, 0, hideCompleted);
+    const { _childrenByParent, _nodesById, hideCompleted, filterQuery } = get();
+    return buildTree(_childrenByParent, null, 0, hideCompleted, filterQuery, _nodesById);
   },
 
   getFlatList: () => {
-    const { _childrenByParent, hideCompleted } = get();
-    return flattenTree(_childrenByParent, null, 0, hideCompleted);
+    const { _childrenByParent, _nodesById, hideCompleted, filterQuery } = get();
+    return flattenTree(_childrenByParent, null, 0, hideCompleted, filterQuery, _nodesById);
   },
 
   getVisibleNodes: () => {

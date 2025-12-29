@@ -12,6 +12,7 @@ import { TagsPanel } from './components/ui/TagsPanel';
 import { InboxPanel } from './components/ui/InboxPanel';
 import { QuickNavigator } from './components/ui/QuickNavigator';
 import { QuickMove } from './components/ui/QuickMove';
+import { FilterBar } from './components/ui/FilterBar';
 import type { InboxItem } from './lib/api';
 import type { Node, TreeNode } from './lib/types';
 import * as api from './lib/api';
@@ -122,6 +123,9 @@ function App() {
   const expandAll = useOutlineStore(state => state.expandAll);
   const hideCompleted = useOutlineStore(state => state.hideCompleted);
   const toggleHideCompleted = useOutlineStore(state => state.toggleHideCompleted);
+  const filterQuery = useOutlineStore(state => state.filterQuery);
+  const setFilterQuery = useOutlineStore(state => state.setFilterQuery);
+  const clearFilter = useOutlineStore(state => state.clearFilter);
 
   // Sidebar ref for refresh
   const sidebarRef = React.useRef<SidebarRef>(null);
@@ -214,13 +218,11 @@ function App() {
     setShowTagsPanel(false);
   }, []);
 
-  // Handle tag search from tags panel
+  // Handle tag search from tags panel - use filter instead of search
   const handleTagSearch = useCallback((tag: string) => {
-    setSearchDocumentScope(currentDocumentId);
-    setSearchInitialQuery(`#${tag}`);
-    setShowSearchModal(true);
+    setFilterQuery(`#${tag}`);
     setShowTagsPanel(false);
-  }, [currentDocumentId]);
+  }, [setFilterQuery]);
 
   // Load inbox count
   const loadInboxCount = useCallback(async () => {
@@ -420,11 +422,18 @@ function App() {
         toggleHideCompleted();
         return;
       }
+
+      // Escape clears filter (when no modal is open)
+      if (event.key === 'Escape' && filterQuery && !showSearchModal && !showQuickNavigator && !showQuickMove && !showDateViews && !showTagsPanel && !showInboxPanel && !showKeyboardShortcuts && !showSettings) {
+        event.preventDefault();
+        clearFilter();
+        return;
+      }
     };
 
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings]);
 
   // Compute tree from nodes with useMemo for performance
   const tree = useMemo(() => buildTreeFromNodes(nodes), [nodes]);
@@ -664,6 +673,7 @@ function App() {
 
         {/* Main Content Area */}
         <main className="content-area">
+          <FilterBar />
           {loading ? (
             <div className="loading">Loading...</div>
           ) : error ? (
