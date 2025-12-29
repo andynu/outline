@@ -1819,6 +1819,16 @@ body {
   color: var(--save-status-saved, var(--status-success));
 }
 
+.status-filter-indicator {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-right: 8px;
+  cursor: default;
+}
+
 .zoom-status {
   font-size: 11px;
   color: var(--text-tertiary);

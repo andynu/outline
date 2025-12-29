@@ -120,6 +120,8 @@ function App() {
   const load = useOutlineStore(state => state.load);
   const collapseAll = useOutlineStore(state => state.collapseAll);
   const expandAll = useOutlineStore(state => state.expandAll);
+  const hideCompleted = useOutlineStore(state => state.hideCompleted);
+  const toggleHideCompleted = useOutlineStore(state => state.toggleHideCompleted);
 
   // Sidebar ref for refresh
   const sidebarRef = React.useRef<SidebarRef>(null);
@@ -289,11 +291,12 @@ function App() {
   const viewMenuItems: MenuEntry[] = useMemo(() => [
     { label: 'Toggle Sidebar', shortcut: 'Ctrl+B', action: toggleSidebar, separator: false },
     { separator: true },
+    { label: hideCompleted ? 'Show Completed' : 'Hide Completed', shortcut: 'Ctrl+Shift+H', action: toggleHideCompleted, separator: false },
     { label: 'Collapse All', shortcut: 'Ctrl+Shift+.', action: collapseAll, separator: false },
     { label: 'Expand All', shortcut: 'Ctrl+Shift+,', action: expandAll, separator: false },
     { separator: true },
     { label: isDark ? 'Light Mode' : 'Dark Mode', action: toggleTheme, separator: false },
-  ], [toggleSidebar, toggleTheme, isDark, collapseAll, expandAll]);
+  ], [toggleSidebar, toggleTheme, isDark, collapseAll, expandAll, hideCompleted, toggleHideCompleted]);
 
   // Help menu items
   const helpMenuItems: MenuEntry[] = useMemo(() => [
@@ -410,11 +413,18 @@ function App() {
         expandAll();
         return;
       }
+
+      // Hide Completed (Ctrl+Shift+H)
+      if (mod && event.shiftKey && event.key === 'H') {
+        event.preventDefault();
+        toggleHideCompleted();
+        return;
+      }
     };
 
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted]);
 
   // Compute tree from nodes with useMemo for performance
   const tree = useMemo(() => buildTreeFromNodes(nodes), [nodes]);
@@ -527,15 +537,22 @@ function App() {
             </svg>
           </button>
           <button
-            className="toolbar-btn hide-completed-toggle"
-            onClick={() => { /* TODO: Hide completed */ }}
-            title="Hide completed items (Ctrl+Shift+H)"
-            aria-label="Hide completed items"
+            className={`toolbar-btn hide-completed-toggle ${hideCompleted ? 'active' : ''}`}
+            onClick={toggleHideCompleted}
+            title={hideCompleted ? "Show completed items (Ctrl+Shift+H)" : "Hide completed items (Ctrl+Shift+H)"}
+            aria-label={hideCompleted ? "Show completed items" : "Hide completed items"}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
+            {hideCompleted ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            )}
           </button>
           <button
             className="toolbar-btn"
@@ -689,6 +706,11 @@ function App() {
           )}
         </span>
         <span className="status-right">
+          {hideCompleted && (
+            <span className="status-filter-indicator" title="Click to show completed items">
+              (hiding completed)
+            </span>
+          )}
           {saveStatus === 'saving' && <span className="save-status saving">Saving...</span>}
           {saveStatus === 'saved' && <span className="save-status saved">Saved</span>}
         </span>

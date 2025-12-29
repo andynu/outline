@@ -16,6 +16,7 @@ interface OutlineState {
   loading: boolean;
   error: string | null;
   pendingOperations: number;
+  hideCompleted: boolean;
 
   // Cached indexes (rebuilt when nodes change)
   _nodesById: Map<string, Node>;
@@ -25,6 +26,8 @@ interface OutlineState {
   setNodes: (nodes: Node[]) => void;
   setFocusedId: (id: string | null) => void;
   updateFromState: (state: DocumentState) => void;
+  toggleHideCompleted: () => void;
+  setHideCompleted: (hide: boolean) => void;
 
   // Computed
   getTree: () => TreeNode[];
@@ -64,20 +67,30 @@ interface OutlineState {
 function buildTree(
   childrenByParent: Map<string | null, Node[]>,
   parentId: string | null,
-  depth: number
+  depth: number,
+  hideCompleted: boolean = false
 ): TreeNode[] {
   const children = childrenByParent.get(parentId) ?? [];
 
-  return children.map(node => {
+  // Filter out completed items if hideCompleted is enabled
+  const visibleChildren = hideCompleted
+    ? children.filter(n => !n.is_checked)
+    : children;
+
+  return visibleChildren.map(node => {
     const nodeChildren = childrenByParent.get(node.id) ?? [];
-    const hasChildren = nodeChildren.length > 0;
+    // Check if there are visible children (accounting for hideCompleted)
+    const visibleNodeChildren = hideCompleted
+      ? nodeChildren.filter(n => !n.is_checked)
+      : nodeChildren;
+    const hasChildren = visibleNodeChildren.length > 0;
 
     return {
       node,
       depth,
       hasChildren,
       children: hasChildren && !node.collapsed
-        ? buildTree(childrenByParent, node.id, depth + 1)
+        ? buildTree(childrenByParent, node.id, depth + 1, hideCompleted)
         : []
     };
   });
@@ -113,20 +126,29 @@ function rebuildIndexes(nodes: Node[]) {
 function flattenTree(
   childrenByParent: Map<string | null, Node[]>,
   parentId: string | null,
-  depth: number
+  depth: number,
+  hideCompleted: boolean = false
 ): FlatItem[] {
   const children = childrenByParent.get(parentId) ?? [];
   const result: FlatItem[] = [];
 
-  for (const node of children) {
+  // Filter out completed items if hideCompleted is enabled
+  const visibleChildren = hideCompleted
+    ? children.filter(n => !n.is_checked)
+    : children;
+
+  for (const node of visibleChildren) {
     const nodeChildren = childrenByParent.get(node.id) ?? [];
-    const hasChildren = nodeChildren.length > 0;
+    const visibleNodeChildren = hideCompleted
+      ? nodeChildren.filter(n => !n.is_checked)
+      : nodeChildren;
+    const hasChildren = visibleNodeChildren.length > 0;
 
     result.push({ node, depth, hasChildren });
 
     // Recursively add children if not collapsed
     if (hasChildren && !node.collapsed) {
-      result.push(...flattenTree(childrenByParent, node.id, depth + 1));
+      result.push(...flattenTree(childrenByParent, node.id, depth + 1, hideCompleted));
     }
   }
 
@@ -151,6 +173,9 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   loading: false,
   error: null,
   pendingOperations: 0,
+  hideCompleted: typeof localStorage !== 'undefined'
+    ? localStorage.getItem('outline-hide-completed') === 'true'
+    : false,
   _nodesById: new Map(),
   _childrenByParent: new Map(),
 
@@ -174,16 +199,27 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     });
   },
 
+  toggleHideCompleted: () => {
+    const newValue = !get().hideCompleted;
+    localStorage.setItem('outline-hide-completed', String(newValue));
+    set({ hideCompleted: newValue });
+  },
+
+  setHideCompleted: (hide: boolean) => {
+    localStorage.setItem('outline-hide-completed', String(hide));
+    set({ hideCompleted: hide });
+  },
+
   // === Computed getters ===
 
   getTree: () => {
-    const { _childrenByParent } = get();
-    return buildTree(_childrenByParent, null, 0);
+    const { _childrenByParent, hideCompleted } = get();
+    return buildTree(_childrenByParent, null, 0, hideCompleted);
   },
 
   getFlatList: () => {
-    const { _childrenByParent } = get();
-    return flattenTree(_childrenByParent, null, 0);
+    const { _childrenByParent, hideCompleted } = get();
+    return flattenTree(_childrenByParent, null, 0, hideCompleted);
   },
 
   getVisibleNodes: () => {
