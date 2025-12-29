@@ -20,39 +20,8 @@ import type { Node, TreeNode } from './lib/types';
 import * as api from './lib/api';
 import React from 'react';
 
-// Build tree from nodes array
-function buildTreeFromNodes(nodes: Node[]): TreeNode[] {
-  const childrenByParent = new Map<string | null, Node[]>();
-
-  for (const node of nodes) {
-    const parentId = node.parent_id;
-    const siblings = childrenByParent.get(parentId) ?? [];
-    siblings.push(node);
-    childrenByParent.set(parentId, siblings);
-  }
-
-  for (const children of childrenByParent.values()) {
-    children.sort((a, b) => a.position - b.position);
-  }
-
-  function buildLevel(parentId: string | null, depth: number): TreeNode[] {
-    const children = childrenByParent.get(parentId) ?? [];
-    return children.map(node => {
-      const nodeChildren = childrenByParent.get(node.id) ?? [];
-      const hasChildren = nodeChildren.length > 0;
-      return {
-        node,
-        depth,
-        hasChildren,
-        children: hasChildren && !node.collapsed
-          ? buildLevel(node.id, depth + 1)
-          : []
-      };
-    });
-  }
-
-  return buildLevel(null, 0);
-}
+// Note: Tree building is now handled by the store's getTree() method
+// which properly handles hideCompleted, filterQuery, and zoomedNodeId
 
 // Calculate document statistics
 function calculateDocumentStats(nodes: Node[]) {
@@ -133,6 +102,7 @@ function App() {
   const zoomTo = useOutlineStore(state => state.zoomTo);
   const focusedId = useOutlineStore(state => state.focusedId);
   const setFocusedId = useOutlineStore(state => state.setFocusedId);
+  const getTree = useOutlineStore(state => state.getTree);
 
   // Ref for scroll position tracking
   const contentAreaRef = useRef<HTMLElement>(null);
@@ -601,7 +571,8 @@ function App() {
   }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings]);
 
   // Compute tree from nodes with useMemo for performance
-  const tree = useMemo(() => buildTreeFromNodes(nodes), [nodes]);
+  // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
+  const tree = useMemo(() => getTree(), [getTree, nodes, hideCompleted, filterQuery, zoomedNodeId]);
   const visibleCount = useMemo(() => {
     function count(items: TreeNode[]): number {
       return items.reduce((sum, item) => sum + 1 + count(item.children), 0);
