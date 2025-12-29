@@ -563,10 +563,42 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   expandAll: async () => {
-    const { nodes, hasChildren, updateFromState } = get();
+    const { nodes, hasChildren, updateFromState, filterQuery, _childrenByParent, _nodesById } = get();
 
-    // Find all nodes that have children and are collapsed
-    const toExpand = nodes.filter(n => hasChildren(n.id) && n.collapsed);
+    let toExpand: Node[];
+
+    if (filterQuery) {
+      // When filtering, expand all ancestors of matching items
+      // This ensures that when the filter is cleared, matching items remain visible
+      const matchingNodes = nodes.filter(n => nodeMatchesFilter(n, filterQuery));
+      const ancestorIds = new Set<string>();
+
+      // Collect all ancestors of matching nodes
+      for (const node of matchingNodes) {
+        let currentId = node.parent_id;
+        while (currentId) {
+          if (ancestorIds.has(currentId)) break; // Already processed this path
+          ancestorIds.add(currentId);
+          const parent = _nodesById.get(currentId);
+          if (!parent) break;
+          currentId = parent.parent_id;
+        }
+      }
+
+      // Also expand matching nodes themselves if they have children
+      for (const node of matchingNodes) {
+        if (hasChildren(node.id)) {
+          ancestorIds.add(node.id);
+        }
+      }
+
+      // Find collapsed nodes in the ancestor set
+      toExpand = nodes.filter(n => ancestorIds.has(n.id) && n.collapsed);
+    } else {
+      // No filter: expand all collapsed nodes with children
+      toExpand = nodes.filter(n => hasChildren(n.id) && n.collapsed);
+    }
+
     if (toExpand.length === 0) return;
 
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
