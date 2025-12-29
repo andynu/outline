@@ -4,6 +4,14 @@ import StarterKit from '@tiptap/starter-kit';
 import type { TreeNode } from '../lib/types';
 import { useOutlineStore } from '../store/outlineStore';
 
+// TipTap extensions
+import { WikiLink, createWikiLinkInputHandler } from '../lib/WikiLink';
+import { Hashtag } from '../lib/Hashtag';
+import { DueDate } from '../lib/DueDate';
+import { AutoLink } from '../lib/AutoLink';
+import { MarkdownLink } from '../lib/MarkdownLink';
+import { Mention } from '../lib/Mention';
+
 interface OutlineItemProps {
   item: TreeNode;
   onNavigateToNode?: (nodeId: string) => void;
@@ -98,6 +106,43 @@ export const OutlineItem = memo(function OutlineItem({
             codeBlock: false,
             horizontalRule: false,
             hardBreak: false,
+          }),
+          // Wiki links with navigation
+          WikiLink.configure({
+            onNavigate: (targetNodeId: string) => {
+              if (onNavigateToNode) {
+                onNavigateToNode(targetNodeId);
+              }
+            },
+          }),
+          // Hashtag styling and click handling
+          Hashtag.configure({
+            onHashtagClick: (tag: string) => {
+              // TODO: Implement hashtag search/filter
+              console.log('Hashtag clicked:', tag);
+            },
+          }),
+          // Due date highlighting and click handling
+          DueDate.configure({
+            onDueDateClick: (date: string) => {
+              // TODO: Implement date picker or date view
+              console.log('Due date clicked:', date);
+            },
+          }),
+          // Auto-link URLs
+          AutoLink.configure({
+            openOnClick: true,
+          }),
+          // Markdown-style links [text](url)
+          MarkdownLink.configure({
+            openOnClick: true,
+          }),
+          // @mentions
+          Mention.configure({
+            onMentionClick: (mention: string) => {
+              // TODO: Implement mention handling
+              console.log('Mention clicked:', mention);
+            },
           }),
         ],
         content: node.content || '',

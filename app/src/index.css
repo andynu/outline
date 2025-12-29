@@ -97,3 +97,103 @@ body {
 .children {
   /* Children are indented via marginLeft on outline-item */
 }
+
+/* TipTap extension styles */
+
+/* Hashtags */
+.hashtag {
+  color: var(--hashtag-color);
+  background: var(--hashtag-bg);
+  padding: 1px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.hashtag:hover {
+  background: var(--hashtag-bg-hover);
+}
+
+/* Due dates */
+.due-date {
+  padding: 1px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.due-date-overdue {
+  color: var(--date-overdue);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.due-date-today {
+  color: var(--date-today);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.due-date-urgent {
+  color: var(--date-urgent);
+  background: rgba(249, 115, 22, 0.1);
+}
+
+.due-date-soon {
+  color: var(--date-soon);
+  background: rgba(234, 179, 8, 0.1);
+}
+
+.due-date-future {
+  color: var(--date-future);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.due-date-completed {
+  color: var(--text-tertiary);
+  text-decoration: line-through;
+}
+
+/* Wiki links */
+.wiki-link {
+  color: var(--wiki-link-color);
+  background: var(--wiki-link-bg);
+  padding: 1px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.wiki-link:hover {
+  background: var(--wiki-link-bg-hover);
+}
+
+/* Auto links (URLs) */
+.auto-link {
+  color: var(--auto-link-color);
+  text-decoration: underline;
+  text-decoration-color: var(--auto-link-underline);
+  cursor: pointer;
+}
+
+.auto-link:hover {
+  text-decoration-style: solid;
+}
+
+/* Markdown links */
+.markdown-link-syntax {
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.markdown-link-syntax:hover {
+  color: var(--auto-link-color);
+}
+
+/* Mentions */
+.mention {
+  color: var(--mention-color);
+  background: var(--mention-bg);
+  padding: 1px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.mention:hover {
+  background: var(--mention-bg-hover);
+}
