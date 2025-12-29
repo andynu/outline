@@ -31,6 +31,24 @@ function generateId(): string {
   return `mock-${Date.now()}-${mockIdCounter++}`;
 }
 
+// Load benchmark data from static file
+async function loadBenchmarkData(): Promise<Node[]> {
+  try {
+    const response = await fetch('/benchmark-data.json');
+    const data = await response.json();
+    const now = new Date().toISOString();
+    // Add missing timestamp fields
+    return data.map((node: Partial<Node>) => ({
+      ...node,
+      created_at: now,
+      updated_at: now,
+    }));
+  } catch (e) {
+    console.error('[API] Failed to load benchmark data:', e);
+    return [];
+  }
+}
+
 function createMockData(): DocumentState {
   const now = new Date().toISOString();
   // Use stable IDs for initial mock data so session state can restore correctly
@@ -152,6 +170,19 @@ export async function loadDocument(docId?: string): Promise<DocumentState> {
     console.log('[API] loaded', result.nodes.length, 'nodes');
     return result;
   }
+
+  // Browser-only mode: check for benchmark query param
+  const useBenchmark = typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).has('benchmark');
+
+  if (useBenchmark) {
+    console.log('[API] load_document via benchmark data');
+    const nodes = await loadBenchmarkData();
+    mockState = { nodes };
+    console.log('[API] loaded', nodes.length, 'benchmark nodes');
+    return mockState;
+  }
+
   console.log('[API] load_document via mock');
   // Browser-only mode: use mock data
   if (mockState.nodes.length === 0) {
