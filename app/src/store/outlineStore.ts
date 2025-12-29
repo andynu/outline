@@ -49,6 +49,8 @@ interface OutlineState {
   updateContent: (nodeId: string, content: string) => Promise<void>;
   deleteNode: (nodeId: string) => Promise<string | null>;
   toggleCollapse: (nodeId: string) => Promise<void>;
+  collapseAll: () => Promise<void>;
+  expandAll: () => Promise<void>;
   indentNode: (nodeId: string) => Promise<boolean>;
   outdentNode: (nodeId: string) => Promise<boolean>;
   swapWithPrevious: (nodeId: string) => Promise<boolean>;
@@ -377,6 +379,54 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     try {
       const state = await api.updateNode(nodeId, { collapsed: !node.collapsed });
       updateFromState(state);
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  collapseAll: async () => {
+    const { nodes, hasChildren, updateFromState } = get();
+
+    // Find all nodes that have children and are not collapsed
+    const toCollapse = nodes.filter(n => hasChildren(n.id) && !n.collapsed);
+    if (toCollapse.length === 0) return;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      // Collapse all in sequence
+      let lastState;
+      for (const node of toCollapse) {
+        lastState = await api.updateNode(node.id, { collapsed: true });
+      }
+      if (lastState) {
+        updateFromState(lastState);
+      }
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  expandAll: async () => {
+    const { nodes, hasChildren, updateFromState } = get();
+
+    // Find all nodes that have children and are collapsed
+    const toExpand = nodes.filter(n => hasChildren(n.id) && n.collapsed);
+    if (toExpand.length === 0) return;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      // Expand all in sequence
+      let lastState;
+      for (const node of toExpand) {
+        lastState = await api.updateNode(node.id, { collapsed: false });
+      }
+      if (lastState) {
+        updateFromState(lastState);
+      }
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
     } finally {

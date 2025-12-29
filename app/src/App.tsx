@@ -118,6 +118,8 @@ function App() {
   const error = useOutlineStore(state => state.error);
   const nodes = useOutlineStore(state => state.nodes);
   const load = useOutlineStore(state => state.load);
+  const collapseAll = useOutlineStore(state => state.collapseAll);
+  const expandAll = useOutlineStore(state => state.expandAll);
 
   // Sidebar ref for refresh
   const sidebarRef = React.useRef<SidebarRef>(null);
@@ -287,11 +289,11 @@ function App() {
   const viewMenuItems: MenuEntry[] = useMemo(() => [
     { label: 'Toggle Sidebar', shortcut: 'Ctrl+B', action: toggleSidebar, separator: false },
     { separator: true },
-    { label: 'Collapse All', shortcut: 'Ctrl+Shift+.', action: () => { /* TODO */ }, separator: false },
-    { label: 'Expand All', action: () => { /* TODO */ }, separator: false },
+    { label: 'Collapse All', shortcut: 'Ctrl+Shift+.', action: collapseAll, separator: false },
+    { label: 'Expand All', shortcut: 'Ctrl+Shift+,', action: expandAll, separator: false },
     { separator: true },
     { label: isDark ? 'Light Mode' : 'Dark Mode', action: toggleTheme, separator: false },
-  ], [toggleSidebar, toggleTheme, isDark]);
+  ], [toggleSidebar, toggleTheme, isDark, collapseAll, expandAll]);
 
   // Help menu items
   const helpMenuItems: MenuEntry[] = useMemo(() => [
@@ -394,11 +396,25 @@ function App() {
         setShowQuickMove(true);
         return;
       }
+
+      // Collapse All (Ctrl+Shift+.)
+      if (mod && event.shiftKey && event.key === '>') {
+        event.preventDefault();
+        collapseAll();
+        return;
+      }
+
+      // Expand All (Ctrl+Shift+,)
+      if (mod && event.shiftKey && event.key === '<') {
+        event.preventDefault();
+        expandAll();
+        return;
+      }
     };
 
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
-  }, [currentDocumentId, handleSave, toggleSidebar]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll]);
 
   // Compute tree from nodes with useMemo for performance
   const tree = useMemo(() => buildTreeFromNodes(nodes), [nodes]);
@@ -523,7 +539,7 @@ function App() {
           </button>
           <button
             className="toolbar-btn"
-            onClick={() => { /* TODO: Collapse all */ }}
+            onClick={collapseAll}
             title="Collapse All (Ctrl+Shift+.)"
             aria-label="Collapse all items"
           >
@@ -538,8 +554,8 @@ function App() {
           </button>
           <button
             className="toolbar-btn"
-            onClick={() => { /* TODO: Expand all */ }}
-            title="Expand All"
+            onClick={expandAll}
+            title="Expand All (Ctrl+Shift+,)"
             aria-label="Expand all items"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
