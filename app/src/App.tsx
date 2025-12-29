@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useOutlineStore } from './store/outlineStore';
 import { OutlineItem } from './components/OutlineItem';
 import { VirtualOutlineList } from './components/VirtualOutlineList';
@@ -14,6 +14,7 @@ import { QuickNavigator } from './components/ui/QuickNavigator';
 import { QuickMove } from './components/ui/QuickMove';
 import { FilterBar } from './components/ui/FilterBar';
 import { ZoomBreadcrumbs } from './components/ui/ZoomBreadcrumbs';
+import { loadSessionState, saveSessionState } from './lib/sessionState';
 import type { InboxItem } from './lib/api';
 import type { Node, TreeNode } from './lib/types';
 import * as api from './lib/api';
@@ -129,14 +130,55 @@ function App() {
   const clearFilter = useOutlineStore(state => state.clearFilter);
   const zoomedNodeId = useOutlineStore(state => state.zoomedNodeId);
   const zoomReset = useOutlineStore(state => state.zoomReset);
+  const zoomTo = useOutlineStore(state => state.zoomTo);
+  const focusedId = useOutlineStore(state => state.focusedId);
+  const setFocusedId = useOutlineStore(state => state.setFocusedId);
+
+  // Ref for scroll position tracking
+  const contentAreaRef = useRef<HTMLElement>(null);
+  const sessionRestored = useRef(false);
 
   // Sidebar ref for refresh
   const sidebarRef = React.useRef<SidebarRef>(null);
 
-  // Load document on mount
+  // Load document on mount - restore from session state if available
   useEffect(() => {
-    load();
-  }, [load]);
+    const restoreSession = async () => {
+      const session = loadSessionState();
+
+      if (session?.documentId) {
+        // Restore the previously open document
+        setCurrentDocumentId(session.documentId);
+        await load(session.documentId);
+
+        // Restore zoom state after document loads
+        if (session.zoomedNodeId) {
+          zoomTo(session.zoomedNodeId);
+        }
+
+        // Restore focus state after document loads
+        if (session.focusedNodeId) {
+          setFocusedId(session.focusedNodeId);
+        }
+
+        // Restore scroll position after a brief delay for DOM to settle
+        if (session.scrollTop !== undefined && contentAreaRef.current) {
+          setTimeout(() => {
+            if (contentAreaRef.current) {
+              contentAreaRef.current.scrollTop = session.scrollTop || 0;
+            }
+          }, 100);
+        }
+      } else {
+        // No session, load default document
+        await load();
+      }
+
+      sessionRestored.current = true;
+    };
+
+    restoreSession();
+  }, [load, zoomTo, setFocusedId]);
 
   // Toggle theme
   const toggleTheme = useCallback(() => {
@@ -156,6 +198,56 @@ function App() {
       setIsDark(false);
       document.documentElement.classList.remove('dark');
     }
+  }, []);
+
+  // Save session state when document changes
+  useEffect(() => {
+    if (!sessionRestored.current) return;
+    if (currentDocumentId) {
+      saveSessionState({ documentId: currentDocumentId });
+    }
+  }, [currentDocumentId]);
+
+  // Save session state when focus changes
+  useEffect(() => {
+    if (!sessionRestored.current) return;
+    saveSessionState({ focusedNodeId: focusedId ?? undefined });
+  }, [focusedId]);
+
+  // Save session state when zoom changes
+  useEffect(() => {
+    if (!sessionRestored.current) return;
+    saveSessionState({ zoomedNodeId: zoomedNodeId ?? undefined });
+  }, [zoomedNodeId]);
+
+  // Track scroll position with debounce
+  useEffect(() => {
+    const contentArea = contentAreaRef.current;
+    if (!contentArea) return;
+
+    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const handleScroll = () => {
+      if (!sessionRestored.current) return;
+
+      // Debounce scroll saves by 300ms
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+      scrollTimeout = setTimeout(() => {
+        saveSessionState({ scrollTop: contentArea.scrollTop });
+        scrollTimeout = null;
+      }, 300);
+    };
+
+    contentArea.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      contentArea.removeEventListener('scroll', handleScroll);
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+    };
   }, []);
 
   // Toggle sidebar
@@ -683,7 +775,7 @@ function App() {
         />
 
         {/* Main Content Area */}
-        <main className="content-area">
+        <main className="content-area" ref={contentAreaRef}>
           <ZoomBreadcrumbs />
           <FilterBar />
           {loading ? (
