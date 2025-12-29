@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>React Tree Benchmark - 1532 nodes</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 20px; }
+    .outline-item { margin-left: 24px; }
+    .item-row { display: flex; align-items: center; padding: 2px 0; }
+    .bullet { width: 20px; text-align: center; color: #666; }
+    .checkbox { width: 14px; height: 14px; margin-right: 6px; }
+    .content { flex: 1; min-height: 24px; line-height: 24px; }
+    .checked { text-decoration: line-through; color: #999; }
+    .stats { position: fixed; top: 10px; right: 10px; background: #f0f0f0; padding: 10px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>React Tree Benchmark</h1>
+  <div id="stats" class="stats">Loading...</div>
+  <div id="root"></div>
+
+  <script id="app-code" type="text/babel">
+    // Build tree structure
+    function buildTree(nodes) {
+      const nodeMap = new Map();
+      const roots = [];
+
+      nodes.forEach(n => {
+        nodeMap.set(n.id, { ...n, children: [] });
+      });
+
+      nodes.forEach(n => {
+        const node = nodeMap.get(n.id);
+        if (n.parent_id && nodeMap.has(n.parent_id)) {
+          nodeMap.get(n.parent_id).children.push(node);
+        } else if (!n.parent_id) {
+          roots.push(node);
+        }
+      });
+
+      const sortChildren = (node) => {
+        node.children.sort((a, b) => a.position - b.position);
+        node.children.forEach(sortChildren);
+      };
+      roots.sort((a, b) => a.position - b.position);
+      roots.forEach(sortChildren);
+
+      return roots;
+    }
+
+    function updateStats(nodes, treeTime, startTime) {
+      const stats = document.getElementById('stats');
+      const endTime = performance.now();
+      stats.textContent = '';
+      const title = document.createElement('strong');
+      title.textContent = 'React 18';
+      stats.appendChild(title);
+      stats.appendChild(document.createElement('br'));
+      stats.appendChild(document.createTextNode(`Nodes: ${nodes.length}`));
+      stats.appendChild(document.createElement('br'));
+      stats.appendChild(document.createTextNode(`Tree build: ${(treeTime - startTime).toFixed(1)}ms`));
+      stats.appendChild(document.createElement('br'));
+      stats.appendChild(document.createTextNode(`Total render: ${(endTime - startTime).toFixed(1)}ms`));
+    }
+
+    // Memoized tree item component
+    const TreeItem = React.memo(function TreeItem({ node, depth }) {
+      const hasChildren = node.children.length > 0;
+
+      return (
+        <div className="outline-item" style={{ marginLeft: depth * 24 }}>
+          <div className="item-row">
+            {node.node_type === 'checkbox' ? (
+              <input
+                type="checkbox"
+                className="checkbox"
+                checked={node.is_checked}
+                readOnly
+              />
+            ) : (
+              <span className="bullet">
+                {hasChildren && node.collapsed ? '◉' : '●'}
+              </span>
+            )}
+            <span className={`content ${node.is_checked ? 'checked' : ''}`}>
+              {node.content || '\u00A0'}
+            </span>
+          </div>
+          {hasChildren && !node.collapsed && (
+            <div className="children">
+              {node.children.map(child => (
+                <TreeItem key={child.id} node={child} depth={0} />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    });
+
+    function App({ tree }) {
+      return (
+        <div>
+          {tree.map(node => (
+            <TreeItem key={node.id} node={node} depth={0} />
+          ))}
+        </div>
+      );
+    }
+
+    // Main render function called after data loads
+    window.renderApp = function(nodes) {
+      const startTime = performance.now();
+      const tree = buildTree(nodes);
+      const treeTime = performance.now();
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App tree={tree} />);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          updateStats(nodes, treeTime, startTime);
+        });
+      });
+    };
+  </script>
+
+  <script>
+    // Load data as JSON then render
+    fetch('/benchmark-data.json')
+      .then(r => r.json())
+      .then(nodes => {
+        // Wait for Babel to process the script
+        setTimeout(() => window.renderApp(nodes), 100);
+      });
+  </script>
+</body>
+</html>

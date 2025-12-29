@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Framework Tree Benchmarks - 1532 nodes</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 40px;
+      max-width: 800px;
+    }
+    h1 { margin-bottom: 10px; }
+    .subtitle { color: #666; margin-bottom: 30px; }
+    .benchmark-list {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    a {
+      display: block;
+      padding: 20px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      text-decoration: none;
+      color: #333;
+      transition: background 0.2s;
+    }
+    a:hover {
+      background: #e8e8e8;
+    }
+    .framework {
+      font-size: 1.2em;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    .description {
+      color: #666;
+      font-size: 0.9em;
+    }
+    .instructions {
+      margin-top: 30px;
+      padding: 20px;
+      background: #fff8e1;
+      border-radius: 8px;
+    }
+    .instructions h3 {
+      margin-top: 0;
+    }
+    code {
+      background: #e8e8e8;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Framework Tree Benchmarks</h1>
+  <p class="subtitle">Rendering 1532 outline nodes in a nested tree structure</p>
+
+  <div class="benchmark-list">
+    <a href="/benchmark">
+      <div class="framework">Svelte 5</div>
+      <div class="description">Compiled reactivity, fine-grained updates (SvelteKit route)</div>
+    </a>
+
+    <a href="/react-benchmark.html">
+      <div class="framework">React 18</div>
+      <div class="description">Virtual DOM with React.memo memoization</div>
+    </a>
+
+    <a href="/solid-benchmark.html">
+      <div class="framework">SolidJS 1.8</div>
+      <div class="description">Fine-grained reactivity, no virtual DOM</div>
+    </a>
+
+    <a href="/vanilla-benchmark.html">
+      <div class="framework">Vanilla JS</div>
+      <div class="description">Pure DOM manipulation baseline (DocumentFragment)</div>
+    </a>
+  </div>
+
+  <div class="instructions">
+    <h3>How to compare</h3>
+    <ol>
+      <li>Open each benchmark in a new tab</li>
+      <li>Hard refresh (<code>Ctrl+Shift+R</code>) to clear cache</li>
+      <li>Note the "Total render" time in the stats box (top-right)</li>
+      <li>Refresh several times to get consistent readings</li>
+    </ol>
+    <p><strong>Note:</strong> These benchmarks measure initial render only. For update performance, consider the actual editing experience in the app.</p>
+  </div>
+</body>
+</html>

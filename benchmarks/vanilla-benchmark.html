@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Vanilla JS Tree Benchmark - 1532 nodes</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 20px; }
+    .outline-item { margin-left: 24px; }
+    .item-row { display: flex; align-items: center; padding: 2px 0; }
+    .bullet { width: 20px; text-align: center; color: #666; }
+    .checkbox { width: 14px; height: 14px; margin-right: 6px; }
+    .content { flex: 1; min-height: 24px; line-height: 24px; }
+    .checked { text-decoration: line-through; color: #999; }
+    .stats { position: fixed; top: 10px; right: 10px; background: #f0f0f0; padding: 10px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Vanilla JS Tree Benchmark</h1>
+  <div id="stats" class="stats">Loading...</div>
+  <div id="root"></div>
+
+  <script type="module">
+    // Load data
+    const response = await fetch('./data.json');
+    const nodes = await response.json();
+
+    // Build tree structure
+    function buildTree(nodes) {
+      const nodeMap = new Map();
+      const roots = [];
+
+      nodes.forEach(n => {
+        nodeMap.set(n.id, { ...n, children: [] });
+      });
+
+      nodes.forEach(n => {
+        const node = nodeMap.get(n.id);
+        if (n.parent_id && nodeMap.has(n.parent_id)) {
+          nodeMap.get(n.parent_id).children.push(node);
+        } else if (!n.parent_id) {
+          roots.push(node);
+        }
+      });
+
+      const sortChildren = (node) => {
+        node.children.sort((a, b) => a.position - b.position);
+        node.children.forEach(sortChildren);
+      };
+      roots.sort((a, b) => a.position - b.position);
+      roots.forEach(sortChildren);
+
+      return roots;
+    }
+
+    // Render tree using DocumentFragment for efficiency
+    function renderNode(node, depth) {
+      const item = document.createElement('div');
+      item.className = 'outline-item';
+      item.style.marginLeft = `${depth * 24}px`;
+
+      const row = document.createElement('div');
+      row.className = 'item-row';
+
+      const hasChildren = node.children.length > 0;
+
+      if (node.node_type === 'checkbox') {
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'checkbox';
+        checkbox.checked = node.is_checked;
+        checkbox.disabled = true;
+        row.appendChild(checkbox);
+      } else {
+        const bullet = document.createElement('span');
+        bullet.className = 'bullet';
+        bullet.textContent = hasChildren && node.collapsed ? '◉' : '●';
+        row.appendChild(bullet);
+      }
+
+      const content = document.createElement('span');
+      content.className = `content${node.is_checked ? ' checked' : ''}`;
+      content.textContent = node.content || '\u00A0';
+      row.appendChild(content);
+
+      item.appendChild(row);
+
+      if (hasChildren && !node.collapsed) {
+        const children = document.createElement('div');
+        children.className = 'children';
+        node.children.forEach(child => {
+          children.appendChild(renderNode(child, 0));
+        });
+        item.appendChild(children);
+      }
+
+      return item;
+    }
+
+    function renderTree(tree) {
+      const fragment = document.createDocumentFragment();
+      tree.forEach(node => {
+        fragment.appendChild(renderNode(node, 0));
+      });
+      return fragment;
+    }
+
+    function updateStats(nodes, treeTime, renderTime, startTime) {
+      const stats = document.getElementById('stats');
+      const endTime = performance.now();
+      stats.textContent = '';
+      const title = document.createElement('strong');
+      title.textContent = 'Vanilla JS';
+      stats.appendChild(title);
+      stats.appendChild(document.createElement('br'));
+      stats.appendChild(document.createTextNode(`Nodes: ${nodes.length}`));
+      stats.appendChild(document.createElement('br'));
+      stats.appendChild(document.createTextNode(`Tree build: ${(treeTime - startTime).toFixed(1)}ms`));
+      stats.appendChild(document.createElement('br'));
+      stats.appendChild(document.createTextNode(`DOM creation: ${(renderTime - treeTime).toFixed(1)}ms`));
+      stats.appendChild(document.createElement('br'));
+      stats.appendChild(document.createTextNode(`Total render: ${(endTime - startTime).toFixed(1)}ms`));
+    }
+
+    // Render with timing
+    const startTime = performance.now();
+    const tree = buildTree(nodes);
+    const treeTime = performance.now();
+
+    const fragment = renderTree(tree);
+    const renderTime = performance.now();
+
+    document.getElementById('root').appendChild(fragment);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        updateStats(nodes, treeTime, renderTime, startTime);
+      });
+    });
+  </script>
+</body>
+</html>

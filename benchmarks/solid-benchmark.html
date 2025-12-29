@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SolidJS Tree Benchmark - 1532 nodes</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 20px; }
+    .outline-item { margin-left: 24px; }
+    .item-row { display: flex; align-items: center; padding: 2px 0; }
+    .bullet { width: 20px; text-align: center; color: #666; }
+    .checkbox { width: 14px; height: 14px; margin-right: 6px; }
+    .content { flex: 1; min-height: 24px; line-height: 24px; }
+    .checked { text-decoration: line-through; color: #999; }
+    .stats { position: fixed; top: 10px; right: 10px; background: #f0f0f0; padding: 10px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>SolidJS Tree Benchmark</h1>
+  <div id="stats" class="stats">Loading...</div>
+  <div id="root"></div>
+
+  <script type="module">
+    import { render } from 'https://esm.sh/solid-js@1.8.7/web';
+    import { For, Show } from 'https://esm.sh/solid-js@1.8.7';
+
+    // Load data
+    const response = await fetch('./data.json');
+    const nodes = await response.json();
+
+    // Build tree structure
+    function buildTree(nodes) {
+      const nodeMap = new Map();
+      const roots = [];
+
+      nodes.forEach(n => {
+        nodeMap.set(n.id, { ...n, children: [] });
+      });
+
+      nodes.forEach(n => {
+        const node = nodeMap.get(n.id);
+        if (n.parent_id && nodeMap.has(n.parent_id)) {
+          nodeMap.get(n.parent_id).children.push(node);
+        } else if (!n.parent_id) {
+          roots.push(node);
+        }
+      });
+
+      const sortChildren = (node) => {
+        node.children.sort((a, b) => a.position - b.position);
+        node.children.forEach(sortChildren);
+      };
+      roots.sort((a, b) => a.position - b.position);
+      roots.forEach(sortChildren);
+
+      return roots;
+    }
+
+    function updateStats(nodes, treeTime, startTime) {
+      const stats = document.getElementById('stats');
+      const endTime = performance.now();
+      stats.textContent = '';
+      const title = document.createElement('strong');
+      title.textContent = 'SolidJS 1.8';
+      stats.appendChild(title);
+      stats.appendChild(document.createElement('br'));
+      stats.appendChild(document.createTextNode(`Nodes: ${nodes.length}`));
+      stats.appendChild(document.createElement('br'));
+      stats.appendChild(document.createTextNode(`Tree build: ${(treeTime - startTime).toFixed(1)}ms`));
+      stats.appendChild(document.createElement('br'));
+      stats.appendChild(document.createTextNode(`Total render: ${(endTime - startTime).toFixed(1)}ms`));
+    }
+
+    // Tree item component
+    function TreeItem(props) {
+      const node = props.node;
+      const hasChildren = node.children.length > 0;
+
+      return (
+        <div class="outline-item" style={{ "margin-left": `${props.depth * 24}px` }}>
+          <div class="item-row">
+            <Show when={node.node_type === 'checkbox'} fallback={
+              <span class="bullet">
+                {hasChildren && node.collapsed ? '◉' : '●'}
+              </span>
+            }>
+              <input
+                type="checkbox"
+                class="checkbox"
+                checked={node.is_checked}
+                readonly
+              />
+            </Show>
+            <span class={`content ${node.is_checked ? 'checked' : ''}`}>
+              {node.content || '\u00A0'}
+            </span>
+          </div>
+          <Show when={hasChildren && !node.collapsed}>
+            <div class="children">
+              <For each={node.children}>
+                {(child) => <TreeItem node={child} depth={0} />}
+              </For>
+            </div>
+          </Show>
+        </div>
+      );
+    }
+
+    function App(props) {
+      return (
+        <div>
+          <For each={props.tree}>
+            {(node) => <TreeItem node={node} depth={0} />}
+          </For>
+        </div>
+      );
+    }
+
+    // Render with timing
+    const startTime = performance.now();
+    const tree = buildTree(nodes);
+    const treeTime = performance.now();
+
+    render(() => <App tree={tree} />, document.getElementById('root'));
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        updateStats(nodes, treeTime, startTime);
+      });
+    });
+  </script>
+</body>
+</html>
