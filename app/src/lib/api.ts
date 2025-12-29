@@ -200,8 +200,8 @@ export async function createNode(
     created_at: now,
     updated_at: now,
   };
-  mockState.nodes.push(newNode);
-  return { id: newId, state: { ...mockState } };
+  mockState.nodes = [...mockState.nodes, newNode];
+  return { id: newId, state: { nodes: [...mockState.nodes] } };
 }
 
 // Create a node with a specific ID (for undo/redo)
@@ -257,12 +257,14 @@ export async function updateNode(id: string, changes: NodeChanges): Promise<Docu
   }
   console.log('[API] update_node via mock:', id, changes);
 
-  // Browser-only mode: update in memory
-  const node = mockState.nodes.find(n => n.id === id);
-  if (node) {
-    Object.assign(node, changes, { updated_at: new Date().toISOString() });
-  }
-  return { ...mockState };
+  // Browser-only mode: update in memory with new array reference
+  mockState.nodes = mockState.nodes.map(n => {
+    if (n.id === id) {
+      return { ...n, ...changes, updated_at: new Date().toISOString() };
+    }
+    return n;
+  });
+  return { nodes: [...mockState.nodes] };
 }
 
 // Move a node to new parent/position
@@ -276,14 +278,14 @@ export async function moveNode(
     return tauriInvoke('move_node', { id, parentId, position }) as Promise<DocumentState>;
   }
 
-  // Browser-only mode: update in memory
-  const node = mockState.nodes.find(n => n.id === id);
-  if (node) {
-    node.parent_id = parentId;
-    node.position = position;
-    node.updated_at = new Date().toISOString();
-  }
-  return { ...mockState };
+  // Browser-only mode: update in memory with new array reference
+  mockState.nodes = mockState.nodes.map(n => {
+    if (n.id === id) {
+      return { ...n, parent_id: parentId, position, updated_at: new Date().toISOString() };
+    }
+    return n;
+  });
+  return { nodes: [...mockState.nodes] };
 }
 
 // Delete a node and its descendants
@@ -310,7 +312,7 @@ export async function deleteNode(id: string): Promise<DocumentState> {
   }
 
   mockState.nodes = mockState.nodes.filter(n => !toDelete.has(n.id));
-  return { ...mockState };
+  return { nodes: [...mockState.nodes] };
 }
 
 // Compact document (merge pending into state.json)

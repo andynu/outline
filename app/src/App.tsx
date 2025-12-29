@@ -1,86 +1,102 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useOutlineStore } from './store/outlineStore';
 import { OutlineItem } from './components/OutlineItem';
 import { VirtualOutlineList } from './components/VirtualOutlineList';
-import type { Node } from './lib/types';
+import type { Node, TreeNode } from './lib/types';
+
+// Build tree from nodes array
+function buildTreeFromNodes(nodes: Node[]): TreeNode[] {
+  const childrenByParent = new Map<string | null, Node[]>();
+
+  for (const node of nodes) {
+    const parentId = node.parent_id;
+    const siblings = childrenByParent.get(parentId) ?? [];
+    siblings.push(node);
+    childrenByParent.set(parentId, siblings);
+  }
+
+  for (const children of childrenByParent.values()) {
+    children.sort((a, b) => a.position - b.position);
+  }
+
+  function buildLevel(parentId: string | null, depth: number): TreeNode[] {
+    const children = childrenByParent.get(parentId) ?? [];
+    return children.map(node => {
+      const nodeChildren = childrenByParent.get(node.id) ?? [];
+      const hasChildren = nodeChildren.length > 0;
+      return {
+        node,
+        depth,
+        hasChildren,
+        children: hasChildren && !node.collapsed
+          ? buildLevel(node.id, depth + 1)
+          : []
+      };
+    });
+  }
+
+  return buildLevel(null, 0);
+}
 
 function App() {
-  const [stats, setStats] = useState({ nodes: 0, treeTime: 0, totalTime: 0 });
-  const [loading, setLoading] = useState(true);
-  const [useVirtual, setUseVirtual] = useState(true);
+  const [useVirtual, setUseVirtual] = useState(false);
 
-  const setNodes = useOutlineStore(state => state.setNodes);
-  const getTree = useOutlineStore(state => state.getTree);
-  const getFlatList = useOutlineStore(state => state.getFlatList);
+  // Store state and actions
+  const loading = useOutlineStore(state => state.loading);
+  const error = useOutlineStore(state => state.error);
+  const nodes = useOutlineStore(state => state.nodes);
+  const load = useOutlineStore(state => state.load);
 
+  // Load document on mount
   useEffect(() => {
-    async function loadData() {
-      const startTime = performance.now();
+    load();
+  }, [load]);
 
-      // Load benchmark data
-      const response = await fetch('/benchmark-data.json');
-      const nodes: Node[] = await response.json();
-
-      const treeTime = performance.now();
-      setNodes(nodes);
-      setLoading(false);
-
-      // Wait for React to render
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const endTime = performance.now();
-          setStats({
-            nodes: nodes.length,
-            treeTime: treeTime - startTime,
-            totalTime: endTime - startTime
-          });
-        });
-      });
+  // Compute tree from nodes with useMemo for performance
+  const tree = useMemo(() => buildTreeFromNodes(nodes), [nodes]);
+  const visibleCount = useMemo(() => {
+    function count(items: TreeNode[]): number {
+      return items.reduce((sum, item) => sum + 1 + count(item.children), 0);
     }
+    return count(tree);
+  }, [tree]);
 
-    loadData();
-  }, [setNodes]);
+  if (loading) {
+    return (
+      <div className="app">
+        <div className="loading">Loading...</div>
+      </div>
+    );
+  }
 
-  const tree = getTree();
-  const flatList = getFlatList();
+  if (error) {
+    return (
+      <div className="app">
+        <div className="error">Error: {error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
       <div className="stats">
-        {loading ? (
-          'Loading...'
-        ) : (
-          <>
-            <strong>React 18 {useVirtual ? '(Virtual)' : '(Full)'}</strong><br />
-            Nodes: {stats.nodes}<br />
-            Visible: {flatList.length}<br />
-            Data load: {stats.treeTime.toFixed(1)}ms<br />
-            Total render: {stats.totalTime.toFixed(1)}ms
-            <div style={{ marginTop: '10px' }}>
-              <button
-                onClick={() => {
-                  const start = performance.now();
-                  setUseVirtual(!useVirtual);
-                  requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                      const elapsed = performance.now() - start;
-                      setStats(s => ({ ...s, totalTime: elapsed }));
-                    });
-                  });
-                }}
-                style={{
-                  padding: '4px 8px',
-                  cursor: 'pointer',
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--border-primary)',
-                  borderRadius: '4px',
-                }}
-              >
-                Toggle: {useVirtual ? 'Virtual' : 'Full'}
-              </button>
-            </div>
-          </>
-        )}
+        <strong>React 18 {useVirtual ? '(Virtual)' : '(Tree)'}</strong><br />
+        Nodes: {nodes.length}<br />
+        Visible: {visibleCount}
+        <div style={{ marginTop: '10px' }}>
+          <button
+            onClick={() => setUseVirtual(!useVirtual)}
+            style={{
+              padding: '4px 8px',
+              cursor: 'pointer',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-primary)',
+              borderRadius: '4px',
+            }}
+          >
+            Toggle: {useVirtual ? 'Virtual' : 'Tree'}
+          </button>
+        </div>
       </div>
 
       <h1>Outline - React 18</h1>
