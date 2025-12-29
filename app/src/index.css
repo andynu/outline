@@ -17,3 +17,79 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
 }
+
+/* App layout */
+.app {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.stats {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: var(--bg-tertiary);
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 100;
+}
+
+/* Outline styles */
+.outline-container {
+  margin-top: 20px;
+}
+
+.outline-item {
+  user-select: none;
+}
+
+.item-row {
+  display: flex;
+  align-items: center;
+  padding: 2px 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.item-row:hover {
+  background: var(--bg-tertiary);
+}
+
+.outline-item.focused > .item-row {
+  background: var(--selection-bg);
+}
+
+.bullet {
+  width: 20px;
+  text-align: center;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.checkbox {
+  width: 20px;
+  text-align: center;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.checkbox.checked {
+  color: var(--checkbox-checked-bg);
+}
+
+.content {
+  flex: 1;
+  min-height: 24px;
+  line-height: 24px;
+}
+
+.content.checked {
+  text-decoration: line-through;
+  color: var(--text-tertiary);
+}
+
+.children {
+  /* Children are indented via marginLeft on outline-item */
+}
