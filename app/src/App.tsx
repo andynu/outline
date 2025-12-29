@@ -402,18 +402,49 @@ function App() {
     setOpenMenu(null);
   }, []);
 
+  // Export handlers
+  const handleExportOpml = useCallback(async () => {
+    try {
+      const title = nodes.find(n => !n.parent_id)?.content?.replace(/<[^>]*>/g, '') || 'Outline';
+      const content = await api.exportOpml(title);
+      await api.saveToFileWithDialog(content, `${title}.opml`, 'opml');
+    } catch (e) {
+      console.error('Export OPML failed:', e);
+    }
+  }, [nodes]);
+
+  const handleExportMarkdown = useCallback(async () => {
+    try {
+      const title = nodes.find(n => !n.parent_id)?.content?.replace(/<[^>]*>/g, '') || 'Outline';
+      const content = await api.exportMarkdown();
+      await api.saveToFileWithDialog(content, `${title}.md`, 'md');
+    } catch (e) {
+      console.error('Export Markdown failed:', e);
+    }
+  }, [nodes]);
+
+  const handleExportJson = useCallback(async () => {
+    try {
+      const title = nodes.find(n => !n.parent_id)?.content?.replace(/<[^>]*>/g, '') || 'Outline';
+      const content = await api.exportJson();
+      await api.saveToFileWithDialog(content, `${title}.json`, 'json');
+    } catch (e) {
+      console.error('Export JSON failed:', e);
+    }
+  }, [nodes]);
+
   // File menu items
   const fileMenuItems: MenuEntry[] = useMemo(() => [
     { label: 'New Document', shortcut: 'Ctrl+N', action: handleNewDocument, separator: false },
     { separator: true },
     { label: 'Save', shortcut: 'Ctrl+S', action: handleSave, separator: false },
     { separator: true },
-    { label: 'Export OPML', action: () => { /* TODO */ }, separator: false },
-    { label: 'Export Markdown', action: () => { /* TODO */ }, separator: false },
-    { label: 'Export JSON', action: () => { /* TODO */ }, separator: false },
+    { label: 'Export OPML', action: handleExportOpml, separator: false },
+    { label: 'Export Markdown', action: handleExportMarkdown, separator: false },
+    { label: 'Export JSON', action: handleExportJson, separator: false },
     { separator: true },
-    { label: 'Import OPML...', action: () => { /* TODO */ }, separator: false },
-  ], [handleNewDocument, handleSave]);
+    { label: 'Import OPML...', action: () => { /* TODO - otl-1gp8.13 */ }, separator: false },
+  ], [handleNewDocument, handleSave, handleExportOpml, handleExportMarkdown, handleExportJson]);
 
   // View menu items
   const viewMenuItems: MenuEntry[] = useMemo(() => [
