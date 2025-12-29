@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import type { Node, TreeNode } from '../lib/types';
 
+// Flat item for virtual list rendering
+export interface FlatItem {
+  node: Node;
+  depth: number;
+  hasChildren: boolean;
+}
+
 interface OutlineState {
   // Core state
   nodes: Node[];
@@ -18,6 +25,7 @@ interface OutlineState {
 
   // Computed
   getTree: () => TreeNode[];
+  getFlatList: () => FlatItem[];
   getNode: (id: string) => Node | undefined;
   hasChildren: (id: string) => boolean;
 }
@@ -72,6 +80,30 @@ function rebuildIndexes(nodes: Node[]) {
   return { nodesById, childrenByParent };
 }
 
+// Flatten tree into a list for virtualization
+function flattenTree(
+  childrenByParent: Map<string | null, Node[]>,
+  parentId: string | null,
+  depth: number
+): FlatItem[] {
+  const children = childrenByParent.get(parentId) ?? [];
+  const result: FlatItem[] = [];
+
+  for (const node of children) {
+    const nodeChildren = childrenByParent.get(node.id) ?? [];
+    const hasChildren = nodeChildren.length > 0;
+
+    result.push({ node, depth, hasChildren });
+
+    // Recursively add children if not collapsed
+    if (hasChildren && !node.collapsed) {
+      result.push(...flattenTree(childrenByParent, node.id, depth + 1));
+    }
+  }
+
+  return result;
+}
+
 export const useOutlineStore = create<OutlineState>((set, get) => ({
   nodes: [],
   focusedId: null,
@@ -94,6 +126,11 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   getTree: () => {
     const { nodes, _childrenByParent } = get();
     return buildTree(nodes, _childrenByParent, null, 0);
+  },
+
+  getFlatList: () => {
+    const { _childrenByParent } = get();
+    return flattenTree(_childrenByParent, null, 0);
   },
 
   getNode: (id) => get()._nodesById.get(id),
