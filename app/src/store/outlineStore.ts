@@ -165,7 +165,8 @@ function rebuildIndexes(nodes: Node[]) {
 
   // Second pass: build children map
   for (const node of nodes) {
-    const parentId = node.parent_id;
+    // Normalize undefined to null for root nodes
+    const parentId = node.parent_id ?? null;
     const siblings = childrenByParent.get(parentId) ?? [];
     siblings.push(node);
     childrenByParent.set(parentId, siblings);
@@ -343,7 +344,22 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   // === Computed getters ===
 
   getTree: () => {
-    const { _childrenByParent, _nodesById, hideCompleted, filterQuery, zoomedNodeId } = get();
+    const { _childrenByParent, _nodesById, hideCompleted, filterQuery, zoomedNodeId, nodes } = get();
+
+    // Debug: Check for root nodes
+    const rootNodes = _childrenByParent.get(null) ?? [];
+    if (nodes.length > 0 && rootNodes.length === 0) {
+      console.error('[getTree] BUG: No root nodes found! All nodes have parent_id set.');
+      console.log('[getTree] Total nodes:', nodes.length);
+      console.log('[getTree] Sample node parent_ids:', nodes.slice(0, 5).map(n => ({ id: n.id, parent_id: n.parent_id })));
+
+      // Find orphan roots - nodes whose parent doesn't exist
+      const orphanRoots = nodes.filter(n => n.parent_id && !_nodesById.has(n.parent_id));
+      if (orphanRoots.length > 0) {
+        console.log('[getTree] Found orphan roots (parent missing):', orphanRoots.length);
+      }
+    }
+
     return buildTree(_childrenByParent, null, 0, hideCompleted, filterQuery, _nodesById, zoomedNodeId);
   },
 
