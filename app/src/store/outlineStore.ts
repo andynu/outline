@@ -1,6 +1,9 @@
 import { create } from 'zustand';
-import type { Node, TreeNode, DocumentState } from '../lib/types';
+import type { Node, TreeNode, DocumentState, UndoEntry, UndoAction, NodeChanges } from '../lib/types';
 import * as api from '../lib/api';
+
+// Constants
+const MAX_UNDO_STACK_SIZE = 100;
 
 // Flat item for virtual list rendering
 export interface FlatItem {
@@ -19,6 +22,10 @@ interface OutlineState {
   hideCompleted: boolean;
   filterQuery: string | null;  // Hashtag filter, e.g., "#project"
   zoomedNodeId: string | null;  // Subtree zoom - show only this node's children
+
+  // Undo/Redo stacks
+  _undoStack: UndoEntry[];
+  _redoStack: UndoEntry[];
 
   // Cached indexes (rebuilt when nodes change)
   _nodesById: Map<string, Node>;
@@ -69,6 +76,15 @@ interface OutlineState {
   toggleCheckbox: (nodeId: string) => Promise<boolean>;
   toggleNodeType: (nodeId: string) => Promise<boolean>;
   moveNodeTo: (nodeId: string, newParentId: string | null, newPosition: number) => Promise<boolean>;
+
+  // Undo/Redo
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+  undo: () => Promise<boolean>;
+  redo: () => Promise<boolean>;
+  clearUndoHistory: () => void;
+  _pushUndo: (entry: UndoEntry) => void;
+  _executeUndoAction: (action: UndoAction) => Promise<boolean>;
 }
 
 // Check if a node matches the filter query
@@ -262,6 +278,8 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     : false,
   filterQuery: null,
   zoomedNodeId: null,
+  _undoStack: [],
+  _redoStack: [],
   _nodesById: new Map(),
   _childrenByParent: new Map(),
 
@@ -484,7 +502,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   addSiblingAfter: async (nodeId: string) => {
-    const { getNode, getSiblings, updateFromState } = get();
+    const { getNode, getSiblings, updateFromState, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node) return null;
 
@@ -502,6 +520,18 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       const result = await api.createNode(node.parent_id, newPosition, '');
       updateFromState(result.state);
       set({ focusedId: result.id });
+
+      // Get the newly created node for undo
+      const newNode = get()._nodesById.get(result.id);
+      if (newNode) {
+        _pushUndo({
+          description: 'Create item',
+          undo: { type: 'delete', id: result.id },
+          redo: { type: 'create', node: { ...newNode } },
+          timestamp: Date.now(),
+        });
+      }
+
       return result.id;
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
@@ -524,17 +554,29 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   deleteNode: async (nodeId: string) => {
-    const { getVisibleNodes, updateFromState } = get();
+    const { getVisibleNodes, updateFromState, _pushUndo, getNode } = get();
     const visible = getVisibleNodes();
     const idx = visible.findIndex(n => n.id === nodeId);
 
     // Don't delete the last node
     if (visible.length <= 1) return null;
 
+    // Save node for undo before deleting
+    const savedNode = getNode(nodeId);
+    if (!savedNode) return null;
+
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
       const state = await api.deleteNode(nodeId);
       updateFromState(state);
+
+      // Push undo entry
+      _pushUndo({
+        description: 'Delete item',
+        undo: { type: 'create', node: { ...savedNode } },
+        redo: { type: 'delete', id: nodeId },
+        timestamp: Date.now(),
+      });
 
       // Focus previous or next
       const newFocusId = visible[idx - 1]?.id || visible[idx + 1]?.id;
@@ -603,17 +645,27 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   toggleCollapse: async (nodeId: string) => {
-    const { getNode, hasChildren, updateFromState } = get();
+    const { getNode, hasChildren, updateFromState, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node) return;
 
     // Only collapse if has children
     if (!hasChildren(nodeId)) return;
 
+    const wasCollapsed = node.collapsed;
+
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      const state = await api.updateNode(nodeId, { collapsed: !node.collapsed });
+      const state = await api.updateNode(nodeId, { collapsed: !wasCollapsed });
       updateFromState(state);
+
+      // Push undo entry
+      _pushUndo({
+        description: wasCollapsed ? 'Expand item' : 'Collapse item',
+        undo: { type: 'update', id: nodeId, changes: { collapsed: wasCollapsed } },
+        redo: { type: 'update', id: nodeId, changes: { collapsed: !wasCollapsed } },
+        timestamp: Date.now(),
+      });
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -702,7 +754,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   indentNode: async (nodeId: string) => {
-    const { getNode, getSiblings, childrenOf, updateFromState, toggleCollapse } = get();
+    const { getNode, getSiblings, childrenOf, updateFromState, toggleCollapse, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node) return false;
 
@@ -712,6 +764,8 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     // Can't indent first child
     if (idx === 0) return false;
 
+    const oldParentId = node.parent_id;
+    const oldPosition = node.position;
     const newParent = siblings[idx - 1];
     const newPosition = childrenOf(newParent.id).length;
 
@@ -719,6 +773,14 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     try {
       const state = await api.moveNode(nodeId, newParent.id, newPosition);
       updateFromState(state);
+
+      // Push undo entry
+      _pushUndo({
+        description: 'Indent item',
+        undo: { type: 'move', id: nodeId, parentId: oldParentId, position: oldPosition },
+        redo: { type: 'move', id: nodeId, parentId: newParent.id, position: newPosition },
+        timestamp: Date.now(),
+      });
 
       // Uncollapse new parent so we can see the moved node
       if (newParent.collapsed) {
@@ -735,24 +797,37 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   outdentNode: async (nodeId: string) => {
-    const { getNode, getParent, rootNodes, childrenOf, updateFromState } = get();
+    const { getNode, getParent, rootNodes, childrenOf, updateFromState, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node || !node.parent_id) return false;
 
     const parent = getParent(nodeId);
     if (!parent) return false;
 
+    const oldParentId = node.parent_id;
+    const oldPosition = node.position;
+
     // Position after parent in grandparent's children
     const grandparentChildren = parent.parent_id === null
       ? rootNodes()
       : childrenOf(parent.parent_id);
     const parentIdx = grandparentChildren.findIndex(n => n.id === parent.id);
+    const newParentId = parent.parent_id;
     const newPosition = parentIdx + 1;
 
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      const state = await api.moveNode(nodeId, parent.parent_id, newPosition);
+      const state = await api.moveNode(nodeId, newParentId, newPosition);
       updateFromState(state);
+
+      // Push undo entry
+      _pushUndo({
+        description: 'Outdent item',
+        undo: { type: 'move', id: nodeId, parentId: oldParentId, position: oldPosition },
+        redo: { type: 'move', id: nodeId, parentId: newParentId, position: newPosition },
+        timestamp: Date.now(),
+      });
+
       return true;
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
@@ -763,7 +838,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   swapWithPrevious: async (nodeId: string) => {
-    const { getNode, getSiblings, updateFromState, focusedId } = get();
+    const { getNode, getSiblings, updateFromState, focusedId, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node) return false;
 
@@ -783,6 +858,14 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       const state = await api.moveNode(prevNode.id, prevNode.parent_id, nodeOldPosition);
       updateFromState(state);
 
+      // Push undo entry - undo swaps them back to original positions
+      _pushUndo({
+        description: 'Move item up',
+        undo: { type: 'swap', id: nodeId, position: nodeOldPosition, otherId: prevNode.id, otherPosition: prevNodeOldPosition },
+        redo: { type: 'swap', id: nodeId, position: prevNodeOldPosition, otherId: prevNode.id, otherPosition: nodeOldPosition },
+        timestamp: Date.now(),
+      });
+
       // Force focus update after DOM reorder
       set({ focusedId: null });
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -798,7 +881,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   swapWithNext: async (nodeId: string) => {
-    const { getNode, getSiblings, updateFromState, focusedId } = get();
+    const { getNode, getSiblings, updateFromState, focusedId, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node) return false;
 
@@ -818,6 +901,14 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       const state = await api.moveNode(nextNode.id, nextNode.parent_id, nodeOldPosition);
       updateFromState(state);
 
+      // Push undo entry - undo swaps them back to original positions
+      _pushUndo({
+        description: 'Move item down',
+        undo: { type: 'swap', id: nodeId, position: nodeOldPosition, otherId: nextNode.id, otherPosition: nextNodeOldPosition },
+        redo: { type: 'swap', id: nodeId, position: nextNodeOldPosition, otherId: nextNode.id, otherPosition: nodeOldPosition },
+        timestamp: Date.now(),
+      });
+
       // Force focus update after DOM reorder
       set({ focusedId: null });
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -833,14 +924,26 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   toggleCheckbox: async (nodeId: string) => {
-    const { getNode, updateFromState } = get();
+    const { getNode, updateFromState, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node) return false;
 
+    const oldIsChecked = node.is_checked;
+    const newIsChecked = !oldIsChecked;
+
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      const state = await api.updateNode(nodeId, { is_checked: !node.is_checked });
+      const state = await api.updateNode(nodeId, { is_checked: newIsChecked });
       updateFromState(state);
+
+      // Push undo entry
+      _pushUndo({
+        description: newIsChecked ? 'Complete item' : 'Uncomplete item',
+        undo: { type: 'update', id: nodeId, changes: { is_checked: oldIsChecked } },
+        redo: { type: 'update', id: nodeId, changes: { is_checked: newIsChecked } },
+        timestamp: Date.now(),
+      });
+
       return true;
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
@@ -851,18 +954,31 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   toggleNodeType: async (nodeId: string) => {
-    const { getNode, updateFromState } = get();
+    const { getNode, updateFromState, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node) return false;
 
+    const oldType = node.node_type;
+    const oldIsChecked = node.is_checked;
+    const newType = oldType === 'checkbox' ? 'bullet' : 'checkbox';
+    const newIsChecked = newType === 'checkbox' ? oldIsChecked : false;
+
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      const newType = node.node_type === 'checkbox' ? 'bullet' : 'checkbox';
       const state = await api.updateNode(nodeId, {
         node_type: newType,
-        is_checked: newType === 'checkbox' ? node.is_checked : false,
+        is_checked: newIsChecked,
       });
       updateFromState(state);
+
+      // Push undo entry
+      _pushUndo({
+        description: newType === 'checkbox' ? 'Convert to checkbox' : 'Convert to bullet',
+        undo: { type: 'update', id: nodeId, changes: { node_type: oldType, is_checked: oldIsChecked } },
+        redo: { type: 'update', id: nodeId, changes: { node_type: newType, is_checked: newIsChecked } },
+        timestamp: Date.now(),
+      });
+
       return true;
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
@@ -873,17 +989,28 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   moveNodeTo: async (nodeId: string, newParentId: string | null, newPosition: number) => {
-    const { getNode, updateFromState, toggleCollapse } = get();
+    const { getNode, updateFromState, toggleCollapse, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node) return false;
 
     // Don't move if nothing changed
     if (node.parent_id === newParentId && node.position === newPosition) return true;
 
+    const oldParentId = node.parent_id;
+    const oldPosition = node.position;
+
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
       const state = await api.moveNode(nodeId, newParentId, newPosition);
       updateFromState(state);
+
+      // Push undo entry
+      _pushUndo({
+        description: 'Move item',
+        undo: { type: 'move', id: nodeId, parentId: oldParentId, position: oldPosition },
+        redo: { type: 'move', id: nodeId, parentId: newParentId, position: newPosition },
+        timestamp: Date.now(),
+      });
 
       // Uncollapse new parent so we can see the moved node
       if (newParentId) {
@@ -894,6 +1021,153 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       }
 
       return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  // === Undo/Redo ===
+
+  canUndo: () => get()._undoStack.length > 0,
+  canRedo: () => get()._redoStack.length > 0,
+
+  _pushUndo: (entry: UndoEntry) => {
+    set(state => {
+      const newStack = [...state._undoStack, entry];
+      // Limit stack size
+      if (newStack.length > MAX_UNDO_STACK_SIZE) {
+        newStack.shift();
+      }
+      return {
+        _undoStack: newStack,
+        _redoStack: [], // Clear redo stack on new action
+      };
+    });
+  },
+
+  undo: async () => {
+    const { _undoStack, pendingOperations, _executeUndoAction } = get();
+    if (pendingOperations > 0) return false; // Can't undo while saving
+    if (_undoStack.length === 0) return false;
+
+    // Pop from undo stack
+    const entry = _undoStack[_undoStack.length - 1];
+    set(state => ({
+      _undoStack: state._undoStack.slice(0, -1),
+    }));
+
+    const success = await _executeUndoAction(entry.undo);
+    if (success) {
+      // Push to redo stack
+      set(state => ({
+        _redoStack: [...state._redoStack, entry],
+      }));
+    } else {
+      // Restore to undo stack if failed
+      set(state => ({
+        _undoStack: [...state._undoStack, entry],
+      }));
+    }
+    return success;
+  },
+
+  redo: async () => {
+    const { _redoStack, pendingOperations, _executeUndoAction } = get();
+    if (pendingOperations > 0) return false; // Can't redo while saving
+    if (_redoStack.length === 0) return false;
+
+    // Pop from redo stack
+    const entry = _redoStack[_redoStack.length - 1];
+    set(state => ({
+      _redoStack: state._redoStack.slice(0, -1),
+    }));
+
+    const success = await _executeUndoAction(entry.redo);
+    if (success) {
+      // Push to undo stack
+      set(state => ({
+        _undoStack: [...state._undoStack, entry],
+      }));
+    } else {
+      // Restore to redo stack if failed
+      set(state => ({
+        _redoStack: [...state._redoStack, entry],
+      }));
+    }
+    return success;
+  },
+
+  clearUndoHistory: () => {
+    set({ _undoStack: [], _redoStack: [] });
+  },
+
+  _executeUndoAction: async (action: UndoAction) => {
+    const { updateFromState, _nodesById } = get();
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      switch (action.type) {
+        case 'create': {
+          // Recreate a deleted node
+          await api.createNodeWithId(
+            action.node.id,
+            action.node.parent_id,
+            action.node.position,
+            action.node.content,
+            action.node.node_type
+          );
+          // Apply additional properties if they exist
+          if (action.node.note || action.node.date || action.node.is_checked || action.node.collapsed) {
+            await api.updateNode(action.node.id, {
+              note: action.node.note,
+              date: action.node.date,
+              date_recurrence: action.node.date_recurrence,
+              is_checked: action.node.is_checked,
+              collapsed: action.node.collapsed,
+              color: action.node.color,
+              tags: action.node.tags,
+            });
+          }
+          const state = await api.loadDocument();
+          updateFromState(state);
+          set({ focusedId: action.node.id });
+          return true;
+        }
+        case 'delete': {
+          // Delete a node
+          const state = await api.deleteNode(action.id);
+          updateFromState(state);
+          return true;
+        }
+        case 'update': {
+          // Apply a field update
+          const state = await api.updateNode(action.id, action.changes);
+          updateFromState(state);
+          return true;
+        }
+        case 'move': {
+          // Move a node
+          const state = await api.moveNode(action.id, action.parentId, action.position);
+          updateFromState(state);
+          return true;
+        }
+        case 'swap': {
+          // Swap two nodes' positions
+          const node = _nodesById.get(action.id);
+          const otherNode = _nodesById.get(action.otherId);
+          if (!node || !otherNode) return false;
+          // Move both nodes to their target positions
+          await api.moveNode(action.id, node.parent_id, action.position);
+          const state = await api.moveNode(action.otherId, otherNode.parent_id, action.otherPosition);
+          updateFromState(state);
+          return true;
+        }
+        default:
+          return false;
+      }
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
       return false;

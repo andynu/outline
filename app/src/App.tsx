@@ -98,6 +98,8 @@ function App() {
   const setFilterQuery = useOutlineStore(state => state.setFilterQuery);
   const clearFilter = useOutlineStore(state => state.clearFilter);
   const zoomedNodeId = useOutlineStore(state => state.zoomedNodeId);
+  const undo = useOutlineStore(state => state.undo);
+  const redo = useOutlineStore(state => state.redo);
   const zoomReset = useOutlineStore(state => state.zoomReset);
   const zoomTo = useOutlineStore(state => state.zoomTo);
   const focusedId = useOutlineStore(state => state.focusedId);
@@ -481,6 +483,20 @@ function App() {
         return;
       }
 
+      // Undo
+      if (mod && !event.shiftKey && event.key === 'z') {
+        event.preventDefault();
+        undo();
+        return;
+      }
+
+      // Redo (Ctrl+Y or Ctrl+Shift+Z)
+      if (mod && (event.key === 'y' || (event.shiftKey && event.key === 'Z'))) {
+        event.preventDefault();
+        redo();
+        return;
+      }
+
       // Save
       if (mod && event.key === 's') {
         event.preventDefault();
@@ -592,7 +608,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
