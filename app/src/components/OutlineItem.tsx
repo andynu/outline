@@ -286,7 +286,8 @@ export const OutlineItem = memo(function OutlineItem({
         editorRef.current = null;
       }
     };
-  }, [isFocused, node.id, node.content]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFocused, node.id]); // Intentionally omit node.content - editor syncs content via onUpdate
 
   // Sync content from store to editor when it changes externally
   useEffect(() => {
