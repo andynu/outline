@@ -2220,3 +2220,134 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+/* Date Views Modal */
+.date-views-modal {
+  width: 500px;
+}
+
+.date-views-modal .view-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-tertiary);
+}
+
+.date-views-modal .view-tab {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.date-views-modal .view-tab:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.date-views-modal .view-tab.active {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.date-views-modal .count {
+  background: var(--btn-secondary-bg);
+  color: var(--text-secondary);
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.date-views-modal .count.overdue {
+  background: var(--date-overdue-bg);
+  color: var(--date-overdue);
+}
+
+.date-views-modal .results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  max-height: 400px;
+}
+
+.date-views-modal .empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+
+.date-views-modal .result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.date-views-modal .result-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.date-views-modal .result-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.date-views-modal .checkbox-indicator {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--checkbox-border);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: transparent;
+  flex-shrink: 0;
+}
+
+.date-views-modal .checkbox-indicator.checked {
+  background: var(--checkbox-checked-bg);
+  border-color: var(--checkbox-checked-bg);
+  color: white;
+}
+
+.date-views-modal .content-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.date-views-modal .content-text.strikethrough {
+  text-decoration: line-through;
+  color: var(--text-tertiary);
+}
+
+.date-views-modal .modal-footer .hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}

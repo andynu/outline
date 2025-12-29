@@ -7,6 +7,7 @@ import { MenuDropdown, type MenuEntry } from './components/ui/MenuDropdown';
 import { KeyboardShortcutsModal } from './components/ui/KeyboardShortcutsModal';
 import { SettingsModal } from './components/ui/SettingsModal';
 import { SearchModal } from './components/ui/SearchModal';
+import { DateViewsPanel } from './components/ui/DateViewsPanel';
 import type { Node, TreeNode } from './lib/types';
 import * as api from './lib/api';
 import React from 'react';
@@ -94,6 +95,7 @@ function App() {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showDateViews, setShowDateViews] = useState(false);
   const [searchDocumentScope, setSearchDocumentScope] = useState<string | undefined>();
   const [searchInitialQuery, setSearchInitialQuery] = useState('');
 
@@ -185,6 +187,12 @@ function App() {
     setShowSearchModal(false);
   }, [currentDocumentId, load]);
 
+  // Handle date views navigation (same document only)
+  const handleDateViewNavigate = useCallback((nodeId: string) => {
+    useOutlineStore.getState().setFocusedId(nodeId);
+    setShowDateViews(false);
+  }, []);
+
   // Menu dropdown handlers
   const openMenuDropdown = useCallback((menu: string) => {
     setOpenMenu(menu);
@@ -272,6 +280,13 @@ function App() {
       if (mod && event.key === ',') {
         event.preventDefault();
         setShowSettings(true);
+        return;
+      }
+
+      // Date Views
+      if (mod && event.shiftKey && event.key === 'T') {
+        event.preventDefault();
+        setShowDateViews(true);
         return;
       }
     };
@@ -369,7 +384,7 @@ function App() {
           </button>
           <button
             className="toolbar-btn"
-            onClick={() => { /* TODO: Date Views */ }}
+            onClick={() => setShowDateViews(true)}
             title="Date Views (Ctrl+Shift+T)"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -574,6 +589,12 @@ function App() {
       <SettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
+      />
+
+      <DateViewsPanel
+        isOpen={showDateViews}
+        onClose={() => setShowDateViews(false)}
+        onNavigate={handleDateViewNavigate}
       />
     </div>
   );
