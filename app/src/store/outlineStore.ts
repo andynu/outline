@@ -55,6 +55,7 @@ interface OutlineState {
   swapWithNext: (nodeId: string) => Promise<boolean>;
   toggleCheckbox: (nodeId: string) => Promise<boolean>;
   toggleNodeType: (nodeId: string) => Promise<boolean>;
+  moveNodeTo: (nodeId: string, newParentId: string | null, newPosition: number) => Promise<boolean>;
 }
 
 // Build tree structure from flat nodes
@@ -545,6 +546,36 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         is_checked: newType === 'checkbox' ? node.is_checked : false,
       });
       updateFromState(state);
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  moveNodeTo: async (nodeId: string, newParentId: string | null, newPosition: number) => {
+    const { getNode, updateFromState, toggleCollapse } = get();
+    const node = getNode(nodeId);
+    if (!node) return false;
+
+    // Don't move if nothing changed
+    if (node.parent_id === newParentId && node.position === newPosition) return true;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      const state = await api.moveNode(nodeId, newParentId, newPosition);
+      updateFromState(state);
+
+      // Uncollapse new parent so we can see the moved node
+      if (newParentId) {
+        const newParent = get().getNode(newParentId);
+        if (newParent?.collapsed) {
+          await toggleCollapse(newParentId);
+        }
+      }
+
       return true;
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });

@@ -10,6 +10,8 @@ import { SearchModal } from './components/ui/SearchModal';
 import { DateViewsPanel } from './components/ui/DateViewsPanel';
 import { TagsPanel } from './components/ui/TagsPanel';
 import { InboxPanel } from './components/ui/InboxPanel';
+import { QuickNavigator } from './components/ui/QuickNavigator';
+import { QuickMove } from './components/ui/QuickMove';
 import type { InboxItem } from './lib/api';
 import type { Node, TreeNode } from './lib/types';
 import * as api from './lib/api';
@@ -102,6 +104,9 @@ function App() {
   const [showTagsPanel, setShowTagsPanel] = useState(false);
   const [showInboxPanel, setShowInboxPanel] = useState(false);
   const [inboxCount, setInboxCount] = useState(0);
+  const [showQuickNavigator, setShowQuickNavigator] = useState(false);
+  const [quickNavigatorMode, setQuickNavigatorMode] = useState<'files' | 'items'>('files');
+  const [showQuickMove, setShowQuickMove] = useState(false);
   const [searchDocumentScope, setSearchDocumentScope] = useState<string | undefined>();
   const [searchInitialQuery, setSearchInitialQuery] = useState('');
 
@@ -244,6 +249,18 @@ function App() {
     setShowInboxPanel(false);
   }, []);
 
+  // Handle quick navigator navigation
+  const handleQuickNavigate = useCallback((nodeId: string, documentId: string) => {
+    if (documentId !== currentDocumentId) {
+      setCurrentDocumentId(documentId);
+      load(documentId);
+    }
+    if (nodeId) {
+      useOutlineStore.getState().setFocusedId(nodeId);
+    }
+    setShowQuickNavigator(false);
+  }, [currentDocumentId, load]);
+
   // Menu dropdown handlers
   const openMenuDropdown = useCallback((menu: string) => {
     setOpenMenu(menu);
@@ -352,6 +369,29 @@ function App() {
       if (mod && event.key === 'i') {
         event.preventDefault();
         setShowInboxPanel(true);
+        return;
+      }
+
+      // Quick Navigator - Files (Ctrl+O)
+      if (mod && !event.shiftKey && event.key === 'o') {
+        event.preventDefault();
+        setQuickNavigatorMode('files');
+        setShowQuickNavigator(true);
+        return;
+      }
+
+      // Quick Navigator - Items (Ctrl+Shift+O)
+      if (mod && event.shiftKey && event.key === 'O') {
+        event.preventDefault();
+        setQuickNavigatorMode('items');
+        setShowQuickNavigator(true);
+        return;
+      }
+
+      // Quick Move (Ctrl+Shift+M)
+      if (mod && event.shiftKey && event.key === 'M') {
+        event.preventDefault();
+        setShowQuickMove(true);
         return;
       }
     };
@@ -674,6 +714,18 @@ function App() {
         isOpen={showInboxPanel}
         onClose={handleInboxClose}
         onProcess={handleInboxProcess}
+      />
+
+      <QuickNavigator
+        isOpen={showQuickNavigator}
+        mode={quickNavigatorMode}
+        onClose={() => setShowQuickNavigator(false)}
+        onNavigate={handleQuickNavigate}
+      />
+
+      <QuickMove
+        isOpen={showQuickMove}
+        onClose={() => setShowQuickMove(false)}
       />
     </div>
   );
