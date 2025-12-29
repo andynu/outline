@@ -8,6 +8,7 @@ import { KeyboardShortcutsModal } from './components/ui/KeyboardShortcutsModal';
 import { SettingsModal } from './components/ui/SettingsModal';
 import { SearchModal } from './components/ui/SearchModal';
 import { DateViewsPanel } from './components/ui/DateViewsPanel';
+import { TagsPanel } from './components/ui/TagsPanel';
 import type { Node, TreeNode } from './lib/types';
 import * as api from './lib/api';
 import React from 'react';
@@ -96,6 +97,7 @@ function App() {
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDateViews, setShowDateViews] = useState(false);
+  const [showTagsPanel, setShowTagsPanel] = useState(false);
   const [searchDocumentScope, setSearchDocumentScope] = useState<string | undefined>();
   const [searchInitialQuery, setSearchInitialQuery] = useState('');
 
@@ -193,6 +195,20 @@ function App() {
     setShowDateViews(false);
   }, []);
 
+  // Handle tags panel navigation (same document only)
+  const handleTagsNavigate = useCallback((nodeId: string) => {
+    useOutlineStore.getState().setFocusedId(nodeId);
+    setShowTagsPanel(false);
+  }, []);
+
+  // Handle tag search from tags panel
+  const handleTagSearch = useCallback((tag: string) => {
+    setSearchDocumentScope(currentDocumentId);
+    setSearchInitialQuery(`#${tag}`);
+    setShowSearchModal(true);
+    setShowTagsPanel(false);
+  }, [currentDocumentId]);
+
   // Menu dropdown handlers
   const openMenuDropdown = useCallback((menu: string) => {
     setOpenMenu(menu);
@@ -287,6 +303,13 @@ function App() {
       if (mod && event.shiftKey && event.key === 'T') {
         event.preventDefault();
         setShowDateViews(true);
+        return;
+      }
+
+      // Tags Panel (Ctrl+Shift+3 since # is Shift+3)
+      if (mod && event.shiftKey && event.key === '#') {
+        event.preventDefault();
+        setShowTagsPanel(true);
         return;
       }
     };
@@ -396,7 +419,7 @@ function App() {
           </button>
           <button
             className="toolbar-btn"
-            onClick={() => { /* TODO: Tags */ }}
+            onClick={() => setShowTagsPanel(true)}
             title="Tags (Ctrl+Shift+#)"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -595,6 +618,13 @@ function App() {
         isOpen={showDateViews}
         onClose={() => setShowDateViews(false)}
         onNavigate={handleDateViewNavigate}
+      />
+
+      <TagsPanel
+        isOpen={showTagsPanel}
+        onClose={() => setShowTagsPanel(false)}
+        onNavigate={handleTagsNavigate}
+        onTagSearch={handleTagSearch}
       />
     </div>
   );
