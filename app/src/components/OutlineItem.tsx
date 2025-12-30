@@ -5,6 +5,8 @@ import StarterKit from '@tiptap/starter-kit';
 import type { TreeNode } from '../lib/types';
 import { useOutlineStore } from '../store/outlineStore';
 import { ContextMenu } from './ui/ContextMenu';
+import { processStaticContentElement, handleStaticContentClick } from '../lib/renderStaticContent';
+import DOMPurify from 'dompurify';
 
 // TipTap extensions
 import { WikiLink, createWikiLinkInputHandler } from '../lib/WikiLink';
@@ -60,6 +62,7 @@ export const OutlineItem = memo(function OutlineItem({
   const isNodeSelected = selectedIds.has(node.id);
   const isDragging = draggedId === node.id;
   const editorContainerRef = useRef<HTMLDivElement>(null);
+  const staticContentRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const [editorReady, setEditorReady] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -397,6 +400,23 @@ export const OutlineItem = memo(function OutlineItem({
     }
   }, [node.content]);
 
+  // Render and process static content to add styling for hashtags, mentions, dates, URLs
+  useEffect(() => {
+    // Only run when not focused and the static content div exists
+    if (isFocused) return;
+    const el = staticContentRef.current;
+    if (!el) return;
+
+    // Sanitize and set the HTML content
+    const sanitizedHtml = DOMPurify.sanitize(node.content || '', {
+      ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 's', 'a', 'span'],
+      ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'data-wiki-link', 'data-node-id'],
+    });
+    el.innerHTML = sanitizedHtml;
+    // Process to add interactive styling for hashtags, mentions, dates, URLs
+    processStaticContentElement(el);
+  }, [isFocused, node.content]);
+
   const handleCollapseClick = useCallback(() => {
     toggleCollapse(node.id);
   }, [node.id, toggleCollapse]);
@@ -536,8 +556,8 @@ export const OutlineItem = memo(function OutlineItem({
     setDropPosition(null);
   }, [draggedId, node.id, dropPosition, dropOnNode]);
 
-  // Strip HTML tags for static display
-  const staticContent = node.content?.replace(/<[^>]*>/g, '') || '\u00A0';
+  // Plain text version of content (for clipboard, search, etc.)
+  const plainTextContent = node.content?.replace(/<[^>]*>/g, '') || '';
 
   // === Context Menu ===
 
@@ -584,7 +604,7 @@ export const OutlineItem = memo(function OutlineItem({
       label: 'Web Search',
       action: webSearch,
       shortcut: 'Ctrl+Shift+G',
-      disabled: !staticContent.trim(),
+      disabled: !plainTextContent.trim(),
     },
     { separator: true as const },
     {
@@ -617,7 +637,7 @@ export const OutlineItem = memo(function OutlineItem({
       action: () => deleteNode(node.id),
       shortcut: 'Ctrl+Shift+Backspace',
     },
-  ], [node.id, node.is_checked, node.node_type, node.collapsed, hasChildren, staticContent, toggleCheckbox, toggleNodeType, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch]);
+  ], [node.id, node.is_checked, node.node_type, node.collapsed, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch]);
 
   // Build className for the item
   const itemClasses = [
@@ -673,11 +693,14 @@ export const OutlineItem = memo(function OutlineItem({
         {/* Editor or static content */}
         <div className="editor-wrapper">
           {isFocused ? (
-            <div ref={editorContainerRef} className="editor-container"></div>
+            <div key="editor" ref={editorContainerRef} className="editor-container"></div>
           ) : (
-            <div className="static-content" onClick={handleStaticClick}>
-              <p>{staticContent}</p>
-            </div>
+            <div
+              key="static"
+              ref={staticContentRef}
+              className="static-content"
+              onClick={handleStaticClick}
+            />
           )}
         </div>
       </div>

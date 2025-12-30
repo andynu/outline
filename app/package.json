@@ -16,6 +16,7 @@
   "devDependencies": {
     "@playwright/test": "^1.57.0",
     "@tauri-apps/cli": "^2.0.0",
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^25.0.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
@@ -31,6 +32,7 @@
     "@tiptap/pm": "^2.11.0",
     "@tiptap/react": "^2.11.0",
     "@tiptap/starter-kit": "^2.11.0",
+    "dompurify": "^3.3.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "zustand": "^5.0.0"
