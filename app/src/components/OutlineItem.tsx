@@ -16,6 +16,9 @@ import { AutoLink } from '../lib/AutoLink';
 import { MarkdownLink } from '../lib/MarkdownLink';
 import { Mention } from '../lib/Mention';
 
+// Suggestion popups
+import { WikiLinkSuggestion } from './ui/WikiLinkSuggestion';
+
 interface OutlineItemProps {
   item: TreeNode;
   onNavigateToNode?: (nodeId: string) => void;
@@ -72,6 +75,15 @@ export const OutlineItem = memo(function OutlineItem({
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+
+  // Wiki link suggestion state - use refs for values accessed in editor handlers
+  // to avoid stale closure issues
+  const [showWikiLinkSuggestion, setShowWikiLinkSuggestion] = useState(false);
+  const [wikiLinkQuery, setWikiLinkQuery] = useState('');
+  const [wikiLinkRange, setWikiLinkRange] = useState<{ from: number; to: number } | null>(null);
+  const [wikiLinkPosition, setWikiLinkPosition] = useState({ x: 0, y: 0 });
+  const wikiLinkActiveRef = useRef(false);
+  const wikiLinkRangeRef = useRef<{ from: number; to: number } | null>(null);
 
   // Keep stable refs to store functions to avoid stale closures in editor
   const storeRef = useRef({
@@ -174,9 +186,59 @@ export const OutlineItem = memo(function OutlineItem({
           attributes: {
             class: 'outline-editor',
           },
+          handleTextInput: (view, from, to, text) => {
+            const state = view.state;
+            const prevChar = from > 0 ? state.doc.textBetween(from - 1, from) : '';
+
+            // Detect [[ trigger for wiki links
+            if (text === '[' && prevChar === '[') {
+              const coords = view.coordsAtPos(from);
+              wikiLinkActiveRef.current = true;
+              wikiLinkRangeRef.current = { from: from - 1, to: from + 1 };
+              setShowWikiLinkSuggestion(true);
+              setWikiLinkQuery('');
+              setWikiLinkRange({ from: from - 1, to: from + 1 });
+              setWikiLinkPosition({ x: coords.left, y: coords.bottom + 5 });
+              return false;
+            }
+
+            // If wiki link suggestion is active, update query
+            if (wikiLinkActiveRef.current && wikiLinkRangeRef.current) {
+              const range = wikiLinkRangeRef.current;
+              const queryStart = range.from + 2;
+              const currentQuery = state.doc.textBetween(queryStart, from) + text;
+
+              // Check for ]] to close
+              if (text === ']' && currentQuery.endsWith(']')) {
+                wikiLinkActiveRef.current = false;
+                wikiLinkRangeRef.current = null;
+                setShowWikiLinkSuggestion(false);
+                setWikiLinkRange(null);
+                return false;
+              }
+
+              const newRange = { from: range.from, to: from + text.length + 1 };
+              wikiLinkRangeRef.current = newRange;
+              setWikiLinkQuery(currentQuery);
+              setWikiLinkRange(newRange);
+              return false;
+            }
+
+            return false;
+          },
           handleKeyDown: (view, event) => {
             const mod = event.ctrlKey || event.metaKey;
             const store = storeRef.current;
+
+            // When wiki link suggestion is active, let Enter/Tab/Arrow keys
+            // pass through to the suggestion popup's keyboard handler
+            if (wikiLinkActiveRef.current) {
+              if (event.key === 'Enter' || event.key === 'Tab' ||
+                  event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                // Don't handle - let the WikiLinkSuggestion component handle it
+                return false;
+              }
+            }
 
             // === TAB HANDLING ===
             if (event.key === 'Tab') {
@@ -374,6 +436,28 @@ export const OutlineItem = memo(function OutlineItem({
               event.preventDefault();
               store.toggleNodeType(nodeId);
               return true;
+            }
+
+            // === WIKI LINK SUGGESTION HANDLING ===
+            if (wikiLinkActiveRef.current) {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                wikiLinkActiveRef.current = false;
+                wikiLinkRangeRef.current = null;
+                setShowWikiLinkSuggestion(false);
+                setWikiLinkRange(null);
+                return true;
+              }
+              if (event.key === 'Backspace' && wikiLinkRangeRef.current) {
+                const { from } = view.state.selection;
+                // If backspacing to before start of trigger, close suggestion
+                if (from <= wikiLinkRangeRef.current.from + 2) {
+                  wikiLinkActiveRef.current = false;
+                  wikiLinkRangeRef.current = null;
+                  setShowWikiLinkSuggestion(false);
+                  setWikiLinkRange(null);
+                }
+              }
             }
 
             return false;
@@ -746,6 +830,33 @@ export const OutlineItem = memo(function OutlineItem({
     },
   ], [node.id, node.is_checked, node.node_type, node.collapsed, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch]);
 
+  // Wiki link suggestion handlers
+  const handleWikiLinkSelect = useCallback((nodeId: string, displayText: string) => {
+    const editor = editorRef.current;
+    const range = wikiLinkRangeRef.current;
+    if (!editor || !range) return;
+
+    // Delete the [[query text and insert the wiki link
+    editor
+      .chain()
+      .focus()
+      .deleteRange(range)
+      .insertWikiLink(nodeId, displayText)
+      .run();
+
+    wikiLinkActiveRef.current = false;
+    wikiLinkRangeRef.current = null;
+    setShowWikiLinkSuggestion(false);
+    setWikiLinkRange(null);
+  }, []);
+
+  const handleWikiLinkClose = useCallback(() => {
+    wikiLinkActiveRef.current = false;
+    wikiLinkRangeRef.current = null;
+    setShowWikiLinkSuggestion(false);
+    setWikiLinkRange(null);
+  }, []);
+
   // Build className for the item
   const itemClasses = [
     'outline-item',
@@ -860,6 +971,16 @@ export const OutlineItem = memo(function OutlineItem({
           items={contextMenuItems}
           position={contextMenuPosition}
           onClose={() => setShowContextMenu(false)}
+        />
+      )}
+
+      {/* Wiki link suggestion popup */}
+      {showWikiLinkSuggestion && (
+        <WikiLinkSuggestion
+          query={wikiLinkQuery}
+          position={wikiLinkPosition}
+          onSelect={handleWikiLinkSelect}
+          onClose={handleWikiLinkClose}
         />
       )}
     </div>
