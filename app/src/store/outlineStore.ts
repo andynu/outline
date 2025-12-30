@@ -64,6 +64,7 @@ interface OutlineState {
   // Document operations
   load: (docId?: string) => Promise<void>;
   addSiblingAfter: (nodeId: string) => Promise<string | null>;
+  splitNode: (nodeId: string, beforeContent: string, afterContent: string) => Promise<string | null>;
   updateContent: (nodeId: string, content: string) => Promise<void>;
   deleteNode: (nodeId: string) => Promise<string | null>;
   deleteAllCompleted: () => Promise<number>;
@@ -547,6 +548,65 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
           timestamp: Date.now(),
         });
       }
+
+      return result.id;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return null;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  splitNode: async (nodeId: string, beforeContent: string, afterContent: string) => {
+    const { getNode, getSiblings, childrenOf, updateFromState, zoomedNodeId } = get();
+    const node = getNode(nodeId);
+    if (!node) return null;
+
+    const siblings = getSiblings(nodeId);
+    const idx = siblings.findIndex(n => n.id === nodeId);
+    const newPosition = idx + 1;
+
+    // Get children to move to new node
+    const children = childrenOf(nodeId);
+
+    // Check if we're zoomed into the node being split and it has children
+    // If so, we need to zoom out after the split to avoid an empty view
+    const wasZoomedIntoSplitNode = zoomedNodeId === nodeId && children.length > 0;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      // Update current node with "before" content
+      await api.updateNode(nodeId, { content: beforeContent });
+
+      // Shift siblings after insertion point
+      for (let i = idx + 1; i < siblings.length; i++) {
+        await api.moveNode(siblings[i].id, node.parent_id, i + 1);
+      }
+
+      // Create new node with "after" content
+      const result = await api.createNode(node.parent_id, newPosition, afterContent);
+
+      // Move children from original node to new node
+      for (let i = 0; i < children.length; i++) {
+        await api.moveNode(children[i].id, result.id, i);
+      }
+
+      // Reload to get final state after all moves
+      const finalState = await api.loadDocument();
+      updateFromState(finalState);
+
+      set({ focusedId: result.id });
+
+      // If we were zoomed into the split node, zoom out to its parent
+      // This prevents an empty view since the original node's children moved away
+      if (wasZoomedIntoSplitNode) {
+        set({ zoomedNodeId: node.parent_id });
+      }
+
+      // Note: Undo for split is complex (would need to restore content and move children back)
+      // For now, we don't add undo support for split
+      // TODO: Add proper undo support for split
 
       return result.id;
     } catch (e) {

@@ -1,5 +1,6 @@
 import React, { memo, useRef, useEffect, useCallback, useState } from 'react';
 import { Editor } from '@tiptap/core';
+import { DOMSerializer } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
 import type { TreeNode } from '../lib/types';
 import { useOutlineStore } from '../store/outlineStore';
@@ -176,7 +177,35 @@ export const OutlineItem = memo(function OutlineItem({
             // === EDITING ===
             if (event.key === 'Enter' && !mod && !event.shiftKey) {
               event.preventDefault();
-              store.addSiblingAfter(nodeId);
+              const { from, to, empty } = view.state.selection;
+              const docSize = view.state.doc.content.size;
+
+              // Check if cursor is at the end of content
+              // In TipTap, the doc has 2 extra positions for paragraph start/end
+              const isAtEnd = to >= docSize - 1;
+
+              if (isAtEnd) {
+                // At end - just create new empty sibling
+                store.addSiblingAfter(nodeId);
+              } else {
+                // In the middle - split the content
+                // Get HTML content before and after cursor
+                const beforeFragment = view.state.doc.slice(0, from);
+                const afterFragment = view.state.doc.slice(from, docSize);
+
+                // Serialize fragments to HTML
+                const serializer = DOMSerializer.fromSchema(view.state.schema);
+
+                const beforeDiv = document.createElement('div');
+                const afterDiv = document.createElement('div');
+                beforeDiv.appendChild(serializer.serializeFragment(beforeFragment.content));
+                afterDiv.appendChild(serializer.serializeFragment(afterFragment.content));
+
+                const beforeContent = beforeDiv.innerHTML;
+                const afterContent = afterDiv.innerHTML;
+
+                useOutlineStore.getState().splitNode(nodeId, beforeContent, afterContent);
+              }
               return true;
             }
 
