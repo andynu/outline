@@ -2934,6 +2934,156 @@ body {
   margin-right: 4px;
 }
 
+/* Quick Capture Modal */
+.quick-capture-modal {
+  width: 480px;
+}
+
+.quick-capture-modal .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.quick-capture-modal .modal-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.quick-capture-modal .close-btn {
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quick-capture-modal .close-btn:hover {
+  background: var(--btn-secondary-bg);
+  color: var(--text-primary);
+}
+
+.quick-capture-modal .close-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.quick-capture-modal .modal-content {
+  padding: 16px;
+}
+
+.quick-capture-modal .capture-input {
+  width: 100%;
+  min-height: 80px;
+  padding: 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.quick-capture-modal .capture-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.quick-capture-modal .capture-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.quick-capture-modal .capture-error {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 4px;
+  color: var(--status-error);
+  font-size: 13px;
+}
+
+.quick-capture-modal .error-state {
+  text-align: center;
+  padding: 24px;
+}
+
+.quick-capture-modal .error-state .error-message {
+  color: var(--status-error);
+  margin: 0 0 8px;
+}
+
+.quick-capture-modal .error-state .error-hint {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
+
+.quick-capture-modal .modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+}
+
+.quick-capture-modal .inbox-destination {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.quick-capture-modal .inbox-icon {
+  font-size: 14px;
+}
+
+.quick-capture-modal .inbox-name {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-capture-modal .capture-btn {
+  padding: 8px 16px;
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.quick-capture-modal .capture-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.quick-capture-modal .capture-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quick-capture-modal .loading {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-secondary);
+}
+
 /* Quick Navigator Modal */
 .quick-navigator-modal {
   width: 500px;

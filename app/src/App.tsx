@@ -13,6 +13,7 @@ import { TagsPanel } from './components/ui/TagsPanel';
 import { InboxPanel } from './components/ui/InboxPanel';
 import { QuickNavigator } from './components/ui/QuickNavigator';
 import { QuickMove } from './components/ui/QuickMove';
+import { QuickCaptureModal } from './components/ui/QuickCaptureModal';
 import { FilterBar } from './components/ui/FilterBar';
 import { ZoomBreadcrumbs } from './components/ui/ZoomBreadcrumbs';
 import { loadSessionState, saveSessionState } from './lib/sessionState';
@@ -81,6 +82,7 @@ function App() {
   const [quickNavigatorMode, setQuickNavigatorMode] = useState<'files' | 'items'>('files');
   const [showQuickMove, setShowQuickMove] = useState(false);
   const [quickMoveBulkMode, setQuickMoveBulkMode] = useState(false);
+  const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [searchDocumentScope, setSearchDocumentScope] = useState<string | undefined>();
   const [searchInitialQuery, setSearchInitialQuery] = useState('');
 
@@ -687,6 +689,13 @@ function App() {
         return;
       }
 
+      // Quick Capture (Ctrl+Shift+Q)
+      if (mod && event.shiftKey && event.key === 'Q') {
+        event.preventDefault();
+        setShowQuickCapture(true);
+        return;
+      }
+
       // Collapse All (Ctrl+Shift+.)
       if (mod && event.shiftKey && event.key === '>') {
         event.preventDefault();
@@ -826,7 +835,7 @@ function App() {
       }
 
       // Escape clears selection, filter, or exits zoom (when no modal is open)
-      if (event.key === 'Escape' && !showSearchModal && !showQuickNavigator && !showQuickMove && !showDateViews && !showTagsPanel && !showInboxPanel && !showKeyboardShortcuts && !showSettings) {
+      if (event.key === 'Escape' && !showSearchModal && !showQuickNavigator && !showQuickMove && !showQuickCapture && !showDateViews && !showTagsPanel && !showInboxPanel && !showKeyboardShortcuts && !showSettings) {
         // First clear selection if any, then filter, then zoom
         if (selectedIds.size > 0) {
           event.preventDefault();
@@ -864,7 +873,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
@@ -1228,6 +1237,12 @@ function App() {
         isOpen={showQuickMove}
         onClose={() => setShowQuickMove(false)}
         bulkMode={quickMoveBulkMode}
+      />
+
+      <QuickCaptureModal
+        isOpen={showQuickCapture}
+        onClose={() => setShowQuickCapture(false)}
+        currentDocumentId={currentDocumentId}
       />
     </div>
   );
