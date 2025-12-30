@@ -21,6 +21,7 @@ import { WikiLinkSuggestion } from './ui/WikiLinkSuggestion';
 import { HashtagSuggestion } from './ui/HashtagSuggestion';
 import { DueDateSuggestion } from './ui/DueDateSuggestion';
 import { DatePicker } from './ui/DatePicker';
+import { RecurrencePicker } from './ui/RecurrencePicker';
 import { formatDateRelative } from '../lib/dateUtils';
 
 interface OutlineItemProps {
@@ -82,6 +83,8 @@ export const OutlineItem = memo(function OutlineItem({
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerPosition, setDatePickerPosition] = useState({ x: 0, y: 0 });
+  const [showRecurrencePicker, setShowRecurrencePicker] = useState(false);
+  const [recurrencePickerPosition, setRecurrencePickerPosition] = useState({ x: 0, y: 0 });
 
   // Wiki link suggestion state - use refs for values accessed in editor handlers
   // to avoid stale closure issues
@@ -541,6 +544,17 @@ export const OutlineItem = memo(function OutlineItem({
                 setDatePickerPosition({ x: rect.left, y: rect.bottom + 5 });
               }
               setShowDatePicker(true);
+              return true;
+            }
+
+            // Ctrl+R : open recurrence picker
+            if (event.key === 'r' && mod && !event.shiftKey) {
+              event.preventDefault();
+              const rect = editorContainerRef.current?.getBoundingClientRect();
+              if (rect) {
+                setRecurrencePickerPosition({ x: rect.left, y: rect.bottom + 5 });
+              }
+              setShowRecurrencePicker(true);
               return true;
             }
 
@@ -1103,6 +1117,29 @@ export const OutlineItem = memo(function OutlineItem({
     setShowDatePicker(true);
   }, []);
 
+  // Recurrence picker handlers
+  const handleRecurrenceSelect = useCallback(async (rrule: string | null) => {
+    setShowRecurrencePicker(false);
+    // Update node recurrence via API
+    const api = await import('../lib/api');
+    await api.updateNode(node.id, { recurrence: rrule || undefined });
+    // Reload state
+    const state = await api.loadDocument();
+    useOutlineStore.getState().updateFromState(state);
+  }, [node.id]);
+
+  const handleRecurrencePickerClose = useCallback(() => {
+    setShowRecurrencePicker(false);
+  }, []);
+
+  const handleRecurrenceIndicatorClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setRecurrencePickerPosition({ x: rect.left, y: rect.bottom + 5 });
+    setShowRecurrencePicker(true);
+  }, []);
+
   // Build className for the item
   const itemClasses = [
     'outline-item',
@@ -1195,6 +1232,13 @@ export const OutlineItem = memo(function OutlineItem({
             {formatDateRelative(node.date)}
           </span>
         )}
+
+        {/* Recurrence indicator */}
+        {node.recurrence && (
+          <span className="recurrence-indicator" onClick={handleRecurrenceIndicatorClick} title="Repeating">
+            ↻
+          </span>
+        )}
       </div>
 
       {/* Note row */}
@@ -1285,6 +1329,16 @@ export const OutlineItem = memo(function OutlineItem({
           currentDate={node.date}
           onSelect={handleDateSelect}
           onClose={handleDatePickerClose}
+        />
+      )}
+
+      {/* Recurrence picker modal */}
+      {showRecurrencePicker && (
+        <RecurrencePicker
+          position={recurrencePickerPosition}
+          currentRecurrence={node.recurrence}
+          onSelect={handleRecurrenceSelect}
+          onClose={handleRecurrencePickerClose}
         />
       )}
     </div>
