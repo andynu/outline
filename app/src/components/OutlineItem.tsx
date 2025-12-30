@@ -142,8 +142,8 @@ export const OutlineItem = memo(function OutlineItem({
           // Hashtag styling and click handling
           Hashtag.configure({
             onHashtagClick: (tag: string) => {
-              // TODO: Implement hashtag search/filter
-              console.log('Hashtag clicked:', tag);
+              // Filter to show items with this hashtag
+              useOutlineStore.getState().setFilterQuery(`#${tag}`);
             },
           }),
           // Due date highlighting and click handling
@@ -164,8 +164,8 @@ export const OutlineItem = memo(function OutlineItem({
           // @mentions
           Mention.configure({
             onMentionClick: (mention: string) => {
-              // TODO: Implement mention handling
-              console.log('Mention clicked:', mention);
+              // Filter to show items with this mention
+              useOutlineStore.getState().setFilterQuery(`@${mention}`);
             },
           }),
         ],
@@ -473,6 +473,23 @@ export const OutlineItem = memo(function OutlineItem({
   }, [node.id, setFocusedId, toggleSelection, selectRange, clearSelection]);
 
   const handleStaticClick = useCallback((e: React.MouseEvent) => {
+    // First, check for hashtag/mention/wiki-link clicks
+    const handled = handleStaticContentClick(e.nativeEvent, {
+      onHashtagClick: (tag) => {
+        useOutlineStore.getState().setFilterQuery(`#${tag}`);
+      },
+      onMentionClick: (mention) => {
+        useOutlineStore.getState().setFilterQuery(`@${mention}`);
+      },
+      onWikiLinkClick: (nodeId) => {
+        if (onNavigateToNode) {
+          onNavigateToNode(nodeId);
+        }
+      },
+    });
+
+    if (handled) return;
+
     // Support multi-selection with Ctrl/Cmd or Shift
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
@@ -484,7 +501,7 @@ export const OutlineItem = memo(function OutlineItem({
       clearSelection();
       setFocusedId(node.id);
     }
-  }, [node.id, setFocusedId, toggleSelection, selectRange, clearSelection]);
+  }, [node.id, setFocusedId, toggleSelection, selectRange, clearSelection, onNavigateToNode]);
 
   // Capture handler for modifier clicks to catch them before TipTap editor
   const handleModifierClickCapture = useCallback((e: React.MouseEvent) => {
