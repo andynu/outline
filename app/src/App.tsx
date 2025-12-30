@@ -988,7 +988,7 @@ function App() {
         </span>
         <span className="status-right">
           {hideCompleted && (
-            <span className="status-filter-indicator" title="Click to show completed items">
+            <span className="filter-indicator" title="Click to show completed items">
               (hiding completed)
             </span>
           )}

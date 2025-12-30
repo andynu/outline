@@ -2061,7 +2061,7 @@ body {
   color: var(--save-status-saved, var(--status-success));
 }
 
-.status-filter-indicator {
+.filter-indicator {
   font-size: 11px;
   color: var(--text-tertiary);
   background: var(--bg-tertiary);
