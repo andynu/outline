@@ -4,6 +4,7 @@ import { DOMSerializer } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
 import type { TreeNode } from '../lib/types';
 import { useOutlineStore } from '../store/outlineStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { ContextMenu } from './ui/ContextMenu';
 import { processStaticContentElement, handleStaticContentClick } from '../lib/renderStaticContent';
 import DOMPurify from 'dompurify';
@@ -601,6 +602,23 @@ export const OutlineItem = memo(function OutlineItem({
               return true;
             }
 
+            // === WEB SEARCH ===
+            // Ctrl+Shift+G : search selected text or item content on the web
+            if (event.key.toLowerCase() === 'g' && mod && event.shiftKey) {
+              event.preventDefault();
+              // Get selected text, or fall back to item content
+              const selection = window.getSelection();
+              let searchText = selection?.toString()?.trim();
+              if (!searchText) {
+                searchText = useOutlineStore.getState().getNode(nodeId)?.content?.replace(/<[^>]*>/g, '').trim() || '';
+              }
+              if (searchText) {
+                const url = useSettingsStore.getState().buildSearchUrl(searchText);
+                window.open(url, '_blank');
+              }
+              return true;
+            }
+
             // === WIKI LINK SUGGESTION HANDLING ===
             if (wikiLinkActiveRef.current) {
               if (event.key === 'Escape') {
@@ -1041,7 +1059,8 @@ export const OutlineItem = memo(function OutlineItem({
   const webSearch = useCallback(() => {
     const text = node.content?.replace(/<[^>]*>/g, '').trim() || '';
     if (text) {
-      window.open(`https://www.google.com/search?q=${encodeURIComponent(text)}`, '_blank');
+      const url = useSettingsStore.getState().buildSearchUrl(text);
+      window.open(url, '_blank');
     }
   }, [node.content]);
 
