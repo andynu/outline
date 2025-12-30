@@ -594,8 +594,8 @@ function App() {
         return;
       }
 
-      // Inbox (Ctrl+I)
-      if (mod && event.key === 'i') {
+      // Inbox (Ctrl+Shift+I) - use Shift to avoid conflict with italic
+      if (mod && event.shiftKey && event.key === 'I') {
         event.preventDefault();
         setShowInboxPanel(true);
         return;
@@ -794,7 +794,7 @@ function App() {
           <button
             className="toolbar-btn"
             onClick={() => setShowInboxPanel(true)}
-            title="Inbox (Ctrl+I)"
+            title="Inbox (Ctrl+Shift+I)"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
