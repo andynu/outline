@@ -98,6 +98,9 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
               <li><kbd>Ctrl+.</kbd> Toggle collapse</li>
               <li><kbd>Ctrl+Shift+.</kbd> Collapse all</li>
               <li><kbd>Ctrl+Shift+,</kbd> Expand all</li>
+              <li><kbd>Ctrl+]</kbd> Zoom into subtree</li>
+              <li><kbd>Ctrl+[</kbd> Zoom out</li>
+              <li><kbd>Esc</kbd> Exit zoom</li>
             </ul>
           </div>
           <div className="shortcut-group">

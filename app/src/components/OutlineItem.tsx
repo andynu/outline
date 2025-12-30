@@ -59,6 +59,7 @@ export const OutlineItem = memo(function OutlineItem({
   const moveToFirst = useOutlineStore(state => state.moveToFirst);
   const moveToLast = useOutlineStore(state => state.moveToLast);
   const zoomTo = useOutlineStore(state => state.zoomTo);
+  const zoomToParent = useOutlineStore(state => state.zoomToParent);
   const selectedIds = useOutlineStore(state => state.selectedIds);
   const toggleSelection = useOutlineStore(state => state.toggleSelection);
   const selectRange = useOutlineStore(state => state.selectRange);
@@ -547,6 +548,13 @@ export const OutlineItem = memo(function OutlineItem({
             if (event.key === ']' && mod) {
               event.preventDefault();
               useOutlineStore.getState().zoomTo(nodeId);
+              return true;
+            }
+
+            // Ctrl+[ : zoom out to parent level
+            if (event.key === '[' && mod) {
+              event.preventDefault();
+              zoomToParent();
               return true;
             }
 
@@ -1073,6 +1081,11 @@ export const OutlineItem = memo(function OutlineItem({
       action: () => zoomTo(node.id),
       shortcut: 'Ctrl+]',
       disabled: !hasChildren,
+    },
+    {
+      label: 'Zoom Out',
+      action: () => zoomToParent(),
+      shortcut: 'Ctrl+[',
     },
     { separator: true as const },
     {

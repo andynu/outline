@@ -46,6 +46,7 @@ interface OutlineState {
   setFilterQuery: (query: string | null) => void;
   clearFilter: () => void;
   zoomTo: (nodeId: string | null) => void;
+  zoomToParent: () => void;  // Zoom out to parent level
   zoomReset: () => void;
   getZoomBreadcrumbs: () => { id: string | null; title: string }[];
 
@@ -370,6 +371,17 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
   zoomTo: (nodeId: string | null) => {
     set({ zoomedNodeId: nodeId });
+  },
+
+  zoomToParent: () => {
+    const { zoomedNodeId, _nodesById } = get();
+    if (!zoomedNodeId) return;  // Already at root
+
+    const zoomedNode = _nodesById.get(zoomedNodeId);
+    if (!zoomedNode) return;
+
+    // Zoom to parent (or null if parent is root)
+    set({ zoomedNodeId: zoomedNode.parent_id });
   },
 
   zoomReset: () => {
