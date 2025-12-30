@@ -115,6 +115,11 @@ function App() {
   const focusedId = useOutlineStore(state => state.focusedId);
   const setFocusedId = useOutlineStore(state => state.setFocusedId);
   const getTree = useOutlineStore(state => state.getTree);
+  // Vim-style navigation
+  const moveToParent = useOutlineStore(state => state.moveToParent);
+  const moveToFirstChild = useOutlineStore(state => state.moveToFirstChild);
+  const moveToNextSibling = useOutlineStore(state => state.moveToNextSibling);
+  const moveToPrevSibling = useOutlineStore(state => state.moveToPrevSibling);
 
   // Zoom store
   const zoomLevel = useZoomStore(state => state.percentage);
@@ -697,6 +702,35 @@ function App() {
         return;
       }
 
+      // Vim-style hierarchy navigation (Alt+H/J/K/L)
+      // Works everywhere since Alt+letter doesn't conflict with typing
+      if (event.altKey && !mod && !event.shiftKey) {
+        // Alt+H: Move to parent
+        if (event.key === 'h') {
+          event.preventDefault();
+          moveToParent();
+          return;
+        }
+        // Alt+L: Move to first child
+        if (event.key === 'l') {
+          event.preventDefault();
+          moveToFirstChild();
+          return;
+        }
+        // Alt+J: Move to next sibling
+        if (event.key === 'j') {
+          event.preventDefault();
+          moveToNextSibling();
+          return;
+        }
+        // Alt+K: Move to previous sibling
+        if (event.key === 'k') {
+          event.preventDefault();
+          moveToPrevSibling();
+          return;
+        }
+      }
+
       // Escape clears selection, filter, or exits zoom (when no modal is open)
       if (event.key === 'Escape' && !showSearchModal && !showQuickNavigator && !showQuickMove && !showDateViews && !showTagsPanel && !showInboxPanel && !showKeyboardShortcuts && !showSettings) {
         // First clear selection if any, then filter, then zoom
@@ -736,7 +770,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, zoomIn, zoomOut, resetZoom]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId

@@ -65,6 +65,11 @@ interface OutlineState {
   moveToNext: () => string | null;
   moveToFirst: () => string | null;
   moveToLast: () => string | null;
+  // Vim-style hierarchy navigation
+  moveToParent: () => string | null;
+  moveToFirstChild: () => string | null;
+  moveToNextSibling: () => string | null;
+  moveToPrevSibling: () => string | null;
 
   // Document operations
   load: (docId?: string) => Promise<void>;
@@ -513,6 +518,91 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     const visible = get().getVisibleNodes();
     if (visible.length > 0) {
       const newId = visible[visible.length - 1].id;
+      set({ focusedId: newId });
+      return newId;
+    }
+    return null;
+  },
+
+  // Vim-style hierarchy navigation (Alt+H/L/J/K)
+  moveToParent: () => {
+    const { focusedId, getParent } = get();
+    if (!focusedId) return null;
+    const parent = getParent(focusedId);
+    if (parent) {
+      set({ focusedId: parent.id });
+      return parent.id;
+    }
+    return null;
+  },
+
+  moveToFirstChild: () => {
+    const { focusedId, childrenOf, getNode, hideCompleted, filterQuery, _nodesById, _childrenByParent } = get();
+    if (!focusedId) return null;
+    const node = getNode(focusedId);
+    if (!node || node.collapsed) return null;
+
+    let children = childrenOf(focusedId);
+    // Filter hidden completed items
+    if (hideCompleted) {
+      children = children.filter(n => !n.is_checked);
+    }
+    // Filter by search query if active
+    if (filterQuery) {
+      children = children.filter(n =>
+        nodeMatchesFilter(n, filterQuery) ||
+        hasMatchingDescendant(n.id, _childrenByParent, filterQuery, _nodesById)
+      );
+    }
+    if (children.length > 0) {
+      set({ focusedId: children[0].id });
+      return children[0].id;
+    }
+    return null;
+  },
+
+  moveToNextSibling: () => {
+    const { focusedId, getSiblings, hideCompleted, filterQuery, _nodesById, _childrenByParent } = get();
+    if (!focusedId) return null;
+    let siblings = getSiblings(focusedId);
+    // Filter hidden completed items
+    if (hideCompleted) {
+      siblings = siblings.filter(n => !n.is_checked);
+    }
+    // Filter by search query if active
+    if (filterQuery) {
+      siblings = siblings.filter(n =>
+        nodeMatchesFilter(n, filterQuery) ||
+        hasMatchingDescendant(n.id, _childrenByParent, filterQuery, _nodesById)
+      );
+    }
+    const idx = siblings.findIndex(n => n.id === focusedId);
+    if (idx >= 0 && idx < siblings.length - 1) {
+      const newId = siblings[idx + 1].id;
+      set({ focusedId: newId });
+      return newId;
+    }
+    return null;
+  },
+
+  moveToPrevSibling: () => {
+    const { focusedId, getSiblings, hideCompleted, filterQuery, _nodesById, _childrenByParent } = get();
+    if (!focusedId) return null;
+    let siblings = getSiblings(focusedId);
+    // Filter hidden completed items
+    if (hideCompleted) {
+      siblings = siblings.filter(n => !n.is_checked);
+    }
+    // Filter by search query if active
+    if (filterQuery) {
+      siblings = siblings.filter(n =>
+        nodeMatchesFilter(n, filterQuery) ||
+        hasMatchingDescendant(n.id, _childrenByParent, filterQuery, _nodesById)
+      );
+    }
+    const idx = siblings.findIndex(n => n.id === focusedId);
+    if (idx > 0) {
+      const newId = siblings[idx - 1].id;
       set({ focusedId: newId });
       return newId;
     }
