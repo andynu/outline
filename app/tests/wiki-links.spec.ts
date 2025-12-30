@@ -9,7 +9,7 @@ test.describe('Wiki links', () => {
 
   test('typing [[ opens suggestion popup', async ({ page }) => {
     // Click on first editor
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(100);
 
@@ -24,7 +24,7 @@ test.describe('Wiki links', () => {
 
   test('typing filters suggestions', async ({ page }) => {
     // Click on first editor
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(100);
 
@@ -50,7 +50,7 @@ test.describe('Wiki links', () => {
 
   test('Enter selects suggestion and inserts wiki link', async ({ page }) => {
     // Click on first editor
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(100);
 
@@ -80,7 +80,7 @@ test.describe('Wiki links', () => {
 
   test('wiki link renders as pill', async ({ page }) => {
     // Create a wiki link first
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(100);
 
@@ -107,7 +107,7 @@ test.describe('Wiki links', () => {
 
   test('Escape closes suggestion popup', async ({ page }) => {
     // Click on first editor
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(100);
 
@@ -128,7 +128,7 @@ test.describe('Wiki links', () => {
 
   test('clicking suggestion selects it', async ({ page }) => {
     // Click on first editor
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(100);
 
@@ -157,7 +157,7 @@ test.describe('Wiki links', () => {
 
   test('arrow keys navigate suggestions', async ({ page }) => {
     // Click on first editor
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(100);
 
@@ -193,7 +193,7 @@ test.describe('Wiki links', () => {
 
   test('clicking wiki link navigates to target', async ({ page }) => {
     // First create a wiki link
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(100);
 

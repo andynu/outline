@@ -9,7 +9,7 @@ test.describe('Bullet styles', () => {
 
   test('leaf items show filled bullet (●)', async ({ page }) => {
     // Click on an existing item to ensure focus
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(100);
 
@@ -66,12 +66,13 @@ test.describe('Bullet styles', () => {
 
   test('bullet gets has-children class when item gets children', async ({ page }) => {
     // Click on an existing item to ensure focus
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(100);
 
     // Create a new leaf item using Enter
     await page.keyboard.press('Enter');
+    await page.waitForTimeout(200); // Wait for editor to initialize
     await page.keyboard.type('Parent to be');
     await page.waitForTimeout(100);
 
@@ -84,7 +85,9 @@ test.describe('Bullet styles', () => {
 
     // Add a child by pressing Enter then Tab to indent
     await page.keyboard.press('Enter');
+    await page.waitForTimeout(200); // Wait for new editor to initialize
     await page.keyboard.type('Child item');
+    await page.waitForTimeout(100);
     await page.keyboard.press('Tab');
 
     // Wait for update
@@ -117,7 +120,7 @@ test.describe('Bullet styles', () => {
 
   test('checkbox items do not show bullets', async ({ page }) => {
     // Click on an existing item to ensure focus
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(100);
 

@@ -9,7 +9,7 @@ test.describe('Inline due dates', () => {
 
   test('typing !( opens due date suggestion popup', async ({ page }) => {
     // Click on a new item or first editor
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(50);
 
@@ -24,7 +24,7 @@ test.describe('Inline due dates', () => {
 
   test('selecting a date inserts !(YYYY-MM-DD) format', async ({ page }) => {
     // Click on first editor
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(50);
 
@@ -47,7 +47,7 @@ test.describe('Inline due dates', () => {
 
   test('due dates are styled with decorations', async ({ page }) => {
     // Click on first editor
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(50);
 
@@ -73,7 +73,7 @@ test.describe('Inline due dates', () => {
 
   test('Escape closes the due date suggestion', async ({ page }) => {
     // Click on first editor
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(50);
 
@@ -95,7 +95,7 @@ test.describe('Inline due dates', () => {
 
   test('can type natural date in suggestion and select it', async ({ page }) => {
     // Click on first editor
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(50);
 
@@ -120,7 +120,7 @@ test.describe('Inline due dates', () => {
 
   test('clicking outside saves the selected date', async ({ page }) => {
     // Click on first editor
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(50);
 
@@ -150,7 +150,7 @@ test.describe('Inline due dates', () => {
 
   test('clicking outside with no selection saves the default (Today)', async ({ page }) => {
     // Click on first editor
-    const firstEditor = page.locator('.outline-editor').first();
+    const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(50);
 
