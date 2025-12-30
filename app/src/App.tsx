@@ -104,6 +104,8 @@ function App() {
   const selectedIds = useOutlineStore(state => state.selectedIds);
   const deleteSelectedNodes = useOutlineStore(state => state.deleteSelectedNodes);
   const toggleSelectedCheckboxes = useOutlineStore(state => state.toggleSelectedCheckboxes);
+  const selectAll = useOutlineStore(state => state.selectAll);
+  const clearSelection = useOutlineStore(state => state.clearSelection);
   const zoomReset = useOutlineStore(state => state.zoomReset);
   const zoomTo = useOutlineStore(state => state.zoomTo);
   const focusedId = useOutlineStore(state => state.focusedId);
@@ -531,6 +533,16 @@ function App() {
         return;
       }
 
+      // Select all (Ctrl+A) - only when not in an input/editor
+      if (mod && event.key === 'a') {
+        const activeElement = document.activeElement;
+        if (!activeElement?.closest('.outline-editor') && !activeElement?.closest('input') && !activeElement?.closest('textarea')) {
+          event.preventDefault();
+          selectAll();
+          return;
+        }
+      }
+
       // Save
       if (mod && event.key === 's') {
         event.preventDefault();
@@ -645,9 +657,14 @@ function App() {
         return;
       }
 
-      // Escape clears filter or exits zoom (when no modal is open)
+      // Escape clears selection, filter, or exits zoom (when no modal is open)
       if (event.key === 'Escape' && !showSearchModal && !showQuickNavigator && !showQuickMove && !showDateViews && !showTagsPanel && !showInboxPanel && !showKeyboardShortcuts && !showSettings) {
-        // First clear filter if active, then exit zoom
+        // First clear selection if any, then filter, then zoom
+        if (selectedIds.size > 0) {
+          event.preventDefault();
+          clearSelection();
+          return;
+        }
         if (filterQuery) {
           event.preventDefault();
           clearFilter();

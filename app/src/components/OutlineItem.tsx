@@ -349,6 +349,14 @@ export const OutlineItem = memo(function OutlineItem({
               return true;
             }
 
+            // === ZOOM ===
+            // Ctrl+] : zoom into current node's subtree
+            if (event.key === ']' && mod) {
+              event.preventDefault();
+              useOutlineStore.getState().zoomTo(nodeId);
+              return true;
+            }
+
             // === COMPLETION ===
             if (event.key === 'Enter' && mod && !event.shiftKey) {
               const currentState = useOutlineStore.getState();
