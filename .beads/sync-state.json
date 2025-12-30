@@ -1,7 +1,7 @@
 {
-  "last_failure": "2025-12-29T21:19:34.670595666-05:00",
-  "failure_count": 2,
-  "backoff_until": "2025-12-29T21:20:34.670596109-05:00",
-  "needs_manual_sync": false,
+  "last_failure": "2025-12-30T11:02:21.401962916-05:00",
+  "failure_count": 3,
+  "backoff_until": "2025-12-30T11:04:21.401963394-05:00",
+  "needs_manual_sync": true,
   "failure_reason": "git pull failed: exit status 1\nfatal: couldn't find remote ref react-migration\n"
 }
