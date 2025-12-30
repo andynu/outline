@@ -80,6 +80,7 @@ function App() {
   const [showQuickNavigator, setShowQuickNavigator] = useState(false);
   const [quickNavigatorMode, setQuickNavigatorMode] = useState<'files' | 'items'>('files');
   const [showQuickMove, setShowQuickMove] = useState(false);
+  const [quickMoveBulkMode, setQuickMoveBulkMode] = useState(false);
   const [searchDocumentScope, setSearchDocumentScope] = useState<string | undefined>();
   const [searchInitialQuery, setSearchInitialQuery] = useState('');
 
@@ -638,9 +639,10 @@ function App() {
         return;
       }
 
-      // Quick Move (Ctrl+Shift+M)
+      // Quick Move (Ctrl+Shift+M) - bulk mode if items selected
       if (mod && event.shiftKey && event.key === 'M') {
         event.preventDefault();
+        setQuickMoveBulkMode(selectedIds.size > 0);
         setShowQuickMove(true);
         return;
       }
@@ -983,7 +985,14 @@ function App() {
             <>
               <div className="outline-container">
                 {tree.map(item => (
-                  <OutlineItem key={item.node.id} item={item} />
+                  <OutlineItem
+                    key={item.node.id}
+                    item={item}
+                    onOpenBulkQuickMove={() => {
+                      setQuickMoveBulkMode(true);
+                      setShowQuickMove(true);
+                    }}
+                  />
                 ))}
               </div>
             </>
@@ -1082,6 +1091,7 @@ function App() {
       <QuickMove
         isOpen={showQuickMove}
         onClose={() => setShowQuickMove(false)}
+        bulkMode={quickMoveBulkMode}
       />
     </div>
   );

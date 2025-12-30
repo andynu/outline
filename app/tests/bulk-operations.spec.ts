@@ -350,4 +350,58 @@ test.describe('Bulk operations on multi-selection', () => {
       }
     });
   });
+
+  test.describe('Bulk move operations', () => {
+    test('bulk context menu shows move options', async ({ page }) => {
+      const items = page.locator('.outline-item');
+      const editors = page.locator('.editor-wrapper');
+
+      // Select first two items
+      await editors.first().click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+      await editors.nth(1).click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+
+      // Right-click to open context menu
+      await items.first().click({ button: 'right' });
+      await page.waitForTimeout(100);
+
+      // Context menu should have move options
+      const contextMenu = page.locator('.context-menu');
+      await expect(contextMenu.locator('text=Move to...')).toBeVisible();
+      await expect(contextMenu.locator('text=Move to top')).toBeVisible();
+      await expect(contextMenu.locator('text=Move to bottom')).toBeVisible();
+    });
+
+    test('Move to top and bottom are clickable', async ({ page }) => {
+      const items = page.locator('.outline-item');
+      const editors = page.locator('.editor-wrapper');
+
+      // Wait for items to be available
+      await expect(items.first()).toBeVisible();
+
+      // Must select 2+ items for bulk menu to appear
+      await editors.first().click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+      await editors.nth(1).click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+
+      // Right-click to open context menu
+      await items.first().click({ button: 'right' });
+      await page.waitForTimeout(100);
+
+      // Verify Move to top is clickable (not disabled)
+      const contextMenu = page.locator('.context-menu');
+      const moveToTop = contextMenu.locator('text=Move to top');
+      await expect(moveToTop).toBeVisible();
+      await expect(moveToTop).toBeEnabled();
+
+      // Click it to verify it works
+      await moveToTop.click();
+      await page.waitForTimeout(200);
+
+      // After the move, items should still exist
+      await expect(items.first()).toBeVisible();
+    });
+  });
 });

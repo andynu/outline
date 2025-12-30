@@ -119,6 +119,8 @@ interface OutlineState {
   convertSelectedToBullet: () => Promise<boolean>;
   indentSelectedNodes: () => Promise<boolean>;
   outdentSelectedNodes: () => Promise<boolean>;
+  moveSelectedToTop: () => Promise<boolean>;
+  moveSelectedToBottom: () => Promise<boolean>;
 }
 
 // Check if a node matches the filter query
@@ -1898,6 +1900,92 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         const newPosition = parentIdx + 1;
 
         await api.moveNode(node.id, parent.parent_id, newPosition);
+      }
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  moveSelectedToTop: async () => {
+    const { getSelectedNodes, getSiblings, updateFromState } = get();
+    const selected = getSelectedNodes();
+    if (selected.length === 0) return false;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      // Group nodes by parent
+      const nodesByParent = new Map<string | null, typeof selected>();
+      for (const node of selected) {
+        const parentId = node.parent_id;
+        if (!nodesByParent.has(parentId)) {
+          nodesByParent.set(parentId, []);
+        }
+        nodesByParent.get(parentId)!.push(node);
+      }
+
+      // Move each group to top of its parent's children
+      for (const [parentId, nodes] of nodesByParent) {
+        // Sort nodes by their current position to maintain relative order
+        nodes.sort((a, b) => a.position - b.position);
+
+        // Move each node to top, in reverse order to maintain relative order
+        for (let i = nodes.length - 1; i >= 0; i--) {
+          await api.moveNode(nodes[i].id, parentId, 0);
+        }
+      }
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  moveSelectedToBottom: async () => {
+    const { getSelectedNodes, getSiblings, childrenOf, rootNodes, updateFromState } = get();
+    const selected = getSelectedNodes();
+    if (selected.length === 0) return false;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      // Group nodes by parent
+      const nodesByParent = new Map<string | null, typeof selected>();
+      for (const node of selected) {
+        const parentId = node.parent_id;
+        if (!nodesByParent.has(parentId)) {
+          nodesByParent.set(parentId, []);
+        }
+        nodesByParent.get(parentId)!.push(node);
+      }
+
+      // Move each group to bottom of its parent's children
+      for (const [parentId, nodes] of nodesByParent) {
+        // Sort nodes by their current position to maintain relative order
+        nodes.sort((a, b) => a.position - b.position);
+
+        // Get total siblings count for this parent
+        const siblings = parentId === null ? rootNodes() : childrenOf(parentId);
+        let bottomPosition = siblings.length;
+
+        // Move each node to bottom
+        for (const node of nodes) {
+          await api.moveNode(node.id, parentId, bottomPosition);
+        }
       }
 
       // Reload state

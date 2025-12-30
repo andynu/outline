@@ -29,13 +29,15 @@ interface OutlineItemProps {
   item: TreeNode;
   onNavigateToNode?: (nodeId: string) => void;
   isInFocusedSubtree?: boolean;
+  onOpenBulkQuickMove?: () => void;
 }
 
 // Memoized to prevent unnecessary re-renders
 export const OutlineItem = memo(function OutlineItem({
   item,
   onNavigateToNode,
-  isInFocusedSubtree = false
+  isInFocusedSubtree = false,
+  onOpenBulkQuickMove
 }: OutlineItemProps) {
   const { node, depth, hasChildren, children } = item;
 
@@ -68,6 +70,8 @@ export const OutlineItem = memo(function OutlineItem({
   const convertSelectedToBullet = useOutlineStore(state => state.convertSelectedToBullet);
   const indentSelectedNodes = useOutlineStore(state => state.indentSelectedNodes);
   const outdentSelectedNodes = useOutlineStore(state => state.outdentSelectedNodes);
+  const moveSelectedToTop = useOutlineStore(state => state.moveSelectedToTop);
+  const moveSelectedToBottom = useOutlineStore(state => state.moveSelectedToBottom);
   const deleteSelectedNodes = useOutlineStore(state => state.deleteSelectedNodes);
   const getSelectedNodes = useOutlineStore(state => state.getSelectedNodes);
   const draggedId = useOutlineStore(state => state.draggedId);
@@ -1120,6 +1124,21 @@ export const OutlineItem = memo(function OutlineItem({
       },
       { separator: true as const },
       {
+        label: 'Move to...',
+        action: () => onOpenBulkQuickMove?.(),
+        shortcut: 'Ctrl+Shift+M',
+        disabled: !onOpenBulkQuickMove,
+      },
+      {
+        label: 'Move to top',
+        action: moveSelectedToTop,
+      },
+      {
+        label: 'Move to bottom',
+        action: moveSelectedToBottom,
+      },
+      { separator: true as const },
+      {
         label: 'Indent',
         action: indentSelectedNodes,
         shortcut: 'Tab',
@@ -1136,7 +1155,7 @@ export const OutlineItem = memo(function OutlineItem({
         shortcut: 'Ctrl+Shift+Backspace',
       },
     ];
-  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes]);
+  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, moveSelectedToTop, moveSelectedToBottom, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes, onOpenBulkQuickMove]);
 
   // Wiki link suggestion handlers
   const handleWikiLinkSelect = useCallback((nodeId: string, displayText: string) => {
@@ -1401,6 +1420,7 @@ export const OutlineItem = memo(function OutlineItem({
                 item={child}
                 onNavigateToNode={onNavigateToNode}
                 isInFocusedSubtree={isFocused || isInFocusedSubtree}
+                onOpenBulkQuickMove={onOpenBulkQuickMove}
               />
             ))}
           </div>

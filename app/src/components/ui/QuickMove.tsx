@@ -6,6 +6,7 @@ import { useOutlineStore } from '../../store/outlineStore';
 interface QuickMoveProps {
   isOpen: boolean;
   onClose: () => void;
+  bulkMode?: boolean; // When true, move all selected nodes instead of focused node
 }
 
 function stripHtml(html: string): string {
@@ -20,7 +21,7 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-export function QuickMove({ isOpen, onClose }: QuickMoveProps) {
+export function QuickMove({ isOpen, onClose, bulkMode = false }: QuickMoveProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -33,6 +34,9 @@ export function QuickMove({ isOpen, onClose }: QuickMoveProps) {
   const nodes = useOutlineStore(state => state.nodes);
   const getNode = useOutlineStore(state => state.getNode);
   const moveNodeTo = useOutlineStore(state => state.moveNodeTo);
+  const getSelectedNodes = useOutlineStore(state => state.getSelectedNodes);
+  const selectedIds = useOutlineStore(state => state.selectedIds);
+  const clearSelection = useOutlineStore(state => state.clearSelection);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -82,26 +86,61 @@ export function QuickMove({ isOpen, onClose }: QuickMoveProps) {
   }, [onClose]);
 
   const moveToNode = useCallback(async (targetNodeId: string) => {
-    if (!focusedId || focusedId === targetNodeId) {
+    // Determine which nodes to move
+    const nodesToMove = bulkMode && selectedIds.size > 0
+      ? getSelectedNodes()
+      : focusedId ? [getNode(focusedId)].filter(Boolean) : [];
+
+    if (nodesToMove.length === 0) {
+      handleClose();
+      return;
+    }
+
+    // Don't allow moving a node to itself or its descendant
+    const targetNodeIds = new Set([targetNodeId]);
+    // Build set of all descendants of nodes being moved
+    const isDescendant = (nodeId: string, ancestorIds: Set<string>): boolean => {
+      let current = getNode(nodeId);
+      while (current?.parent_id) {
+        if (ancestorIds.has(current.parent_id)) return true;
+        current = getNode(current.parent_id);
+      }
+      return false;
+    };
+
+    // Check if target is one of the nodes being moved or a descendant
+    const moveNodeIds = new Set(nodesToMove.map(n => n!.id));
+    if (moveNodeIds.has(targetNodeId) || isDescendant(targetNodeId, moveNodeIds)) {
+      console.warn('Cannot move nodes to themselves or their descendants');
       handleClose();
       return;
     }
 
     setMoving(true);
     try {
-      // Move the focused node to be a child of the target node
-      // Position it at the end of the target's children
-      const targetChildren = nodes.filter(n => n.parent_id === targetNodeId);
-      const newPosition = targetChildren.length;
+      // Get current children count of target
+      let targetChildren = nodes.filter(n => n.parent_id === targetNodeId);
+      let newPosition = targetChildren.length;
 
-      await moveNodeTo(focusedId, targetNodeId, newPosition);
+      // Move nodes in order - this maintains their relative ordering
+      for (const node of nodesToMove) {
+        if (!node) continue;
+        await moveNodeTo(node.id, targetNodeId, newPosition);
+        newPosition++;
+      }
+
+      // Clear selection after bulk move
+      if (bulkMode) {
+        clearSelection();
+      }
+
       handleClose();
     } catch (e) {
-      console.error('Failed to move node:', e);
+      console.error('Failed to move node(s):', e);
     } finally {
       setMoving(false);
     }
-  }, [focusedId, nodes, moveNodeTo, handleClose]);
+  }, [focusedId, bulkMode, selectedIds, getSelectedNodes, nodes, moveNodeTo, handleClose, getNode, clearSelection]);
 
   const selectCurrent = useCallback(() => {
     const result = results[selectedIndex];
@@ -147,12 +186,21 @@ export function QuickMove({ isOpen, onClose }: QuickMoveProps) {
 
   // Get source node content for display
   const getSourceNodeContent = useCallback((): string => {
+    if (bulkMode && selectedIds.size > 0) {
+      const selected = getSelectedNodes();
+      if (selected.length === 0) return '';
+      if (selected.length === 1) {
+        const text = stripHtml(selected[0].content);
+        return text.length > 40 ? text.substring(0, 40) + '...' : text;
+      }
+      return `${selected.length} items`;
+    }
     if (!focusedId) return '';
     const node = getNode(focusedId);
     if (!node) return '';
     const text = stripHtml(node.content);
     return text.length > 40 ? text.substring(0, 40) + '...' : text;
-  }, [focusedId, getNode]);
+  }, [focusedId, bulkMode, selectedIds, getNode, getSelectedNodes]);
 
   if (!isOpen) {
     return null;
