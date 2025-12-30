@@ -18,6 +18,7 @@ import { Mention } from '../lib/Mention';
 
 // Suggestion popups
 import { WikiLinkSuggestion } from './ui/WikiLinkSuggestion';
+import { HashtagSuggestion } from './ui/HashtagSuggestion';
 
 interface OutlineItemProps {
   item: TreeNode;
@@ -84,6 +85,14 @@ export const OutlineItem = memo(function OutlineItem({
   const [wikiLinkPosition, setWikiLinkPosition] = useState({ x: 0, y: 0 });
   const wikiLinkActiveRef = useRef(false);
   const wikiLinkRangeRef = useRef<{ from: number; to: number } | null>(null);
+
+  // Hashtag suggestion state
+  const [showHashtagSuggestion, setShowHashtagSuggestion] = useState(false);
+  const [hashtagQuery, setHashtagQuery] = useState('');
+  const [hashtagRange, setHashtagRange] = useState<{ from: number; to: number } | null>(null);
+  const [hashtagPosition, setHashtagPosition] = useState({ x: 0, y: 0 });
+  const hashtagActiveRef = useRef(false);
+  const hashtagRangeRef = useRef<{ from: number; to: number } | null>(null);
 
   // Keep stable refs to store functions to avoid stale closures in editor
   const storeRef = useRef({
@@ -224,18 +233,52 @@ export const OutlineItem = memo(function OutlineItem({
               return false;
             }
 
+            // Detect # trigger for hashtags (at start or after whitespace)
+            if (text === '#' && (prevChar === '' || prevChar === ' ' || prevChar === '\t' || from === 1)) {
+              const coords = view.coordsAtPos(from);
+              hashtagActiveRef.current = true;
+              hashtagRangeRef.current = { from: from, to: from + 1 };
+              setShowHashtagSuggestion(true);
+              setHashtagQuery('');
+              setHashtagRange({ from: from, to: from + 1 });
+              setHashtagPosition({ x: coords.left, y: coords.bottom + 5 });
+              return false;
+            }
+
+            // If hashtag suggestion is active, update query
+            if (hashtagActiveRef.current && hashtagRangeRef.current) {
+              const range = hashtagRangeRef.current;
+              const queryStart = range.from + 1; // After the #
+              const currentQuery = state.doc.textBetween(queryStart, from) + text;
+
+              // Check for space or special char to close
+              if (text === ' ' || text === '\t' || text === '\n') {
+                hashtagActiveRef.current = false;
+                hashtagRangeRef.current = null;
+                setShowHashtagSuggestion(false);
+                setHashtagRange(null);
+                return false;
+              }
+
+              const newRange = { from: range.from, to: from + text.length + 1 };
+              hashtagRangeRef.current = newRange;
+              setHashtagQuery(currentQuery);
+              setHashtagRange(newRange);
+              return false;
+            }
+
             return false;
           },
           handleKeyDown: (view, event) => {
             const mod = event.ctrlKey || event.metaKey;
             const store = storeRef.current;
 
-            // When wiki link suggestion is active, let Enter/Tab/Arrow keys
+            // When wiki link or hashtag suggestion is active, let Enter/Tab/Arrow keys
             // pass through to the suggestion popup's keyboard handler
-            if (wikiLinkActiveRef.current) {
+            if (wikiLinkActiveRef.current || hashtagActiveRef.current) {
               if (event.key === 'Enter' || event.key === 'Tab' ||
                   event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-                // Don't handle - let the WikiLinkSuggestion component handle it
+                // Don't handle - let the suggestion popup component handle it
                 return false;
               }
             }
@@ -456,6 +499,28 @@ export const OutlineItem = memo(function OutlineItem({
                   wikiLinkRangeRef.current = null;
                   setShowWikiLinkSuggestion(false);
                   setWikiLinkRange(null);
+                }
+              }
+            }
+
+            // === HASHTAG SUGGESTION HANDLING ===
+            if (hashtagActiveRef.current) {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                hashtagActiveRef.current = false;
+                hashtagRangeRef.current = null;
+                setShowHashtagSuggestion(false);
+                setHashtagRange(null);
+                return true;
+              }
+              if (event.key === 'Backspace' && hashtagRangeRef.current) {
+                const { from } = view.state.selection;
+                // If backspacing to before start of trigger, close suggestion
+                if (from <= hashtagRangeRef.current.from + 1) {
+                  hashtagActiveRef.current = false;
+                  hashtagRangeRef.current = null;
+                  setShowHashtagSuggestion(false);
+                  setHashtagRange(null);
                 }
               }
             }
@@ -857,6 +922,33 @@ export const OutlineItem = memo(function OutlineItem({
     setWikiLinkRange(null);
   }, []);
 
+  // Hashtag suggestion handlers
+  const handleHashtagSelect = useCallback((tag: string) => {
+    const editor = editorRef.current;
+    const range = hashtagRangeRef.current;
+    if (!editor || !range) return;
+
+    // Delete the #query text and insert the complete hashtag
+    editor
+      .chain()
+      .focus()
+      .deleteRange(range)
+      .insertContent(`#${tag} `) // Insert hashtag with trailing space
+      .run();
+
+    hashtagActiveRef.current = false;
+    hashtagRangeRef.current = null;
+    setShowHashtagSuggestion(false);
+    setHashtagRange(null);
+  }, []);
+
+  const handleHashtagClose = useCallback(() => {
+    hashtagActiveRef.current = false;
+    hashtagRangeRef.current = null;
+    setShowHashtagSuggestion(false);
+    setHashtagRange(null);
+  }, []);
+
   // Build className for the item
   const itemClasses = [
     'outline-item',
@@ -981,6 +1073,16 @@ export const OutlineItem = memo(function OutlineItem({
           position={wikiLinkPosition}
           onSelect={handleWikiLinkSelect}
           onClose={handleWikiLinkClose}
+        />
+      )}
+
+      {/* Hashtag suggestion popup */}
+      {showHashtagSuggestion && (
+        <HashtagSuggestion
+          query={hashtagQuery}
+          position={hashtagPosition}
+          onSelect={handleHashtagSelect}
+          onClose={handleHashtagClose}
         />
       )}
     </div>
