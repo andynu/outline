@@ -57,16 +57,19 @@ export const OutlineItem = memo(function OutlineItem({
   const startDrag = useOutlineStore(state => state.startDrag);
   const endDrag = useOutlineStore(state => state.endDrag);
   const dropOnNode = useOutlineStore(state => state.dropOnNode);
+  const updateNote = useOutlineStore(state => state.updateNote);
 
   const isFocused = focusedId === node.id;
   const isNodeSelected = selectedIds.has(node.id);
   const isDragging = draggedId === node.id;
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const staticContentRef = useRef<HTMLDivElement>(null);
+  const noteInputRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const [editorReady, setEditorReady] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'child' | null>(null);
+  const [isEditingNote, setIsEditingNote] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
 
@@ -184,6 +187,16 @@ export const OutlineItem = memo(function OutlineItem({
               } else {
                 store.indentNode(nodeId);
               }
+              return true;
+            }
+
+            // === NOTE EDITING ===
+            // Shift+Enter: toggle note editing
+            if (event.key === 'Enter' && !mod && event.shiftKey) {
+              event.preventDefault();
+              setIsEditingNote(true);
+              // Focus the note input after it renders
+              setTimeout(() => noteInputRef.current?.focus(), 0);
               return true;
             }
 
@@ -559,6 +572,75 @@ export const OutlineItem = memo(function OutlineItem({
   // Plain text version of content (for clipboard, search, etc.)
   const plainTextContent = node.content?.replace(/<[^>]*>/g, '') || '';
 
+  // === Note editing handlers ===
+
+  const handleNoteInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    updateNote(node.id, e.target.value);
+  }, [node.id, updateNote]);
+
+  const handleNoteKeydown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Escape: close note editor
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsEditingNote(false);
+      // Re-focus the main editor
+      editorRef.current?.commands.focus('end');
+    }
+    // Shift+Enter in note: also close and return to main editor
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      setIsEditingNote(false);
+      editorRef.current?.commands.focus('end');
+    }
+  }, []);
+
+  const handleNoteBlur = useCallback(() => {
+    // Close note editing when focus leaves (unless note is empty - then also clear it)
+    if (!node.note?.trim()) {
+      setIsEditingNote(false);
+    }
+  }, [node.note]);
+
+  // URL pattern for linkifying notes
+  const NOTE_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.)[^\s<>[\]{}|\\^`"']+/g;
+
+  /** Convert URLs in text to clickable links, escaping HTML */
+  const linkifyNote = useCallback((text: string): string => {
+    if (!text) return '';
+    // Escape HTML first
+    let result = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    // Replace URLs with links
+    result = result.replace(NOTE_URL_PATTERN, (url) => {
+      const href = url.startsWith('www.') ? `https://${url}` : url;
+      return `<a href="${href}" class="note-link" target="_blank" rel="noopener noreferrer">${url}</a>`;
+    });
+    // Convert newlines to <br>
+    result = result.replace(/\n/g, '<br>');
+    return result;
+  }, []);
+
+  const handleNoteClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    // If clicking a link, open it externally
+    if (target.tagName === 'A' && target.classList.contains('note-link')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const href = target.getAttribute('href');
+      if (href) {
+        window.open(href, '_blank');
+      }
+      return;
+    }
+    // Otherwise enter edit mode
+    setFocusedId(node.id);
+    setIsEditingNote(true);
+    setTimeout(() => noteInputRef.current?.focus(), 0);
+  }, [node.id, setFocusedId]);
+
   // === Context Menu ===
 
   const handleContextMenu = useCallback((e: ReactMouseEvent) => {
@@ -704,6 +786,30 @@ export const OutlineItem = memo(function OutlineItem({
           )}
         </div>
       </div>
+
+      {/* Note row */}
+      {(node.note || isEditingNote) && (
+        <div className="note-row">
+          {isEditingNote && isFocused ? (
+            <textarea
+              ref={noteInputRef}
+              className="note-input"
+              value={node.note || ''}
+              onChange={handleNoteInput}
+              onKeyDown={handleNoteKeydown}
+              onBlur={handleNoteBlur}
+              placeholder="Add a note..."
+              rows={1}
+            />
+          ) : (
+            <div
+              className="note-content"
+              onClick={handleNoteClick}
+              dangerouslySetInnerHTML={{ __html: linkifyNote(node.note || '') }}
+            />
+          )}
+        </div>
+      )}
 
       {/* Recursive children */}
       {hasChildren && !node.collapsed && (

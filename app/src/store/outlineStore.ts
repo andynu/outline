@@ -4,6 +4,10 @@ import * as api from '../lib/api';
 
 // Constants
 const MAX_UNDO_STACK_SIZE = 100;
+const NOTE_UPDATE_DEBOUNCE_MS = 300;
+
+// Debounce timer for note updates (stored outside Zustand to avoid re-renders)
+const pendingNoteUpdates = new Map<string, ReturnType<typeof setTimeout>>();
 
 // Flat item for virtual list rendering
 export interface FlatItem {
@@ -68,6 +72,7 @@ interface OutlineState {
   splitNode: (nodeId: string, beforeContent: string, afterContent: string) => Promise<string | null>;
   mergeWithNextSibling: (nodeId: string) => Promise<{ cursorPos: number } | null>;
   updateContent: (nodeId: string, content: string) => Promise<void>;
+  updateNote: (nodeId: string, note: string) => void;  // Debounced
   deleteNode: (nodeId: string) => Promise<string | null>;
   deleteAllCompleted: () => Promise<number>;
   toggleCollapse: (nodeId: string) => Promise<void>;
@@ -683,6 +688,51 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     } finally {
       set(s => ({ pendingOperations: s.pendingOperations - 1 }));
     }
+  },
+
+  updateNote: (nodeId: string, note: string) => {
+    // Cancel any pending update for this node
+    const pending = pendingNoteUpdates.get(nodeId);
+    if (pending) {
+      clearTimeout(pending);
+    }
+
+    // Optimistic update - update local state immediately
+    set((state) => {
+      const nodes = state.nodes.map(n =>
+        n.id === nodeId ? { ...n, note: note || undefined } : n
+      );
+      // Rebuild indexes
+      const nodesById = new Map<string, Node>();
+      const childrenByParent = new Map<string | null, Node[]>();
+      for (const node of nodes) {
+        nodesById.set(node.id, node);
+        const siblings = childrenByParent.get(node.parent_id) ?? [];
+        siblings.push(node);
+        childrenByParent.set(node.parent_id, siblings);
+      }
+      // Sort children by position
+      for (const [, children] of childrenByParent) {
+        children.sort((a, b) => a.position - b.position);
+      }
+      return { nodes, _nodesById: nodesById, _childrenByParent: childrenByParent };
+    });
+
+    // Debounce the API call
+    const timer = setTimeout(async () => {
+      pendingNoteUpdates.delete(nodeId);
+      set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+      try {
+        // Send to backend - note field is optional, send undefined to clear
+        await api.updateNode(nodeId, { note: note || undefined });
+      } catch (e) {
+        set({ error: e instanceof Error ? e.message : String(e) });
+      } finally {
+        set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+      }
+    }, NOTE_UPDATE_DEBOUNCE_MS);
+
+    pendingNoteUpdates.set(nodeId, timer);
   },
 
   deleteNode: async (nodeId: string) => {
