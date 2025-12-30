@@ -260,13 +260,45 @@ export const OutlineItem = memo(function OutlineItem({
               return true;
             }
 
-            if (event.key === 'ArrowUp' && (event.shiftKey || mod)) {
+            // Extend selection with Shift+Arrow
+            if (event.key === 'ArrowUp' && event.shiftKey && !mod) {
+              event.preventDefault();
+              // Add current to selection if not already selected
+              const currentState = useOutlineStore.getState();
+              if (!currentState.selectedIds.has(nodeId)) {
+                currentState.toggleSelection(nodeId);
+              }
+              // Move to previous and add to selection
+              const prevId = currentState.moveToPrevious();
+              if (prevId && !currentState.selectedIds.has(prevId)) {
+                currentState.toggleSelection(prevId);
+              }
+              return true;
+            }
+
+            if (event.key === 'ArrowDown' && event.shiftKey && !mod) {
+              event.preventDefault();
+              // Add current to selection if not already selected
+              const currentState = useOutlineStore.getState();
+              if (!currentState.selectedIds.has(nodeId)) {
+                currentState.toggleSelection(nodeId);
+              }
+              // Move to next and add to selection
+              const nextId = currentState.moveToNext();
+              if (nextId && !currentState.selectedIds.has(nextId)) {
+                currentState.toggleSelection(nextId);
+              }
+              return true;
+            }
+
+            // Swap position with Ctrl+Arrow
+            if (event.key === 'ArrowUp' && mod) {
               event.preventDefault();
               store.swapWithPrevious(nodeId);
               return true;
             }
 
-            if (event.key === 'ArrowDown' && (event.shiftKey || mod)) {
+            if (event.key === 'ArrowDown' && mod) {
               event.preventDefault();
               store.swapWithNext(nodeId);
               return true;
