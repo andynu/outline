@@ -55,6 +55,8 @@ let lastSavedAt = $state<Date | null>(null);
 let filterQuery = $state<string | null>(null);  // e.g., "#tag" or "@mention"
 let hideCompleted = $state(false);  // Hide completed items from view
 let zoomedNodeId = $state<string | null>(null);  // Zoom/focus mode: show only this subtree
+let currentDocId = $state<string | null>(null);  // Currently loaded document ID
+let inboxNodeId = $state<string | null>(null);  // Global inbox node ID (from config)
 
 // Lock to prevent concurrent position-changing operations
 let isMoving = false;
@@ -424,6 +426,8 @@ export const outline = {
   get lastSavedAt() { return lastSavedAt; },
   get filterQuery() { return filterQuery; },
   get hideCompleted() { return hideCompleted; },
+  get currentDocId() { return currentDocId; },
+  get inboxNodeId() { return inboxNodeId; },
 
   // Set filter (e.g., "#tag" or "@mention")
   setFilter(query: string | null) {
@@ -491,6 +495,52 @@ export const outline = {
       currentId = node.parent_id;
     }
     return path;
+  },
+
+  // --- Inbox Configuration ---
+
+  // Check if a node is the inbox node
+  isInboxNode(nodeId: string): boolean {
+    return inboxNodeId === nodeId;
+  },
+
+  // Set a node as the inbox (quick capture target)
+  async setAsInbox(nodeId: string): Promise<void> {
+    if (!currentDocId) {
+      console.error('No document loaded');
+      return;
+    }
+    try {
+      await api.setInboxSetting(currentDocId, nodeId);
+      inboxNodeId = nodeId;
+    } catch (e) {
+      console.error('Failed to set inbox:', e);
+    }
+  },
+
+  // Clear the inbox setting
+  async clearInbox(): Promise<void> {
+    try {
+      await api.clearInboxSetting();
+      inboxNodeId = null;
+    } catch (e) {
+      console.error('Failed to clear inbox:', e);
+    }
+  },
+
+  // Import inbox items (as children of inbox node)
+  async importInboxItems(): Promise<number> {
+    try {
+      const count = await api.importInboxItems();
+      // Reload document to see new items
+      if (count > 0 && currentDocId) {
+        await this.load(currentDocId);
+      }
+      return count;
+    } catch (e) {
+      console.error('Failed to import inbox items:', e);
+      return 0;
+    }
   },
 
   // --- Multi-Selection ---
@@ -723,6 +773,17 @@ export const outline = {
     try {
       const state = await api.loadDocument(docId);
       updateFromState(state);
+
+      // Store current document ID
+      currentDocId = docId || null;
+
+      // Load inbox config to know if any node in this document is the inbox
+      const inboxSetting = await api.getInboxSetting();
+      if (inboxSetting && inboxSetting.document_id === currentDocId) {
+        inboxNodeId = inboxSetting.node_id;
+      } else {
+        inboxNodeId = null;
+      }
 
       // Restore zoom state from session if provided and node exists
       if (sessionState?.zoomedNodeId) {

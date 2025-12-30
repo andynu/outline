@@ -62,6 +62,11 @@ pub fn run() {
             commands::delete_folder,
             commands::move_document_to_folder,
             commands::reorder_folders,
+            // Inbox configuration
+            commands::get_inbox_setting,
+            commands::set_inbox_setting,
+            commands::clear_inbox_setting,
+            commands::import_inbox_items,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

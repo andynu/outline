@@ -76,6 +76,7 @@
   // Reactive checks
   let isFocused = $derived(outline.focusedId === item.node.id);
   let isSelected = $derived(outline.isSelected(item.node.id));
+  let isInbox = $derived(outline.isInboxNode(item.node.id));
 
   // Sync content from store to editor when it changes externally
   $effect(() => {
@@ -1272,6 +1273,11 @@
     },
     { separator: true as const },
     {
+      label: isInbox ? 'Clear as Inbox' : 'Set as Inbox',
+      action: () => isInbox ? outline.clearInbox() : outline.setAsInbox(item.node.id),
+    },
+    { separator: true as const },
+    {
       label: 'Delete',
       action: () => outline.deleteNode(item.node.id),
       shortcut: 'Ctrl+Shift+Backspace',
@@ -1380,6 +1386,10 @@
       >
         {@html item.node.content || '<p></p>'}
       </div>
+    {/if}
+
+    {#if isInbox}
+      <span class="inbox-indicator" title="Inbox - Quick capture items appear here">📥</span>
     {/if}
 
     {#if item.node.date_recurrence}
@@ -1631,6 +1641,17 @@
   }
 
   .recurrence-indicator:hover {
+    opacity: 1;
+  }
+
+  .inbox-indicator {
+    font-size: 12px;
+    margin-left: 4px;
+    cursor: default;
+    opacity: 0.8;
+  }
+
+  .inbox-indicator:hover {
     opacity: 1;
   }
 

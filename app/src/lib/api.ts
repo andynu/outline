@@ -1049,3 +1049,53 @@ function generateSelectionPlainText(nodeIds: string[], includeCompletedChildren:
 
   return lines.join('\n');
 }
+
+// ============================================================================
+// Inbox Configuration
+// ============================================================================
+
+// Inbox configuration type
+export interface InboxSetting {
+  document_id: string;
+  node_id: string;
+}
+
+// Get the current inbox setting (which node receives quick capture items)
+export async function getInboxSetting(): Promise<InboxSetting | null> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('get_inbox_setting') as Promise<InboxSetting | null>;
+  }
+  // Browser-only mode: return null
+  return null;
+}
+
+// Set which node should be the inbox for quick capture items
+export async function setInboxSetting(documentId: string, nodeId: string): Promise<InboxSetting> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('set_inbox_setting', { documentId, nodeId }) as Promise<InboxSetting>;
+  }
+  // Browser-only mode: return mock setting
+  return { document_id: documentId, node_id: nodeId };
+}
+
+// Clear the inbox setting (items will queue until configured)
+export async function clearInboxSetting(): Promise<void> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('clear_inbox_setting') as Promise<void>;
+  }
+  // Browser-only mode: no-op
+}
+
+// Import all inbox items as children of the configured inbox node
+// Returns the number of items imported
+export async function importInboxItems(): Promise<number> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('import_inbox_items') as Promise<number>;
+  }
+  // Browser-only mode: return 0
+  return 0;
+}

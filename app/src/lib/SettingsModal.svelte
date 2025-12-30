@@ -1,7 +1,9 @@
 <script lang="ts">
   import { settings } from './settings.svelte';
   import { theme, type Theme } from './theme.svelte';
-  import { getDataDirectory, setDataDirectory, pickDirectory, type DataDirectoryInfo } from './api';
+  import { getDataDirectory, setDataDirectory, pickDirectory, type DataDirectoryInfo,
+           getInboxSetting, clearInboxSetting, getInboxCount, type InboxSetting } from './api';
+  import { outline } from './outline.svelte';
 
   interface Props {
     isOpen: boolean;
@@ -26,6 +28,13 @@
   let dataDirError = $state('');
   let needsRestart = $state(false);
 
+  // Inbox state
+  let inboxSetting = $state<InboxSetting | null>(null);
+  let inboxCount = $state(0);
+  let inboxLoading = $state(false);
+  let inboxImporting = $state(false);
+  let inboxMessage = $state('');
+
   // Sync local state when modal opens
   $effect(() => {
     if (isOpen) {
@@ -41,8 +50,55 @@
 
       // Load data directory info
       loadDataDirectory();
+      // Load inbox info
+      loadInboxInfo();
     }
   });
+
+  async function loadInboxInfo() {
+    inboxLoading = true;
+    inboxMessage = '';
+    try {
+      inboxSetting = await getInboxSetting();
+      inboxCount = await getInboxCount();
+    } catch (e) {
+      console.error('Failed to load inbox info:', e);
+    } finally {
+      inboxLoading = false;
+    }
+  }
+
+  async function handleClearInbox() {
+    try {
+      await clearInboxSetting();
+      inboxSetting = null;
+      inboxMessage = 'Inbox cleared';
+    } catch (e) {
+      inboxMessage = e instanceof Error ? e.message : 'Failed to clear inbox';
+    }
+  }
+
+  async function handleImportInbox() {
+    if (!inboxSetting) {
+      inboxMessage = 'Please set an inbox node first (right-click an item → Set as Inbox)';
+      return;
+    }
+    inboxImporting = true;
+    inboxMessage = '';
+    try {
+      const count = await outline.importInboxItems();
+      if (count > 0) {
+        inboxMessage = `Imported ${count} item${count !== 1 ? 's' : ''}`;
+        inboxCount = 0;
+      } else {
+        inboxMessage = 'No items to import';
+      }
+    } catch (e) {
+      inboxMessage = e instanceof Error ? e.message : 'Failed to import';
+    } finally {
+      inboxImporting = false;
+    }
+  }
 
   async function loadDataDirectory() {
     dataDirLoading = true;
@@ -382,6 +438,60 @@
             </div>
           {/if}
         </section>
+
+        <!-- Inbox Section -->
+        <section class="settings-section">
+          <h3>Inbox</h3>
+          <p class="section-hint">
+            Quick capture items from mobile or web are imported as children of the inbox node.
+          </p>
+          <div class="setting-row inbox-row">
+            <label class="setting-label">
+              <span class="label-text">Inbox Location</span>
+              <span class="label-hint">
+                {#if inboxLoading}
+                  Loading...
+                {:else if inboxSetting}
+                  Node set in document {inboxSetting.document_id.slice(0, 8)}...
+                {:else}
+                  Not configured — right-click an item and select "Set as Inbox"
+                {/if}
+              </span>
+            </label>
+            <div class="inbox-controls">
+              {#if inboxSetting}
+                <button
+                  class="btn-browse"
+                  onclick={handleClearInbox}
+                  title="Clear inbox setting"
+                >
+                  Clear
+                </button>
+              {/if}
+            </div>
+          </div>
+          <div class="setting-row inbox-row">
+            <label class="setting-label">
+              <span class="label-text">Pending Items</span>
+              <span class="label-hint">
+                {inboxCount} item{inboxCount !== 1 ? 's' : ''} waiting to import
+              </span>
+            </label>
+            <div class="inbox-controls">
+              <button
+                class="btn-browse"
+                onclick={handleImportInbox}
+                disabled={inboxImporting || inboxCount === 0}
+                title={inboxCount > 0 ? 'Import items to inbox' : 'No items to import'}
+              >
+                {inboxImporting ? 'Importing...' : 'Import Now'}
+              </button>
+            </div>
+          </div>
+          {#if inboxMessage}
+            <div class="inbox-message">{inboxMessage}</div>
+          {/if}
+        </section>
       </div>
 
       <div class="modal-footer">
@@ -686,6 +796,30 @@
     border-radius: 6px;
     color: var(--warning, #d97706);
     margin-top: 8px;
+  }
+
+  /* Inbox styles */
+  .inbox-row {
+    align-items: center;
+  }
+
+  .inbox-controls {
+    display: flex;
+    gap: 8px;
+  }
+
+  .inbox-message {
+    font-size: 12px;
+    padding: 8px;
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 4px;
+    margin-top: 4px;
+    color: var(--accent-primary);
+  }
+
+  .btn-browse:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .data-dir-restart-notice svg {

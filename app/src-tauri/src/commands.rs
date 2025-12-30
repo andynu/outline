@@ -4,7 +4,8 @@ use uuid::Uuid;
 
 use crate::data::{
     create_op, create_op_with_id, data_dir, default_data_dir, delete_op, documents_dir, ensure_dirs,
-    move_op, save_config, set_data_dir, update_op, AppConfig, Document, DocumentState, InboxItem,
+    move_op, save_config, set_data_dir, update_op, Document, DocumentState, InboxConfig, InboxItem,
+    get_inbox_config, set_inbox_config as set_inbox_config_impl, clear_inbox_config as clear_inbox_config_impl,
     Node, NodeChanges, NodeType, Operation, read_inbox, remove_inbox_items,
     // Folder management
     Folder, FolderState, load_folders,
@@ -857,10 +858,9 @@ pub fn set_data_directory(path: Option<String>) -> Result<DataDirectoryInfo, Str
         set_data_dir(None);
     }
 
-    // Save to config file
-    let config = AppConfig {
-        data_directory: path,
-    };
+    // Save to config file (preserve existing inbox setting)
+    let mut config = crate::data::load_config();
+    config.data_directory = path;
     save_config(&config)?;
 
     Ok(get_data_directory())
@@ -967,4 +967,123 @@ pub async fn save_to_file_with_dialog(
         }
         None => Ok(None), // User cancelled
     }
+}
+
+// ============================================================================
+// Inbox Configuration Commands
+// ============================================================================
+
+/// Get the current inbox configuration (which node receives quick capture items)
+#[tauri::command]
+pub fn get_inbox_setting() -> Option<InboxConfig> {
+    get_inbox_config()
+}
+
+/// Set which node should be the inbox for quick capture items
+#[tauri::command]
+pub fn set_inbox_setting(document_id: String, node_id: String) -> Result<InboxConfig, String> {
+    set_inbox_config_impl(document_id.clone(), node_id.clone())?;
+    Ok(InboxConfig { document_id, node_id })
+}
+
+/// Clear the inbox setting (items will queue until configured)
+#[tauri::command]
+pub fn clear_inbox_setting() -> Result<(), String> {
+    clear_inbox_config_impl()
+}
+
+/// Import all inbox items as children of the configured inbox node
+/// Returns the number of items imported
+#[tauri::command]
+pub fn import_inbox_items(state: State<AppState>) -> Result<u32, String> {
+    // Get inbox config
+    let inbox_config = get_inbox_config()
+        .ok_or("No inbox configured. Please set an inbox node first.")?;
+
+    // Read inbox items
+    let items = read_inbox()?;
+    if items.is_empty() {
+        return Ok(0);
+    }
+
+    // Get current document or load the inbox document
+    let mut current = state.current_document.lock().unwrap();
+
+    // Check if we need to load a different document
+    let doc = if let Some(ref mut doc) = *current {
+        // Check if the current document is the inbox document
+        if doc.id.to_string() != inbox_config.document_id {
+            // Load the inbox document
+            let doc_dir = documents_dir().join(&inbox_config.document_id);
+            if !doc_dir.exists() {
+                return Err("Inbox document not found".to_string());
+            }
+            *current = Some(Document::load(doc_dir)?);
+            current.as_mut().unwrap()
+        } else {
+            doc
+        }
+    } else {
+        // No document loaded, load the inbox document
+        let doc_dir = documents_dir().join(&inbox_config.document_id);
+        if !doc_dir.exists() {
+            return Err("Inbox document not found".to_string());
+        }
+        *current = Some(Document::load(doc_dir)?);
+        current.as_mut().unwrap()
+    };
+
+    // Find the inbox node
+    let inbox_node_id = Uuid::parse_str(&inbox_config.node_id)
+        .map_err(|e| format!("Invalid inbox node ID: {}", e))?;
+
+    if !doc.state.nodes.iter().any(|n| n.id == inbox_node_id) {
+        return Err("Inbox node not found in document".to_string());
+    }
+
+    // Get current max position among inbox node's children
+    let max_position = doc.state.nodes.iter()
+        .filter(|n| n.parent_id == Some(inbox_node_id))
+        .map(|n| n.position)
+        .max()
+        .unwrap_or(-1);
+
+    // Import each item as a child of the inbox node
+    let mut imported = 0;
+    let mut item_ids = Vec::new();
+
+    for (i, item) in items.iter().enumerate() {
+        let position = max_position + 1 + (i as i32);
+
+        // Create the node
+        let op = create_op(Some(inbox_node_id), position, item.content.clone());
+        let new_id = match &op {
+            Operation::Create { id, .. } => *id,
+            _ => unreachable!(),
+        };
+
+        doc.append_op(&op)?;
+        op.apply(&mut doc.state);
+
+        // If item has a note, update it
+        if let Some(ref note) = item.note {
+            let update = update_op(
+                new_id,
+                NodeChanges {
+                    note: Some(note.clone()),
+                    ..Default::default()
+                },
+            );
+            doc.append_op(&update)?;
+            update.apply(&mut doc.state);
+        }
+
+        item_ids.push(item.id.clone());
+        imported += 1;
+    }
+
+    // Clear imported items from inbox file
+    remove_inbox_items(&item_ids)?;
+
+    Ok(imported)
 }

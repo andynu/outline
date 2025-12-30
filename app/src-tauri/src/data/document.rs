@@ -311,11 +311,20 @@ fn config_path() -> PathBuf {
         .join("config.json")
 }
 
+/// Inbox configuration - which node should receive quick capture items
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InboxConfig {
+    pub document_id: String,
+    pub node_id: String,
+}
+
 /// App configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data_directory: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inbox: Option<InboxConfig>,
 }
 
 /// Load app configuration from disk
@@ -352,6 +361,28 @@ pub fn init_data_dir_from_config() {
             set_data_dir(if path_str.is_empty() { None } else { Some(path) });
         }
     }
+}
+
+/// Get the current inbox configuration
+pub fn get_inbox_config() -> Option<InboxConfig> {
+    load_config().inbox
+}
+
+/// Set the inbox configuration
+pub fn set_inbox_config(document_id: String, node_id: String) -> Result<(), String> {
+    let mut config = load_config();
+    config.inbox = Some(InboxConfig {
+        document_id,
+        node_id,
+    });
+    save_config(&config)
+}
+
+/// Clear the inbox configuration
+pub fn clear_inbox_config() -> Result<(), String> {
+    let mut config = load_config();
+    config.inbox = None;
+    save_config(&config)
 }
 
 /// Get the documents directory path
