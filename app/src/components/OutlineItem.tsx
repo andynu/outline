@@ -19,6 +19,7 @@ import { Mention } from '../lib/Mention';
 // Suggestion popups
 import { WikiLinkSuggestion } from './ui/WikiLinkSuggestion';
 import { HashtagSuggestion } from './ui/HashtagSuggestion';
+import { DueDateSuggestion } from './ui/DueDateSuggestion';
 
 interface OutlineItemProps {
   item: TreeNode;
@@ -93,6 +94,14 @@ export const OutlineItem = memo(function OutlineItem({
   const [hashtagPosition, setHashtagPosition] = useState({ x: 0, y: 0 });
   const hashtagActiveRef = useRef(false);
   const hashtagRangeRef = useRef<{ from: number; to: number } | null>(null);
+
+  // Due date suggestion state
+  const [showDueDateSuggestion, setShowDueDateSuggestion] = useState(false);
+  const [dueDateQuery, setDueDateQuery] = useState('');
+  const [dueDateRange, setDueDateRange] = useState<{ from: number; to: number } | null>(null);
+  const [dueDatePosition, setDueDatePosition] = useState({ x: 0, y: 0 });
+  const dueDateActiveRef = useRef(false);
+  const dueDateRangeRef = useRef<{ from: number; to: number } | null>(null);
 
   // Keep stable refs to store functions to avoid stale closures in editor
   const storeRef = useRef({
@@ -267,15 +276,49 @@ export const OutlineItem = memo(function OutlineItem({
               return false;
             }
 
+            // Detect !( trigger for due dates
+            if (text === '(' && prevChar === '!') {
+              const coords = view.coordsAtPos(from);
+              dueDateActiveRef.current = true;
+              dueDateRangeRef.current = { from: from - 1, to: from + 1 };
+              setShowDueDateSuggestion(true);
+              setDueDateQuery('');
+              setDueDateRange({ from: from - 1, to: from + 1 });
+              setDueDatePosition({ x: coords.left, y: coords.bottom + 5 });
+              return false;
+            }
+
+            // If due date suggestion is active, update query
+            if (dueDateActiveRef.current && dueDateRangeRef.current) {
+              const range = dueDateRangeRef.current;
+              const queryStart = range.from + 2; // After the !(
+              const currentQuery = state.doc.textBetween(queryStart, from) + text;
+
+              // Check for ) to close and complete
+              if (text === ')') {
+                dueDateActiveRef.current = false;
+                dueDateRangeRef.current = null;
+                setShowDueDateSuggestion(false);
+                setDueDateRange(null);
+                return false;
+              }
+
+              const newRange = { from: range.from, to: from + text.length + 1 };
+              dueDateRangeRef.current = newRange;
+              setDueDateQuery(currentQuery);
+              setDueDateRange(newRange);
+              return false;
+            }
+
             return false;
           },
           handleKeyDown: (view, event) => {
             const mod = event.ctrlKey || event.metaKey;
             const store = storeRef.current;
 
-            // When wiki link or hashtag suggestion is active, let Enter/Tab/Arrow keys
+            // When wiki link, hashtag, or due date suggestion is active, let Enter/Tab/Arrow keys
             // pass through to the suggestion popup's keyboard handler
-            if (wikiLinkActiveRef.current || hashtagActiveRef.current) {
+            if (wikiLinkActiveRef.current || hashtagActiveRef.current || dueDateActiveRef.current) {
               if (event.key === 'Enter' || event.key === 'Tab' ||
                   event.key === 'ArrowUp' || event.key === 'ArrowDown') {
                 // Don't handle - let the suggestion popup component handle it
@@ -521,6 +564,28 @@ export const OutlineItem = memo(function OutlineItem({
                   hashtagRangeRef.current = null;
                   setShowHashtagSuggestion(false);
                   setHashtagRange(null);
+                }
+              }
+            }
+
+            // === DUE DATE SUGGESTION HANDLING ===
+            if (dueDateActiveRef.current) {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                dueDateActiveRef.current = false;
+                dueDateRangeRef.current = null;
+                setShowDueDateSuggestion(false);
+                setDueDateRange(null);
+                return true;
+              }
+              if (event.key === 'Backspace' && dueDateRangeRef.current) {
+                const { from } = view.state.selection;
+                // If backspacing to before start of trigger !( , close suggestion
+                if (from <= dueDateRangeRef.current.from + 2) {
+                  dueDateActiveRef.current = false;
+                  dueDateRangeRef.current = null;
+                  setShowDueDateSuggestion(false);
+                  setDueDateRange(null);
                 }
               }
             }
@@ -949,6 +1014,33 @@ export const OutlineItem = memo(function OutlineItem({
     setHashtagRange(null);
   }, []);
 
+  // Due date suggestion handlers
+  const handleDueDateSelect = useCallback((date: string) => {
+    const editor = editorRef.current;
+    const range = dueDateRangeRef.current;
+    if (!editor || !range) return;
+
+    // Delete the !(query text and insert the complete due date
+    editor
+      .chain()
+      .focus()
+      .deleteRange(range)
+      .insertContent(`!(${date})`) // Insert due date with closing paren
+      .run();
+
+    dueDateActiveRef.current = false;
+    dueDateRangeRef.current = null;
+    setShowDueDateSuggestion(false);
+    setDueDateRange(null);
+  }, []);
+
+  const handleDueDateClose = useCallback(() => {
+    dueDateActiveRef.current = false;
+    dueDateRangeRef.current = null;
+    setShowDueDateSuggestion(false);
+    setDueDateRange(null);
+  }, []);
+
   // Build className for the item
   const itemClasses = [
     'outline-item',
@@ -1083,6 +1175,16 @@ export const OutlineItem = memo(function OutlineItem({
           position={hashtagPosition}
           onSelect={handleHashtagSelect}
           onClose={handleHashtagClose}
+        />
+      )}
+
+      {/* Due date suggestion popup */}
+      {showDueDateSuggestion && (
+        <DueDateSuggestion
+          query={dueDateQuery}
+          position={dueDatePosition}
+          onSelect={handleDueDateSelect}
+          onClose={handleDueDateClose}
         />
       )}
     </div>
