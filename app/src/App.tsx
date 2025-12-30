@@ -124,6 +124,8 @@ function App() {
   // Linear navigation (for arrow keys when no editor is focused)
   const moveToPrevious = useOutlineStore(state => state.moveToPrevious);
   const moveToNext = useOutlineStore(state => state.moveToNext);
+  const moveToFirst = useOutlineStore(state => state.moveToFirst);
+  const moveToLast = useOutlineStore(state => state.moveToLast);
   const getVisibleNodes = useOutlineStore(state => state.getVisibleNodes);
 
   // Zoom store
@@ -736,11 +738,47 @@ function App() {
         }
       }
 
+      // Ctrl+Home: Jump to first item in document
+      if (mod && event.key === 'Home') {
+        event.preventDefault();
+        moveToFirst();
+        return;
+      }
+
+      // Ctrl+End: Jump to last item in document
+      if (mod && event.key === 'End') {
+        event.preventDefault();
+        moveToLast();
+        return;
+      }
+
+      // Ctrl+Q: Quit application (Tauri only)
+      if (mod && event.key === 'q') {
+        event.preventDefault();
+        // Use dynamic import to check if we're in Tauri
+        import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+          getCurrentWindow().close();
+        }).catch(() => {
+          // Not in Tauri, ignore
+        });
+        return;
+      }
+
       // Arrow key navigation when focusedId points to an invisible node (e.g., zoomed-in node)
-      // Only handle arrow keys if the focused node is NOT visible (otherwise TipTap handles it)
+      // Also handles ArrowDown when there's no focus at all (select first visible item)
       if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !mod && !event.shiftKey) {
         const visible = getVisibleNodes();
         const focusedIsVisible = visible.some(n => n.id === focusedId);
+
+        // No focus at all - select first visible item on ArrowDown
+        if (!focusedId && event.key === 'ArrowDown' && visible.length > 0) {
+          event.preventDefault();
+          event.stopPropagation();
+          moveToFirst();
+          return;
+        }
+
+        // Focused node is not visible (e.g., zoomed-in parent)
         if (!focusedIsVisible && focusedId) {
           event.preventDefault();
           event.stopPropagation();
@@ -799,7 +837,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, getVisibleNodes, focusedId]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
