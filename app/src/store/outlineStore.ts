@@ -144,6 +144,14 @@ interface OutlineState {
   exportSelectedToFile: () => Promise<boolean>;
   exportSelection: () => Promise<boolean>;
   groupSelectedUnderNewParent: () => Promise<string | null>;
+  // Sort and reverse operations (internal helper)
+  _reorderSelectedNodes: (sortedNodes: Node[]) => Promise<boolean>;
+  sortSelectedAlphabetical: () => Promise<boolean>;
+  sortSelectedReverseAlphabetical: () => Promise<boolean>;
+  sortSelectedByDate: () => Promise<boolean>;
+  sortSelectedByDateReverse: () => Promise<boolean>;
+  sortSelectedByCompletion: () => Promise<boolean>;
+  reverseSelectedOrder: () => Promise<boolean>;
 }
 
 // Check if a node matches the filter query
@@ -2508,5 +2516,165 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     } finally {
       set(s => ({ pendingOperations: s.pendingOperations - 1 }));
     }
+  },
+
+  // Helper to reorder selected siblings according to a given sorted order
+  _reorderSelectedNodes: async (sortedNodes: Node[]): Promise<boolean> => {
+    const { updateFromState } = get();
+    if (sortedNodes.length === 0) return false;
+
+    // Get original positions (indices) of the selected nodes
+    // We'll assign them new positions based on sorted order
+    const originalPositions = sortedNodes.map(n => n.position).sort((a, b) => a - b);
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      let lastState: DocumentState | null = null;
+
+      // Move each node to its new position
+      for (let i = 0; i < sortedNodes.length; i++) {
+        const node = sortedNodes[i];
+        const newPosition = originalPositions[i];
+        if (node.position !== newPosition) {
+          lastState = await api.moveNode(node.id, node.parent_id, newPosition);
+        }
+      }
+
+      if (lastState) {
+        updateFromState(lastState);
+      }
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  sortSelectedAlphabetical: async () => {
+    const { selectedIds, getNode, _reorderSelectedNodes } = get();
+    if (selectedIds.size === 0) return false;
+
+    const selectedNodes = Array.from(selectedIds)
+      .map(id => getNode(id))
+      .filter((n): n is Node => n !== undefined);
+
+    // Verify all have same parent
+    const parentId = selectedNodes[0]?.parent_id;
+    if (!selectedNodes.every(n => n.parent_id === parentId)) return false;
+
+    // Sort alphabetically by text content (strip HTML)
+    const sorted = [...selectedNodes].sort((a, b) => {
+      const textA = a.content.replace(/<[^>]+>/g, '').toLowerCase();
+      const textB = b.content.replace(/<[^>]+>/g, '').toLowerCase();
+      return textA.localeCompare(textB);
+    });
+
+    return _reorderSelectedNodes(sorted);
+  },
+
+  sortSelectedReverseAlphabetical: async () => {
+    const { selectedIds, getNode, _reorderSelectedNodes } = get();
+    if (selectedIds.size === 0) return false;
+
+    const selectedNodes = Array.from(selectedIds)
+      .map(id => getNode(id))
+      .filter((n): n is Node => n !== undefined);
+
+    const parentId = selectedNodes[0]?.parent_id;
+    if (!selectedNodes.every(n => n.parent_id === parentId)) return false;
+
+    // Sort reverse alphabetically
+    const sorted = [...selectedNodes].sort((a, b) => {
+      const textA = a.content.replace(/<[^>]+>/g, '').toLowerCase();
+      const textB = b.content.replace(/<[^>]+>/g, '').toLowerCase();
+      return textB.localeCompare(textA);
+    });
+
+    return _reorderSelectedNodes(sorted);
+  },
+
+  sortSelectedByDate: async () => {
+    const { selectedIds, getNode, _reorderSelectedNodes } = get();
+    if (selectedIds.size === 0) return false;
+
+    const selectedNodes = Array.from(selectedIds)
+      .map(id => getNode(id))
+      .filter((n): n is Node => n !== undefined);
+
+    const parentId = selectedNodes[0]?.parent_id;
+    if (!selectedNodes.every(n => n.parent_id === parentId)) return false;
+
+    // Sort by date (nulls last), earliest first
+    const sorted = [...selectedNodes].sort((a, b) => {
+      if (!a.date && !b.date) return 0;
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return a.date.localeCompare(b.date);
+    });
+
+    return _reorderSelectedNodes(sorted);
+  },
+
+  sortSelectedByDateReverse: async () => {
+    const { selectedIds, getNode, _reorderSelectedNodes } = get();
+    if (selectedIds.size === 0) return false;
+
+    const selectedNodes = Array.from(selectedIds)
+      .map(id => getNode(id))
+      .filter((n): n is Node => n !== undefined);
+
+    const parentId = selectedNodes[0]?.parent_id;
+    if (!selectedNodes.every(n => n.parent_id === parentId)) return false;
+
+    // Sort by date (nulls last), latest first
+    const sorted = [...selectedNodes].sort((a, b) => {
+      if (!a.date && !b.date) return 0;
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return b.date.localeCompare(a.date);
+    });
+
+    return _reorderSelectedNodes(sorted);
+  },
+
+  sortSelectedByCompletion: async () => {
+    const { selectedIds, getNode, _reorderSelectedNodes } = get();
+    if (selectedIds.size === 0) return false;
+
+    const selectedNodes = Array.from(selectedIds)
+      .map(id => getNode(id))
+      .filter((n): n is Node => n !== undefined);
+
+    const parentId = selectedNodes[0]?.parent_id;
+    if (!selectedNodes.every(n => n.parent_id === parentId)) return false;
+
+    // Sort by completion (unchecked first, then checked)
+    const sorted = [...selectedNodes].sort((a, b) => {
+      const aChecked = a.is_checked && a.node_type === 'checkbox' ? 1 : 0;
+      const bChecked = b.is_checked && b.node_type === 'checkbox' ? 1 : 0;
+      return aChecked - bChecked;
+    });
+
+    return _reorderSelectedNodes(sorted);
+  },
+
+  reverseSelectedOrder: async () => {
+    const { selectedIds, getNode, _reorderSelectedNodes } = get();
+    if (selectedIds.size === 0) return false;
+
+    const selectedNodes = Array.from(selectedIds)
+      .map(id => getNode(id))
+      .filter((n): n is Node => n !== undefined);
+
+    const parentId = selectedNodes[0]?.parent_id;
+    if (!selectedNodes.every(n => n.parent_id === parentId)) return false;
+
+    // Sort by position first, then reverse
+    const sortedByPosition = [...selectedNodes].sort((a, b) => a.position - b.position);
+    const reversed = sortedByPosition.reverse();
+
+    return _reorderSelectedNodes(reversed);
   },
 }));

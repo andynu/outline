@@ -429,6 +429,8 @@ body {
   box-shadow: 0 4px 16px var(--modal-overlay);
   padding: 4px 0;
   min-width: 180px;
+  max-height: calc(100vh - 20px);
+  overflow-y: auto;
   z-index: 2000;
 }
 

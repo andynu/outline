@@ -80,6 +80,12 @@ export const OutlineItem = memo(function OutlineItem({
   const deleteSelectedNodes = useOutlineStore(state => state.deleteSelectedNodes);
   const getSelectedNodes = useOutlineStore(state => state.getSelectedNodes);
   const groupSelectedUnderNewParent = useOutlineStore(state => state.groupSelectedUnderNewParent);
+  const sortSelectedAlphabetical = useOutlineStore(state => state.sortSelectedAlphabetical);
+  const sortSelectedReverseAlphabetical = useOutlineStore(state => state.sortSelectedReverseAlphabetical);
+  const sortSelectedByDate = useOutlineStore(state => state.sortSelectedByDate);
+  const sortSelectedByDateReverse = useOutlineStore(state => state.sortSelectedByDateReverse);
+  const sortSelectedByCompletion = useOutlineStore(state => state.sortSelectedByCompletion);
+  const reverseSelectedOrder = useOutlineStore(state => state.reverseSelectedOrder);
   const draggedId = useOutlineStore(state => state.draggedId);
   const startDrag = useOutlineStore(state => state.startDrag);
   const endDrag = useOutlineStore(state => state.endDrag);
@@ -1192,6 +1198,31 @@ export const OutlineItem = memo(function OutlineItem({
       },
       { separator: true as const },
       {
+        label: 'Sort A-Z',
+        action: sortSelectedAlphabetical,
+      },
+      {
+        label: 'Sort Z-A',
+        action: sortSelectedReverseAlphabetical,
+      },
+      {
+        label: 'Sort by date (earliest)',
+        action: sortSelectedByDate,
+      },
+      {
+        label: 'Sort by date (latest)',
+        action: sortSelectedByDateReverse,
+      },
+      {
+        label: 'Sort by completion',
+        action: sortSelectedByCompletion,
+      },
+      {
+        label: 'Reverse order',
+        action: reverseSelectedOrder,
+      },
+      { separator: true as const },
+      {
         label: 'Indent',
         action: indentSelectedNodes,
         shortcut: 'Tab',
@@ -1222,7 +1253,7 @@ export const OutlineItem = memo(function OutlineItem({
         shortcut: 'Ctrl+Shift+Backspace',
       },
     ];
-  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, moveSelectedToTop, moveSelectedToBottom, groupSelectedUnderNewParent, copySelectedAsMarkdown, copySelectedAsPlainText, exportSelectedToFile, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes, onOpenBulkQuickMove]);
+  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, moveSelectedToTop, moveSelectedToBottom, groupSelectedUnderNewParent, sortSelectedAlphabetical, sortSelectedReverseAlphabetical, sortSelectedByDate, sortSelectedByDateReverse, sortSelectedByCompletion, reverseSelectedOrder, copySelectedAsMarkdown, copySelectedAsPlainText, exportSelectedToFile, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes, onOpenBulkQuickMove]);
 
   // Wiki link suggestion handlers
   const handleWikiLinkSelect = useCallback((nodeId: string, displayText: string) => {
