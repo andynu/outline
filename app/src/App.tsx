@@ -131,35 +131,34 @@ function App() {
     const restoreSession = async () => {
       const session = loadSessionState();
 
+      // Load document (from session or default)
       if (session?.documentId) {
-        // Restore the previously open document
         setCurrentDocumentId(session.documentId);
         await load(session.documentId);
-
-        // Get the store state to validate node IDs
-        const store = useOutlineStore.getState();
-
-        // Restore zoom state after document loads (only if node exists)
-        if (session.zoomedNodeId && store.getNode(session.zoomedNodeId)) {
-          zoomTo(session.zoomedNodeId);
-        }
-
-        // Restore focus state after document loads (only if node exists)
-        if (session.focusedNodeId && store.getNode(session.focusedNodeId)) {
-          setFocusedId(session.focusedNodeId);
-        }
-
-        // Restore scroll position after a brief delay for DOM to settle
-        if (session.scrollTop !== undefined && contentAreaRef.current) {
-          setTimeout(() => {
-            if (contentAreaRef.current) {
-              contentAreaRef.current.scrollTop = session.scrollTop || 0;
-            }
-          }, 100);
-        }
       } else {
-        // No session, load default document
         await load();
+      }
+
+      // Get the store state to validate node IDs
+      const store = useOutlineStore.getState();
+
+      // Restore zoom state after document loads (only if node exists)
+      if (session?.zoomedNodeId && store.getNode(session.zoomedNodeId)) {
+        zoomTo(session.zoomedNodeId);
+      }
+
+      // Restore focus state after document loads (only if node exists)
+      if (session?.focusedNodeId && store.getNode(session.focusedNodeId)) {
+        setFocusedId(session.focusedNodeId);
+      }
+
+      // Restore scroll position after a brief delay for DOM to settle
+      if (session?.scrollTop !== undefined && contentAreaRef.current) {
+        setTimeout(() => {
+          if (contentAreaRef.current) {
+            contentAreaRef.current.scrollTop = session.scrollTop || 0;
+          }
+        }, 100);
       }
 
       sessionRestored.current = true;

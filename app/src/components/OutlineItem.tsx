@@ -23,6 +23,7 @@ import { DueDateSuggestion } from './ui/DueDateSuggestion';
 import { DatePicker } from './ui/DatePicker';
 import { RecurrencePicker } from './ui/RecurrencePicker';
 import { formatDateRelative } from '../lib/dateUtils';
+import { looksLikeMarkdownList, parseMarkdownList } from '../lib/markdownPaste';
 
 interface OutlineItemProps {
   item: TreeNode;
@@ -644,6 +645,70 @@ export const OutlineItem = memo(function OutlineItem({
             }
 
             return false;
+          },
+          handlePaste: (view, event) => {
+            // Check for markdown list in clipboard
+            const text = event.clipboardData?.getData('text/plain');
+            if (!text) return false;
+
+            // Use the imported markdown paste helpers
+
+            // Quick check to avoid expensive parsing for non-list content
+            if (!looksLikeMarkdownList(text)) return false;
+
+            // Parse the markdown
+            const items = parseMarkdownList(text);
+            if (!items || items.length === 0) return false;
+
+            // Prevent default paste behavior
+            event.preventDefault();
+
+            // For single item, just insert the content in-place
+            if (items.length === 1) {
+              const singleItem = items[0];
+              // Insert plain text (without HTML tags)
+              view.dispatch(view.state.tr.insertText(singleItem.content.replace(/<[^>]*>/g, '')));
+
+              // If it's a checkbox, convert this node
+              if (singleItem.nodeType === 'checkbox') {
+                const store = useOutlineStore.getState();
+                if (node.node_type !== 'checkbox') {
+                  store.toggleNodeType(nodeId);
+                }
+                if (singleItem.isChecked && !node.is_checked) {
+                  store.toggleCheckbox(nodeId);
+                }
+              }
+              return true;
+            }
+
+            // Multiple items: use the first item for current node, create rest as siblings/children
+            const firstItem = items[0];
+            const store = useOutlineStore.getState();
+
+            // Update current node with first item's content
+            store.updateContent(nodeId, firstItem.content);
+            if (firstItem.nodeType === 'checkbox' && node.node_type !== 'checkbox') {
+              store.toggleNodeType(nodeId);
+              if (firstItem.isChecked) {
+                store.toggleCheckbox(nodeId);
+              }
+            }
+
+            // Process remaining items
+            const remainingItems = items.slice(1);
+            if (remainingItems.length > 0) {
+              // Adjust indent levels: treat first item's indent as the "base"
+              const baseIndent = firstItem.indent;
+              const adjustedItems = remainingItems.map(ri => ({
+                ...ri,
+                indent: ri.indent - baseIndent
+              }));
+
+              store.createItemsFromMarkdown(nodeId, adjustedItems);
+            }
+
+            return true;
           },
         },
         onUpdate: ({ editor }) => {

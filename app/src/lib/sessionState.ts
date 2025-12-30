@@ -37,12 +37,18 @@ export function loadSessionState(): SessionState | undefined {
   }
 }
 
+// Pending state updates to merge before saving
+let pendingUpdates: SessionState = {};
+
 /**
  * Save the session state to localStorage.
- * This is debounced to avoid excessive writes.
+ * This merges with existing state and is debounced to avoid excessive writes.
  */
-export function saveSessionState(state: SessionState): void {
+export function saveSessionState(update: Partial<SessionState>): void {
   if (typeof window === 'undefined') return;
+
+  // Merge with pending updates
+  pendingUpdates = { ...pendingUpdates, ...update };
 
   // Cancel any pending save
   if (saveTimeout !== null) {
@@ -52,11 +58,15 @@ export function saveSessionState(state: SessionState): void {
   // Debounce saves by 500ms
   saveTimeout = window.setTimeout(() => {
     try {
-      const stateWithTimestamp = {
-        ...state,
+      // Load existing state and merge with pending updates
+      const existingState = loadSessionState() || {};
+      const mergedState = {
+        ...existingState,
+        ...pendingUpdates,
         timestamp: Date.now(),
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stateWithTimestamp));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedState));
+      pendingUpdates = {}; // Clear pending updates after successful save
     } catch (e) {
       console.warn('Failed to save session state:', e);
     }

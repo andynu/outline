@@ -86,6 +86,7 @@ interface OutlineState {
   toggleNodeType: (nodeId: string) => Promise<boolean>;
   convertToCheckbox: (nodeId: string, isChecked: boolean) => Promise<boolean>;
   moveNodeTo: (nodeId: string, newParentId: string | null, newPosition: number) => Promise<boolean>;
+  createItemsFromMarkdown: (afterNodeId: string, items: Array<{ content: string; nodeType: 'bullet' | 'checkbox'; isChecked: boolean; indent: number }>) => Promise<string | null>;
 
   // Drag and drop
   startDrag: (nodeId: string) => void;
@@ -564,6 +565,84 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       }
 
       return result.id;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return null;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  createItemsFromMarkdown: async (afterNodeId: string, items: Array<{ content: string; nodeType: 'bullet' | 'checkbox'; isChecked: boolean; indent: number }>) => {
+    if (items.length === 0) return null;
+
+    const { getNode, getSiblings, childrenOf, updateFromState } = get();
+    const anchorNode = getNode(afterNodeId);
+    if (!anchorNode) return null;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      const siblings = getSiblings(afterNodeId);
+      const anchorIdx = siblings.findIndex(n => n.id === afterNodeId);
+
+      // Count top-level items to create
+      const topLevelCount = items.filter(i => i.indent === 0).length;
+
+      // Shift siblings after insertion point
+      for (let i = anchorIdx + 1; i < siblings.length; i++) {
+        await api.moveNode(siblings[i].id, anchorNode.parent_id, siblings[i].position + topLevelCount);
+      }
+
+      // Track the most recent node at each indent level
+      const lastNodeAtLevel = new Map<number, string>();
+      lastNodeAtLevel.set(0, afterNodeId);
+
+      // Track position within each parent
+      const positionByParent = new Map<string | null, number>();
+      positionByParent.set(anchorNode.parent_id, anchorIdx + 1);
+      const existingChildren = childrenOf(afterNodeId);
+      positionByParent.set(afterNodeId, existingChildren.length);
+
+      let firstCreatedId: string | null = null;
+
+      for (const item of items) {
+        let parentId: string | null;
+
+        if (item.indent === 0) {
+          parentId = anchorNode.parent_id;
+        } else {
+          parentId = lastNodeAtLevel.get(item.indent - 1) ?? anchorNode.parent_id;
+        }
+
+        const position = positionByParent.get(parentId) ?? 0;
+        const createResult = await api.createNode(parentId, position, item.content);
+        let finalState = createResult.state;
+
+        if (item.nodeType === 'checkbox') {
+          finalState = await api.updateNode(createResult.id, {
+            node_type: 'checkbox',
+            is_checked: item.isChecked,
+          });
+        }
+
+        if (!firstCreatedId) {
+          firstCreatedId = createResult.id;
+        }
+
+        lastNodeAtLevel.set(item.indent, createResult.id);
+        for (let level = item.indent + 1; level <= 10; level++) {
+          lastNodeAtLevel.delete(level);
+        }
+
+        positionByParent.set(parentId, position + 1);
+        updateFromState(finalState);
+      }
+
+      if (firstCreatedId) {
+        set({ focusedId: firstCreatedId });
+      }
+
+      return firstCreatedId;
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
       return null;

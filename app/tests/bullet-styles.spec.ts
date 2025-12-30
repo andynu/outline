@@ -126,19 +126,23 @@ test.describe('Bullet styles', () => {
 
     // Create a new item
     await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+
     await page.keyboard.type('Checkbox test');
     await page.waitForTimeout(100);
 
-    // Verify the item was created
-    const checkboxItem = page.locator('.outline-item').filter({ hasText: 'Checkbox test' });
-    await expect(checkboxItem).toBeVisible();
+    // Use the focused item locator (more reliable than hasText for TipTap editors)
+    const focusedItem = page.locator('.outline-item.focused');
+
+    // Verify it's a bullet initially
+    await expect(focusedItem.locator('.bullet')).toBeVisible();
 
     // Convert to checkbox with Ctrl+Shift+X
-    await page.keyboard.press('Control+Shift+X');
+    await page.keyboard.press('Control+Shift+x');
     await page.waitForTimeout(100);
 
     // The item should show a checkbox, not a bullet
-    await expect(checkboxItem.locator('.checkbox-btn')).toBeVisible();
-    await expect(checkboxItem.locator('.bullet')).not.toBeVisible();
+    await expect(focusedItem.locator('.checkbox-btn')).toBeVisible();
+    await expect(focusedItem.locator('.bullet')).not.toBeVisible();
   });
 });
