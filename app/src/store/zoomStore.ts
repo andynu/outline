@@ -23,10 +23,21 @@ interface ZoomState {
 }
 
 function applyZoom(level: number) {
-  // Apply zoom via CSS custom property and zoom CSS property
+  // Apply zoom via CSS custom property for components to read
   document.documentElement.style.setProperty('--zoom-level', String(level));
-  // Apply actual zoom using CSS zoom property for comprehensive scaling
-  document.documentElement.style.zoom = String(level);
+  // Apply zoom to outline container only, keeping toolbar and status bar fixed
+  const container = document.querySelector('.outline-container') as HTMLElement;
+  if (container) {
+    container.style.zoom = String(level);
+    container.style.transformOrigin = 'top left';
+  }
+}
+
+// Re-apply zoom when DOM changes (e.g., when container first mounts)
+// Called by components after they mount
+export function reapplyZoom() {
+  const level = useZoomStore.getState().level;
+  applyZoom(level);
 }
 
 export const useZoomStore = create<ZoomState>((set, get) => ({

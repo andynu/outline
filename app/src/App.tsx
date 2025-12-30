@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useOutlineStore } from './store/outlineStore';
-import { useZoomStore } from './store/zoomStore';
+import { useZoomStore, reapplyZoom } from './store/zoomStore';
 import { OutlineItem } from './components/OutlineItem';
 import { VirtualOutlineList } from './components/VirtualOutlineList';
 import { Sidebar, SidebarRef } from './components/Sidebar';
@@ -192,6 +192,15 @@ function App() {
   useEffect(() => {
     initZoom();
   }, [initZoom]);
+
+  // Reapply zoom when content loads (ensures container exists)
+  useEffect(() => {
+    if (!loading) {
+      // Small delay to ensure DOM has rendered
+      const timer = setTimeout(reapplyZoom, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [loading]);
 
   // Save session state when document changes
   useEffect(() => {
