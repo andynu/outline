@@ -107,6 +107,7 @@ function App() {
   const toggleSelectedCheckboxes = useOutlineStore(state => state.toggleSelectedCheckboxes);
   const indentSelectedNodes = useOutlineStore(state => state.indentSelectedNodes);
   const outdentSelectedNodes = useOutlineStore(state => state.outdentSelectedNodes);
+  const copySelectedAsMarkdown = useOutlineStore(state => state.copySelectedAsMarkdown);
   const selectAll = useOutlineStore(state => state.selectAll);
   const clearSelection = useOutlineStore(state => state.clearSelection);
   const zoomReset = useOutlineStore(state => state.zoomReset);
@@ -564,6 +565,13 @@ function App() {
         }
       }
 
+      // Copy as Markdown (Ctrl+Shift+C with selection)
+      if (mod && event.shiftKey && event.key === 'C' && selectedIds.size > 0) {
+        event.preventDefault();
+        copySelectedAsMarkdown();
+        return;
+      }
+
       // Select all (Ctrl+A) - only when not in an input/editor
       if (mod && event.key === 'a') {
         const activeElement = document.activeElement;
@@ -728,7 +736,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, zoomIn, zoomOut, resetZoom]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, zoomIn, zoomOut, resetZoom]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId

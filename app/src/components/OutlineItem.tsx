@@ -72,6 +72,9 @@ export const OutlineItem = memo(function OutlineItem({
   const outdentSelectedNodes = useOutlineStore(state => state.outdentSelectedNodes);
   const moveSelectedToTop = useOutlineStore(state => state.moveSelectedToTop);
   const moveSelectedToBottom = useOutlineStore(state => state.moveSelectedToBottom);
+  const copySelectedAsMarkdown = useOutlineStore(state => state.copySelectedAsMarkdown);
+  const copySelectedAsPlainText = useOutlineStore(state => state.copySelectedAsPlainText);
+  const exportSelectedToFile = useOutlineStore(state => state.exportSelectedToFile);
   const deleteSelectedNodes = useOutlineStore(state => state.deleteSelectedNodes);
   const getSelectedNodes = useOutlineStore(state => state.getSelectedNodes);
   const draggedId = useOutlineStore(state => state.draggedId);
@@ -1150,12 +1153,26 @@ export const OutlineItem = memo(function OutlineItem({
       },
       { separator: true as const },
       {
+        label: 'Copy as Markdown',
+        action: copySelectedAsMarkdown,
+        shortcut: 'Ctrl+Shift+C',
+      },
+      {
+        label: 'Copy as Plain Text',
+        action: copySelectedAsPlainText,
+      },
+      {
+        label: 'Export to file...',
+        action: exportSelectedToFile,
+      },
+      { separator: true as const },
+      {
         label: `Delete selected (${selectionCount})`,
         action: deleteSelectedNodes,
         shortcut: 'Ctrl+Shift+Backspace',
       },
     ];
-  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, moveSelectedToTop, moveSelectedToBottom, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes, onOpenBulkQuickMove]);
+  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, moveSelectedToTop, moveSelectedToBottom, copySelectedAsMarkdown, copySelectedAsPlainText, exportSelectedToFile, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes, onOpenBulkQuickMove]);
 
   // Wiki link suggestion handlers
   const handleWikiLinkSelect = useCallback((nodeId: string, displayText: string) => {

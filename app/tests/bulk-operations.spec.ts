@@ -404,4 +404,109 @@ test.describe('Bulk operations on multi-selection', () => {
       await expect(items.first()).toBeVisible();
     });
   });
+
+  test.describe('Bulk export operations', () => {
+    test('bulk context menu shows export options', async ({ page }) => {
+      const items = page.locator('.outline-item');
+      const editors = page.locator('.editor-wrapper');
+
+      // Select first two items
+      await editors.first().click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+      await editors.nth(1).click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+
+      // Right-click to open context menu
+      await items.first().click({ button: 'right' });
+      await page.waitForTimeout(100);
+
+      // Context menu should have export options
+      const contextMenu = page.locator('.context-menu');
+      await expect(contextMenu.locator('text=Copy as Markdown')).toBeVisible();
+      await expect(contextMenu.locator('text=Copy as Plain Text')).toBeVisible();
+      await expect(contextMenu.locator('text=Export to file...')).toBeVisible();
+    });
+
+    test('Copy as Markdown copies to clipboard', async ({ page, context }) => {
+      // Grant clipboard permissions
+      await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+      const items = page.locator('.outline-item');
+      const editors = page.locator('.editor-wrapper');
+
+      // Select first two items
+      await editors.first().click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+      await editors.nth(1).click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+
+      // Right-click to open context menu
+      await items.first().click({ button: 'right' });
+      await page.waitForTimeout(100);
+
+      // Click "Copy as Markdown"
+      const contextMenu = page.locator('.context-menu');
+      await contextMenu.locator('text=Copy as Markdown').click();
+      await page.waitForTimeout(200);
+
+      // Verify clipboard has markdown content
+      const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+      expect(clipboardContent).toContain('-'); // Markdown list items start with -
+    });
+
+    test('Ctrl+Shift+C copies as markdown with selection', async ({ page, context }) => {
+      // Grant clipboard permissions
+      await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+      const items = page.locator('.outline-item');
+      const editors = page.locator('.editor-wrapper');
+
+      // Select first two items
+      await editors.first().click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+      await editors.nth(1).click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+
+      // Press Ctrl+Shift+C
+      await page.keyboard.press('Control+Shift+C');
+      await page.waitForTimeout(200);
+
+      // Verify clipboard has markdown content
+      const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+      expect(clipboardContent).toContain('-'); // Markdown list items start with -
+    });
+
+    test('Copy as Plain Text copies without markdown syntax', async ({ page, context }) => {
+      // Grant clipboard permissions
+      await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+      const items = page.locator('.outline-item');
+      const editors = page.locator('.editor-wrapper');
+
+      // Get the actual content of first item to compare
+      const firstItemContent = await items.first().locator('.outline-editor').textContent();
+
+      // Select first item only (need 2 for bulk menu)
+      await editors.first().click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+      await editors.nth(1).click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+
+      // Right-click to open context menu
+      await items.first().click({ button: 'right' });
+      await page.waitForTimeout(100);
+
+      // Click "Copy as Plain Text"
+      const contextMenu = page.locator('.context-menu');
+      await contextMenu.locator('text=Copy as Plain Text').click();
+      await page.waitForTimeout(200);
+
+      // Verify clipboard has plain text (no markdown bullets)
+      const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+      // Plain text should NOT start with "- " markdown syntax
+      expect(clipboardContent).not.toMatch(/^- /);
+      // But should contain the text content
+      expect(clipboardContent.length).toBeGreaterThan(0);
+    });
+  });
 });

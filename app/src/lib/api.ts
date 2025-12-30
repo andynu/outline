@@ -996,3 +996,56 @@ function generateSelectionMarkdown(nodeIds: string[], includeCompletedChildren: 
 
   return lines.join('\n');
 }
+
+// Export selected nodes to plain text format (indented, no markdown syntax)
+export async function exportSelectionPlainText(
+  nodeIds: string[],
+  includeCompletedChildren: boolean = true
+): Promise<string> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('export_selection_plain_text', {
+      nodeIds,
+      includeCompletedChildren,
+    }) as Promise<string>;
+  }
+  // Browser-only mode: generate plain text for selected nodes
+  return generateSelectionPlainText(nodeIds, includeCompletedChildren);
+}
+
+// Helper: Generate plain text for selected nodes in browser-only mode
+function generateSelectionPlainText(nodeIds: string[], includeCompletedChildren: boolean): string {
+  const lines: string[] = [];
+  const nodeSet = new Set(nodeIds);
+
+  function addNode(node: Node, depth: number) {
+    if (!includeCompletedChildren && node.is_checked && !nodeSet.has(node.id)) {
+      return;
+    }
+
+    const indent = '  '.repeat(depth);
+    const text = stripHtml(node.content);
+    lines.push(`${indent}${text}`);
+
+    if (node.note) {
+      const noteIndent = '  '.repeat(depth + 1);
+      lines.push(`${noteIndent}${node.note}`);
+    }
+
+    const children = mockState.nodes.filter(n => n.parent_id === node.id);
+    children.sort((a, b) => a.position - b.position);
+    for (const child of children) {
+      addNode(child, depth + 1);
+    }
+  }
+
+  // Process each selected node as a root
+  for (const nodeId of nodeIds) {
+    const node = mockState.nodes.find(n => n.id === nodeId);
+    if (node) {
+      addNode(node, 0);
+    }
+  }
+
+  return lines.join('\n');
+}
