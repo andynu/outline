@@ -455,38 +455,20 @@ export const OutlineItem = memo(function OutlineItem({
               return true;
             }
 
-            // Extend selection with Shift+Arrow
+            // Swap position with Shift+Arrow (move item up/down in list)
             if (event.key === 'ArrowUp' && event.shiftKey && !mod) {
               event.preventDefault();
-              // Add current to selection if not already selected
-              const currentState = useOutlineStore.getState();
-              if (!currentState.selectedIds.has(nodeId)) {
-                currentState.toggleSelection(nodeId);
-              }
-              // Move to previous and add to selection
-              const prevId = currentState.moveToPrevious();
-              if (prevId && !currentState.selectedIds.has(prevId)) {
-                currentState.toggleSelection(prevId);
-              }
+              store.swapWithPrevious(nodeId);
               return true;
             }
 
             if (event.key === 'ArrowDown' && event.shiftKey && !mod) {
               event.preventDefault();
-              // Add current to selection if not already selected
-              const currentState = useOutlineStore.getState();
-              if (!currentState.selectedIds.has(nodeId)) {
-                currentState.toggleSelection(nodeId);
-              }
-              // Move to next and add to selection
-              const nextId = currentState.moveToNext();
-              if (nextId && !currentState.selectedIds.has(nextId)) {
-                currentState.toggleSelection(nextId);
-              }
+              store.swapWithNext(nodeId);
               return true;
             }
 
-            // Swap position with Ctrl+Arrow
+            // Swap position with Ctrl+Arrow (alternative shortcut)
             if (event.key === 'ArrowUp' && mod) {
               event.preventDefault();
               store.swapWithPrevious(nodeId);
