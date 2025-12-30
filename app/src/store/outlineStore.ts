@@ -23,6 +23,7 @@ interface OutlineState {
   hideCompleted: boolean;
   filterQuery: string | null;  // Hashtag filter, e.g., "#project"
   zoomedNodeId: string | null;  // Subtree zoom - show only this node's children
+  draggedId: string | null;  // Currently dragged node ID
 
   // Undo/Redo stacks
   _undoStack: UndoEntry[];
@@ -79,6 +80,11 @@ interface OutlineState {
   toggleCheckbox: (nodeId: string) => Promise<boolean>;
   toggleNodeType: (nodeId: string) => Promise<boolean>;
   moveNodeTo: (nodeId: string, newParentId: string | null, newPosition: number) => Promise<boolean>;
+
+  // Drag and drop
+  startDrag: (nodeId: string) => void;
+  endDrag: () => void;
+  dropOnNode: (targetId: string, asChild: boolean) => Promise<boolean>;
 
   // Undo/Redo
   canUndo: () => boolean;
@@ -296,6 +302,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     : false,
   filterQuery: null,
   zoomedNodeId: null,
+  draggedId: null,
   _undoStack: [],
   _redoStack: [],
   _nodesById: new Map(),
@@ -1148,6 +1155,104 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       return true;
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  // === Drag and Drop ===
+
+  startDrag: (nodeId: string) => {
+    set({ draggedId: nodeId });
+  },
+
+  endDrag: () => {
+    set({ draggedId: null });
+  },
+
+  dropOnNode: async (targetId: string, asChild: boolean = false) => {
+    const { draggedId, _nodesById, childrenOf, rootNodes, updateFromState, toggleCollapse, _pushUndo } = get();
+
+    // Capture draggedId locally since it's reactive and could change
+    const nodeIdToDrop = draggedId;
+
+    if (!nodeIdToDrop || nodeIdToDrop === targetId) {
+      set({ draggedId: null });
+      return false;
+    }
+
+    const draggedNode = _nodesById.get(nodeIdToDrop);
+    const targetNode = _nodesById.get(targetId);
+
+    if (!draggedNode || !targetNode) {
+      set({ draggedId: null });
+      return false;
+    }
+
+    // Prevent dropping a node onto its own descendant
+    let checkId: string | null = targetId;
+    while (checkId) {
+      if (checkId === nodeIdToDrop) {
+        set({ draggedId: null });
+        return false;
+      }
+      const node = _nodesById.get(checkId);
+      checkId = node?.parent_id ?? null;
+    }
+
+    // Save original position for undo
+    const oldParentId = draggedNode.parent_id;
+    const oldPosition = draggedNode.position;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      let newParentId: string | null;
+      let newPosition: number;
+
+      if (asChild) {
+        // Drop as first child of target
+        newParentId = targetId;
+        newPosition = 0;
+        // Shift existing children down
+        const existingChildren = childrenOf(targetId);
+        for (const child of existingChildren) {
+          await api.moveNode(child.id, newParentId, child.position + 1);
+        }
+      } else {
+        // Drop as sibling after target
+        newParentId = targetNode.parent_id;
+        const siblings = newParentId === null ? rootNodes() : childrenOf(newParentId);
+        const targetIdx = siblings.findIndex(n => n.id === targetId);
+        newPosition = targetIdx + 1;
+        // Shift siblings after insertion point
+        for (let i = targetIdx + 1; i < siblings.length; i++) {
+          if (siblings[i].id !== nodeIdToDrop) {
+            await api.moveNode(siblings[i].id, newParentId, siblings[i].position + 1);
+          }
+        }
+      }
+
+      const state = await api.moveNode(nodeIdToDrop, newParentId, newPosition);
+      updateFromState(state);
+
+      // Push undo entry
+      _pushUndo({
+        description: 'Move item',
+        undo: { type: 'move', id: nodeIdToDrop, parentId: oldParentId, position: oldPosition },
+        redo: { type: 'move', id: nodeIdToDrop, parentId: newParentId, position: newPosition },
+        timestamp: Date.now(),
+      });
+
+      // Uncollapse target if dropping as child
+      if (asChild && targetNode.collapsed) {
+        await toggleCollapse(targetId);
+      }
+
+      set({ draggedId: null });
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e), draggedId: null });
       return false;
     } finally {
       set(s => ({ pendingOperations: s.pendingOperations - 1 }));

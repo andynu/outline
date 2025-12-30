@@ -1,4 +1,4 @@
-import React, { memo, useRef, useEffect, useCallback, useState } from 'react';
+import React, { memo, useRef, useEffect, useCallback, useState, DragEvent } from 'react';
 import { Editor } from '@tiptap/core';
 import { DOMSerializer } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
@@ -50,12 +50,19 @@ export const OutlineItem = memo(function OutlineItem({
   const selectRange = useOutlineStore(state => state.selectRange);
   const clearSelection = useOutlineStore(state => state.clearSelection);
   const toggleSelectedCheckboxes = useOutlineStore(state => state.toggleSelectedCheckboxes);
+  const draggedId = useOutlineStore(state => state.draggedId);
+  const startDrag = useOutlineStore(state => state.startDrag);
+  const endDrag = useOutlineStore(state => state.endDrag);
+  const dropOnNode = useOutlineStore(state => state.dropOnNode);
 
   const isFocused = focusedId === node.id;
   const isNodeSelected = selectedIds.has(node.id);
+  const isDragging = draggedId === node.id;
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const [editorReady, setEditorReady] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'child' | null>(null);
 
   // Keep stable refs to store functions to avoid stale closures in editor
   const storeRef = useRef({
@@ -456,17 +463,108 @@ export const OutlineItem = memo(function OutlineItem({
     }
   }, [node.id, toggleSelection, selectRange]);
 
+  // === Drag and Drop handlers ===
+
+  const handleDragStart = useCallback((e: DragEvent<HTMLSpanElement>) => {
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      // Use custom MIME type so TipTap won't try to insert it as text
+      e.dataTransfer.setData('application/x-outline-node', node.id);
+    }
+    startDrag(node.id);
+  }, [node.id, startDrag]);
+
+  const handleDragEnd = useCallback((e: DragEvent<HTMLSpanElement>) => {
+    e.stopPropagation();
+    endDrag();
+    setIsDragOver(false);
+    setDropPosition(null);
+  }, [endDrag]);
+
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Don't allow dropping on self
+    if (draggedId === node.id) {
+      return;
+    }
+
+    setIsDragOver(true);
+
+    // Determine drop position based on mouse Y position
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const height = rect.height;
+
+    if (y < height * 0.25) {
+      setDropPosition('before');
+    } else if (y > height * 0.75) {
+      setDropPosition('after');
+    } else {
+      setDropPosition('child');
+    }
+
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+  }, [draggedId, node.id]);
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    setIsDragOver(false);
+    setDropPosition(null);
+  }, []);
+
+  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (draggedId && draggedId !== node.id) {
+      if (dropPosition === 'child') {
+        dropOnNode(node.id, true);
+      } else {
+        dropOnNode(node.id, false);
+      }
+    }
+
+    setIsDragOver(false);
+    setDropPosition(null);
+  }, [draggedId, node.id, dropPosition, dropOnNode]);
+
   // Strip HTML tags for static display
   const staticContent = node.content?.replace(/<[^>]*>/g, '') || '\u00A0';
 
+  // Build className for the item
+  const itemClasses = [
+    'outline-item',
+    isFocused && 'focused',
+    isNodeSelected && 'selected',
+    node.is_checked && 'checked',
+    isDragging && 'dragging',
+    isDragOver && 'drag-over',
+    dropPosition === 'before' && 'drop-before',
+    dropPosition === 'after' && 'drop-after',
+    dropPosition === 'child' && 'drop-child',
+  ].filter(Boolean).join(' ');
+
   return (
     <div
-      className={`outline-item ${isFocused ? 'focused' : ''} ${isNodeSelected ? 'selected' : ''} ${node.is_checked ? 'checked' : ''}`}
+      className={itemClasses}
       style={{ marginLeft: depth * 24 }}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       <div className="item-row" onClick={handleRowClick} onClickCapture={handleModifierClickCapture}>
         {/* Drag handle / bullet / checkbox */}
-        <span className="drag-handle">
+        <span
+          className="drag-handle"
+          draggable="true"
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
           {node.node_type === 'checkbox' ? (
             <button
               className={`checkbox-btn ${node.is_checked ? 'checked' : ''}`}
