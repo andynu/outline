@@ -63,8 +63,13 @@ test.describe('Context menu', () => {
     const contextMenu = page.locator('.context-menu');
     await expect(contextMenu).toBeVisible();
 
-    // Click outside the menu
-    await page.click('body', { position: { x: 10, y: 10 } });
+    // Click outside the menu - click on bottom right of viewport (away from context menu)
+    const viewport = page.viewportSize();
+    if (viewport) {
+      await page.mouse.click(viewport.width - 50, viewport.height - 50);
+    } else {
+      await page.mouse.click(700, 500);  // fallback
+    }
     await page.waitForTimeout(100);
 
     await expect(contextMenu).not.toBeVisible();
