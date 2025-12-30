@@ -77,8 +77,9 @@ export function WikiLinkSuggestion({ query, position, onSelect, onClose }: WikiL
       }
     };
 
-    window.addEventListener('keydown', handleKeydown);
-    return () => window.removeEventListener('keydown', handleKeydown);
+    // Use capture phase to handle before TipTap/ProseMirror
+    window.addEventListener('keydown', handleKeydown, true);
+    return () => window.removeEventListener('keydown', handleKeydown, true);
   }, [results, selectedIndex, selectResult, onClose]);
 
   return (

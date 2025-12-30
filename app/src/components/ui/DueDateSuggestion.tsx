@@ -136,8 +136,9 @@ export function DueDateSuggestion({ query, position, onSelect, onClose }: DueDat
       }
     };
 
-    window.addEventListener('keydown', handleKeydown);
-    return () => window.removeEventListener('keydown', handleKeydown);
+    // Use capture phase to handle before TipTap/ProseMirror
+    window.addEventListener('keydown', handleKeydown, true);
+    return () => window.removeEventListener('keydown', handleKeydown, true);
   }, [suggestions, selectedIndex, onSelect, onClose]);
 
   return (

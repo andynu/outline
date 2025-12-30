@@ -63,6 +63,7 @@ export const OutlineItem = memo(function OutlineItem({
   const endDrag = useOutlineStore(state => state.endDrag);
   const dropOnNode = useOutlineStore(state => state.dropOnNode);
   const updateNote = useOutlineStore(state => state.updateNote);
+  const allNodes = useOutlineStore(state => state.nodes);
 
   const isFocused = focusedId === node.id;
   const isNodeSelected = selectedIds.has(node.id);
@@ -102,6 +103,26 @@ export const OutlineItem = memo(function OutlineItem({
   const [dueDatePosition, setDueDatePosition] = useState({ x: 0, y: 0 });
   const dueDateActiveRef = useRef(false);
   const dueDateRangeRef = useRef<{ from: number; to: number } | null>(null);
+
+  // Compute existing hashtags from all nodes for suggestion popup
+  const existingTags = useMemo(() => {
+    const tagMap = new Map<string, { count: number }>();
+    const HASHTAG_PATTERN = /(?:^|[\s])#([a-zA-Z][a-zA-Z0-9_-]*)/g;
+
+    for (const n of allNodes) {
+      const plainText = (n.content || '').replace(/<[^>]*>/g, '');
+      for (const match of plainText.matchAll(HASHTAG_PATTERN)) {
+        const tag = match[1];
+        const existing = tagMap.get(tag);
+        if (existing) {
+          existing.count++;
+        } else {
+          tagMap.set(tag, { count: 1 });
+        }
+      }
+    }
+    return tagMap;
+  }, [allNodes]);
 
   // Keep stable refs to store functions to avoid stale closures in editor
   const storeRef = useRef({
@@ -1175,6 +1196,7 @@ export const OutlineItem = memo(function OutlineItem({
           position={hashtagPosition}
           onSelect={handleHashtagSelect}
           onClose={handleHashtagClose}
+          existingTags={existingTags}
         />
       )}
 

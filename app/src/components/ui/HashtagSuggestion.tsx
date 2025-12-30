@@ -84,8 +84,9 @@ export function HashtagSuggestion({ query, position, onSelect, onClose, existing
       }
     };
 
-    window.addEventListener('keydown', handleKeydown);
-    return () => window.removeEventListener('keydown', handleKeydown);
+    // Use capture phase to handle before TipTap/ProseMirror
+    window.addEventListener('keydown', handleKeydown, true);
+    return () => window.removeEventListener('keydown', handleKeydown, true);
   }, [suggestions, selectedIndex, query, onSelect, onClose]);
 
   const showCreateNew = query && !suggestions.some(s => s.tag.toLowerCase() === query.toLowerCase());
