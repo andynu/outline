@@ -139,6 +139,7 @@ interface OutlineState {
   copySelectedAsMarkdown: () => Promise<boolean>;
   copySelectedAsPlainText: () => Promise<boolean>;
   exportSelectedToFile: () => Promise<boolean>;
+  exportSelection: () => Promise<boolean>;
 }
 
 // Check if a node matches the filter query
@@ -2342,6 +2343,29 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       }
 
       await api.saveToFileWithDialog(markdown, `${suggestedName}.md`, 'md');
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    }
+  },
+
+  exportSelection: async () => {
+    const { selectedIds, focusedId } = get();
+
+    // Get nodes to export: selected nodes, or focused node if no selection
+    let nodeIds: string[] = [];
+    if (selectedIds.size > 0) {
+      nodeIds = Array.from(selectedIds);
+    } else if (focusedId) {
+      nodeIds = [focusedId];
+    }
+
+    if (nodeIds.length === 0) return false;
+
+    try {
+      const markdown = await api.exportSelectionMarkdown(nodeIds, true);
+      await navigator.clipboard.writeText(markdown);
       return true;
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });

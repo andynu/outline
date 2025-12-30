@@ -602,6 +602,14 @@ export const OutlineItem = memo(function OutlineItem({
               return true;
             }
 
+            // === EXPORT SELECTION ===
+            // Ctrl+Shift+E : export selection/focused node to markdown in clipboard
+            if (event.key.toLowerCase() === 'e' && mod && event.shiftKey) {
+              event.preventDefault();
+              useOutlineStore.getState().exportSelection();
+              return true;
+            }
+
             // === WEB SEARCH ===
             // Ctrl+Shift+G : search selected text or item content on the web
             if (event.key.toLowerCase() === 'g' && mod && event.shiftKey) {
@@ -1086,6 +1094,11 @@ export const OutlineItem = memo(function OutlineItem({
       action: webSearch,
       shortcut: 'Ctrl+Shift+G',
       disabled: !plainTextContent.trim(),
+    },
+    {
+      label: 'Export to Markdown',
+      action: () => useOutlineStore.getState().exportSelection(),
+      shortcut: 'Ctrl+Shift+E',
     },
     { separator: true as const },
     {
