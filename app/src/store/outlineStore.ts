@@ -61,6 +61,10 @@ interface OutlineState {
   childrenOf: (parentId: string) => Node[];
   rootNodes: () => Node[];
 
+  // Tag utilities
+  getAllTags: () => Array<{ tag: string; count: number; nodeIds: string[] }>;
+  getNodesWithTag: (tag: string) => Node[];
+
   // Navigation
   moveToPrevious: () => string | null;
   moveToNext: () => string | null;
@@ -482,6 +486,46 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
   rootNodes: () => {
     return get()._childrenByParent.get(null) ?? [];
+  },
+
+  // Tag utilities
+  getAllTags: () => {
+    const { nodes } = get();
+    const tagMap = new Map<string, { count: number; nodeIds: string[] }>();
+    const HASHTAG_PATTERN = /(?:^|(?<=\s))#([a-zA-Z][a-zA-Z0-9_-]*)/g;
+
+    for (const node of nodes) {
+      const plainText = node.content.replace(/<[^>]*>/g, '');
+      for (const match of plainText.matchAll(HASHTAG_PATTERN)) {
+        const tag = match[1];
+        const existing = tagMap.get(tag);
+        if (existing) {
+          existing.count++;
+          if (!existing.nodeIds.includes(node.id)) {
+            existing.nodeIds.push(node.id);
+          }
+        } else {
+          tagMap.set(tag, { count: 1, nodeIds: [node.id] });
+        }
+      }
+    }
+
+    return Array.from(tagMap.entries())
+      .map(([tag, data]) => ({ tag, ...data }))
+      .sort((a, b) => b.count - a.count);
+  },
+
+  getNodesWithTag: (tag: string) => {
+    const { nodes } = get();
+    const HASHTAG_PATTERN = /(?:^|(?<=\s))#([a-zA-Z][a-zA-Z0-9_-]*)/g;
+
+    return nodes.filter(node => {
+      const plainText = node.content.replace(/<[^>]*>/g, '');
+      for (const match of plainText.matchAll(HASHTAG_PATTERN)) {
+        if (match[1] === tag) return true;
+      }
+      return false;
+    });
   },
 
   // === Navigation ===
