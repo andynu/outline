@@ -1086,6 +1086,26 @@ export const OutlineItem = memo(function OutlineItem({
       onDrop={handleDrop}
     >
       <div className="item-row" onClick={handleRowClick} onClickCapture={handleModifierClickCapture} onContextMenu={handleContextMenu}>
+        {/* Three-dot menu button - positioned in left margin, shows on hover */}
+        <button
+          className="hover-menu-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            setContextMenuPosition({ x: e.clientX, y: e.clientY });
+            setShowContextMenu(true);
+            setFocusedId(node.id);
+          }}
+          tabIndex={-1}
+          aria-label="Open menu"
+          title="Menu"
+        >
+          <svg viewBox="0 0 16 16" fill="currentColor">
+            <circle cx="8" cy="3" r="1.5"/>
+            <circle cx="8" cy="8" r="1.5"/>
+            <circle cx="8" cy="13" r="1.5"/>
+          </svg>
+        </button>
+
         {/* Drag handle / bullet / checkbox */}
         <span
           className="drag-handle"

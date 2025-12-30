@@ -51,6 +51,7 @@ body {
   padding: 2px 0;
   border-radius: 4px;
   cursor: pointer;
+  position: relative; /* For positioning the hover-menu-btn */
 }
 
 .item-row:hover {
