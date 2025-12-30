@@ -751,6 +751,7 @@ export const OutlineItem = memo(function OutlineItem({
     'outline-item',
     isFocused && 'focused',
     isNodeSelected && 'selected',
+    (isInFocusedSubtree && !isFocused) && 'in-focused-subtree',
     node.is_checked && 'checked',
     isDragging && 'dragging',
     isDragOver && 'drag-over',
