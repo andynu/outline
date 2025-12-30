@@ -1,9 +1,10 @@
-import React, { memo, useRef, useEffect, useCallback, useState, DragEvent } from 'react';
+import React, { memo, useRef, useEffect, useCallback, useState, useMemo, DragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { Editor } from '@tiptap/core';
 import { DOMSerializer } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
 import type { TreeNode } from '../lib/types';
 import { useOutlineStore } from '../store/outlineStore';
+import { ContextMenu } from './ui/ContextMenu';
 
 // TipTap extensions
 import { WikiLink, createWikiLinkInputHandler } from '../lib/WikiLink';
@@ -63,6 +64,8 @@ export const OutlineItem = memo(function OutlineItem({
   const [editorReady, setEditorReady] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'child' | null>(null);
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
 
   // Keep stable refs to store functions to avoid stale closures in editor
   const storeRef = useRef({
@@ -536,6 +539,86 @@ export const OutlineItem = memo(function OutlineItem({
   // Strip HTML tags for static display
   const staticContent = node.content?.replace(/<[^>]*>/g, '') || '\u00A0';
 
+  // === Context Menu ===
+
+  const handleContextMenu = useCallback((e: ReactMouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenuPosition({ x: e.clientX, y: e.clientY });
+    setShowContextMenu(true);
+    setFocusedId(node.id);
+  }, [node.id, setFocusedId]);
+
+  // Helper to copy content to clipboard
+  const copyToClipboard = useCallback(() => {
+    const text = node.content?.replace(/<[^>]*>/g, '') || '';
+    navigator.clipboard.writeText(text);
+  }, [node.content]);
+
+  // Helper to search web
+  const webSearch = useCallback(() => {
+    const text = node.content?.replace(/<[^>]*>/g, '').trim() || '';
+    if (text) {
+      window.open(`https://www.google.com/search?q=${encodeURIComponent(text)}`, '_blank');
+    }
+  }, [node.content]);
+
+  const contextMenuItems = useMemo(() => [
+    {
+      label: node.is_checked ? 'Mark Incomplete' : 'Mark Complete',
+      action: () => toggleCheckbox(node.id),
+      shortcut: 'Ctrl+Enter',
+    },
+    {
+      label: node.node_type === 'checkbox' ? 'Convert to Bullet' : 'Convert to Checkbox',
+      action: () => toggleNodeType(node.id),
+      shortcut: 'Ctrl+Shift+X',
+    },
+    { separator: true as const },
+    {
+      label: 'Copy',
+      action: copyToClipboard,
+      shortcut: 'Ctrl+C',
+    },
+    {
+      label: 'Web Search',
+      action: webSearch,
+      shortcut: 'Ctrl+Shift+G',
+      disabled: !staticContent.trim(),
+    },
+    { separator: true as const },
+    {
+      label: node.collapsed ? 'Expand' : 'Collapse',
+      action: () => toggleCollapse(node.id),
+      shortcut: 'Ctrl+.',
+      disabled: !hasChildren,
+    },
+    { separator: true as const },
+    {
+      label: 'Zoom In',
+      action: () => zoomTo(node.id),
+      shortcut: 'Ctrl+]',
+      disabled: !hasChildren,
+    },
+    { separator: true as const },
+    {
+      label: 'Indent',
+      action: () => indentNode(node.id),
+      shortcut: 'Tab',
+    },
+    {
+      label: 'Outdent',
+      action: () => outdentNode(node.id),
+      shortcut: 'Shift+Tab',
+    },
+    { separator: true as const },
+    {
+      label: 'Delete',
+      action: () => deleteNode(node.id),
+      shortcut: 'Ctrl+Shift+Backspace',
+    },
+  ], [node.id, node.is_checked, node.node_type, node.collapsed, hasChildren, staticContent, toggleCheckbox, toggleNodeType, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch]);
+
   // Build className for the item
   const itemClasses = [
     'outline-item',
@@ -557,7 +640,7 @@ export const OutlineItem = memo(function OutlineItem({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className="item-row" onClick={handleRowClick} onClickCapture={handleModifierClickCapture}>
+      <div className="item-row" onClick={handleRowClick} onClickCapture={handleModifierClickCapture} onContextMenu={handleContextMenu}>
         {/* Drag handle / bullet / checkbox */}
         <span
           className="drag-handle"
@@ -614,6 +697,15 @@ export const OutlineItem = memo(function OutlineItem({
             ))}
           </div>
         </div>
+      )}
+
+      {/* Context menu */}
+      {showContextMenu && (
+        <ContextMenu
+          items={contextMenuItems}
+          position={contextMenuPosition}
+          onClose={() => setShowContextMenu(false)}
+        />
       )}
     </div>
   );
