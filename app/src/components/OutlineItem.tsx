@@ -226,10 +226,23 @@ export const OutlineItem = memo(function OutlineItem({
             }
 
             if (event.key === 'Delete' && !mod && !event.shiftKey) {
+              const { to } = view.state.selection;
+              const docSize = view.state.doc.content.size;
               const isEmpty = view.state.doc.textContent.length === 0;
+
               if (isEmpty) {
+                // Empty node - delete it
                 event.preventDefault();
                 store.deleteNode(nodeId);
+                return true;
+              }
+
+              // Check if cursor is at the end of content
+              const isAtEnd = to >= docSize - 1;
+              if (isAtEnd) {
+                // At end - try to merge with next sibling
+                event.preventDefault();
+                useOutlineStore.getState().mergeWithNextSibling(nodeId);
                 return true;
               }
             }

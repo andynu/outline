@@ -65,6 +65,7 @@ interface OutlineState {
   load: (docId?: string) => Promise<void>;
   addSiblingAfter: (nodeId: string) => Promise<string | null>;
   splitNode: (nodeId: string, beforeContent: string, afterContent: string) => Promise<string | null>;
+  mergeWithNextSibling: (nodeId: string) => Promise<{ cursorPos: number } | null>;
   updateContent: (nodeId: string, content: string) => Promise<void>;
   deleteNode: (nodeId: string) => Promise<string | null>;
   deleteAllCompleted: () => Promise<number>;
@@ -609,6 +610,54 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       // TODO: Add proper undo support for split
 
       return result.id;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return null;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  mergeWithNextSibling: async (nodeId: string) => {
+    const { getNode, getSiblings, childrenOf, updateFromState } = get();
+    const node = getNode(nodeId);
+    if (!node) return null;
+
+    const siblings = getSiblings(nodeId);
+    const idx = siblings.findIndex(n => n.id === nodeId);
+
+    // Check if there's a next sibling
+    if (idx < 0 || idx >= siblings.length - 1) return null;
+    const nextSibling = siblings[idx + 1];
+
+    // Calculate cursor position (end of current content, before merge)
+    // Strip HTML tags to get text length
+    const plainTextLength = node.content.replace(/<[^>]*>/g, '').length;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      // Merge content: append next sibling's content to current node
+      const mergedContent = node.content + nextSibling.content;
+      await api.updateNode(nodeId, { content: mergedContent });
+
+      // Move next sibling's children to current node (after current's children)
+      const currentChildren = childrenOf(nodeId);
+      const nextChildren = childrenOf(nextSibling.id);
+      for (let i = 0; i < nextChildren.length; i++) {
+        await api.moveNode(nextChildren[i].id, nodeId, currentChildren.length + i);
+      }
+
+      // Delete the next sibling (now empty)
+      await api.deleteNode(nextSibling.id);
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      // Note: Undo for merge is complex (would need to restore split content and move children back)
+      // TODO: Add proper undo support for merge
+
+      return { cursorPos: plainTextLength };
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
       return null;
