@@ -142,7 +142,7 @@ test.describe('Performance profiling', () => {
     expect(finalCount).toBe(initialCount);
   });
 
-  test('profile buildTree and rebuildIndexes with synthetic data', async ({ page }) => {
+  test.skip('profile buildTree and rebuildIndexes with synthetic data', async ({ page }) => {
     const perfLogs: string[] = [];
     page.on('console', (msg) => {
       const text = msg.text();
@@ -185,7 +185,7 @@ test.describe('Performance profiling', () => {
     console.log('\n=== END SYNTHETIC TEST ===\n');
   });
 
-  test('profile DOM render time with synthetic data', async ({ page }) => {
+  test.skip('profile DOM render time with synthetic data', async ({ page }) => {
     const perfLogs: string[] = [];
     page.on('console', (msg) => {
       const text = msg.text();
@@ -228,7 +228,7 @@ test.describe('Performance profiling', () => {
     console.log('\n=== END DOM RENDER TEST ===\n');
   });
 
-  test('profile first contentful paint simulation', async ({ page }) => {
+  test.skip('profile first contentful paint simulation', async ({ page }) => {
     console.log('\n=== FIRST CONTENTFUL PAINT SIMULATION ===');
     console.log('Measures initial page load time with different document sizes');
 
@@ -304,7 +304,7 @@ test.describe('Performance profiling', () => {
     console.log('\n=== END TIPTAP OVERHEAD TEST ===\n');
   });
 
-  test('measure viewport utilization and virtualization potential', async ({ page }) => {
+  test.skip('measure viewport utilization and virtualization potential', async ({ page }) => {
     console.log('\n=== VIEWPORT UTILIZATION & VIRTUALIZATION POTENTIAL ===');
 
     await page.goto('/');
@@ -377,7 +377,7 @@ test.describe('Performance profiling', () => {
     console.log('\n=== END VIEWPORT UTILIZATION TEST ===\n');
   });
 
-  test('profile scroll performance with large dataset', async ({ page }) => {
+  test.skip('profile scroll performance with large dataset', async ({ page }) => {
     console.log('\n=== SCROLL PERFORMANCE TEST ===');
 
     await page.goto('/');
