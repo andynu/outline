@@ -94,6 +94,8 @@ function App() {
   const load = useOutlineStore(state => state.load);
   const collapseAll = useOutlineStore(state => state.collapseAll);
   const expandAll = useOutlineStore(state => state.expandAll);
+  const expandToLevel = useOutlineStore(state => state.expandToLevel);
+  const collapseSiblings = useOutlineStore(state => state.collapseSiblings);
   const toggleFocusedCollapse = useOutlineStore(state => state.toggleFocusedCollapse);
   const hideCompleted = useOutlineStore(state => state.hideCompleted);
   const toggleHideCompleted = useOutlineStore(state => state.toggleHideCompleted);
@@ -492,13 +494,19 @@ function App() {
     { label: hideCompleted ? 'Show Completed' : 'Hide Completed', shortcut: 'Ctrl+Shift+H', action: toggleHideCompleted, separator: false },
     { label: 'Collapse All', shortcut: 'Ctrl+Shift+.', action: collapseAll, separator: false },
     { label: 'Expand All', shortcut: 'Ctrl+Shift+,', action: expandAll, separator: false },
+    { label: 'Collapse Siblings', action: () => focusedId && collapseSiblings(focusedId), separator: false },
+    { separator: true },
+    { label: 'Expand to Level 1', action: () => expandToLevel(1), separator: false },
+    { label: 'Expand to Level 2', action: () => expandToLevel(2), separator: false },
+    { label: 'Expand to Level 3', action: () => expandToLevel(3), separator: false },
+    { label: 'Expand to Level 4', action: () => expandToLevel(4), separator: false },
     { separator: true },
     { label: 'Zoom In', shortcut: 'Ctrl++', action: zoomIn, separator: false },
     { label: 'Zoom Out', shortcut: 'Ctrl+-', action: zoomOut, separator: false },
     { label: 'Reset Zoom', shortcut: 'Ctrl+0', action: resetZoom, separator: false },
     { separator: true },
     { label: isDark ? 'Light Mode' : 'Dark Mode', action: toggleTheme, separator: false },
-  ], [toggleSidebar, toggleTheme, isDark, collapseAll, expandAll, hideCompleted, toggleHideCompleted, zoomIn, zoomOut, resetZoom]);
+  ], [toggleSidebar, toggleTheme, isDark, collapseAll, expandAll, expandToLevel, collapseSiblings, focusedId, hideCompleted, toggleHideCompleted, zoomIn, zoomOut, resetZoom]);
 
   // Help menu items
   const helpMenuItems: MenuEntry[] = useMemo(() => [
