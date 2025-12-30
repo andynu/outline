@@ -79,6 +79,7 @@ export const OutlineItem = memo(function OutlineItem({
   const exportSelectedToFile = useOutlineStore(state => state.exportSelectedToFile);
   const deleteSelectedNodes = useOutlineStore(state => state.deleteSelectedNodes);
   const getSelectedNodes = useOutlineStore(state => state.getSelectedNodes);
+  const groupSelectedUnderNewParent = useOutlineStore(state => state.groupSelectedUnderNewParent);
   const draggedId = useOutlineStore(state => state.draggedId);
   const startDrag = useOutlineStore(state => state.startDrag);
   const endDrag = useOutlineStore(state => state.endDrag);
@@ -1185,6 +1186,10 @@ export const OutlineItem = memo(function OutlineItem({
         label: 'Move to bottom',
         action: moveSelectedToBottom,
       },
+      {
+        label: 'Group under new item',
+        action: groupSelectedUnderNewParent,
+      },
       { separator: true as const },
       {
         label: 'Indent',
@@ -1217,7 +1222,7 @@ export const OutlineItem = memo(function OutlineItem({
         shortcut: 'Ctrl+Shift+Backspace',
       },
     ];
-  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, moveSelectedToTop, moveSelectedToBottom, copySelectedAsMarkdown, copySelectedAsPlainText, exportSelectedToFile, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes, onOpenBulkQuickMove]);
+  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, moveSelectedToTop, moveSelectedToBottom, groupSelectedUnderNewParent, copySelectedAsMarkdown, copySelectedAsPlainText, exportSelectedToFile, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes, onOpenBulkQuickMove]);
 
   // Wiki link suggestion handlers
   const handleWikiLinkSelect = useCallback((nodeId: string, displayText: string) => {

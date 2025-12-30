@@ -143,6 +143,7 @@ interface OutlineState {
   copySelectedAsPlainText: () => Promise<boolean>;
   exportSelectedToFile: () => Promise<boolean>;
   exportSelection: () => Promise<boolean>;
+  groupSelectedUnderNewParent: () => Promise<string | null>;
 }
 
 // Check if a node matches the filter query
@@ -2444,6 +2445,68 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
       return false;
+    }
+  },
+
+  groupSelectedUnderNewParent: async () => {
+    const { selectedIds, getNode, getSiblings, updateFromState, _pushUndo, setFocusedId } = get();
+    if (selectedIds.size === 0) return null;
+
+    // Get selected nodes, sorted by position
+    const selectedNodes = Array.from(selectedIds)
+      .map(id => getNode(id))
+      .filter((n): n is Node => n !== undefined)
+      .sort((a, b) => a.position - b.position);
+
+    if (selectedNodes.length === 0) return null;
+
+    // Verify all selected items have the same parent
+    const parentId = selectedNodes[0].parent_id;
+    const allSameParent = selectedNodes.every(n => n.parent_id === parentId);
+    if (!allSameParent) {
+      // Mixed parents - can't group
+      return null;
+    }
+
+    // Get the first selected node's position
+    const firstPosition = selectedNodes[0].position;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      // 1. Create new parent node at first selected position
+      const { id: newParentId, state: newParentState } = await api.createNode(parentId, firstPosition, '');
+      updateFromState(newParentState);
+
+      // 2. Move each selected item under the new parent
+      let lastState = newParentState;
+      for (let i = 0; i < selectedNodes.length; i++) {
+        const node = selectedNodes[i];
+        lastState = await api.moveNode(node.id, newParentId, i);
+      }
+
+      updateFromState(lastState);
+
+      // Clear selection and focus new parent
+      set({ selectedIds: new Set<string>() });
+      setFocusedId(newParentId);
+
+      // Get the final node state for the undo entry
+      const newParentNode = lastState.nodes.find(n => n.id === newParentId);
+      if (newParentNode) {
+        _pushUndo({
+          description: 'Group items under new parent',
+          undo: { type: 'delete', id: newParentId },
+          redo: { type: 'create', node: { ...newParentNode, parent_id: parentId, position: firstPosition } },
+          timestamp: Date.now(),
+        });
+      }
+
+      return newParentId;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return null;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
     }
   },
 }));
