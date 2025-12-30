@@ -20,6 +20,8 @@ import { Mention } from '../lib/Mention';
 import { WikiLinkSuggestion } from './ui/WikiLinkSuggestion';
 import { HashtagSuggestion } from './ui/HashtagSuggestion';
 import { DueDateSuggestion } from './ui/DueDateSuggestion';
+import { DatePicker } from './ui/DatePicker';
+import { formatDateRelative } from '../lib/dateUtils';
 
 interface OutlineItemProps {
   item: TreeNode;
@@ -78,6 +80,8 @@ export const OutlineItem = memo(function OutlineItem({
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [datePickerPosition, setDatePickerPosition] = useState({ x: 0, y: 0 });
 
   // Wiki link suggestion state - use refs for values accessed in editor handlers
   // to avoid stale closure issues
@@ -524,6 +528,19 @@ export const OutlineItem = memo(function OutlineItem({
             if (event.key === ']' && mod) {
               event.preventDefault();
               useOutlineStore.getState().zoomTo(nodeId);
+              return true;
+            }
+
+            // === DATE PICKER ===
+            // Ctrl+D : open date picker
+            if (event.key === 'd' && mod && !event.shiftKey) {
+              event.preventDefault();
+              // Get position from the editor
+              const rect = editorContainerRef.current?.getBoundingClientRect();
+              if (rect) {
+                setDatePickerPosition({ x: rect.left, y: rect.bottom + 5 });
+              }
+              setShowDatePicker(true);
               return true;
             }
 
@@ -1063,6 +1080,29 @@ export const OutlineItem = memo(function OutlineItem({
     setDueDateRange(null);
   }, []);
 
+  // Date picker handlers
+  const handleDateSelect = useCallback(async (date: string | null) => {
+    setShowDatePicker(false);
+    // Update node date via API
+    const api = await import('../lib/api');
+    await api.updateNode(node.id, { date: date || undefined });
+    // Reload state
+    const state = await api.loadDocument();
+    useOutlineStore.getState().updateFromState(state);
+  }, [node.id]);
+
+  const handleDatePickerClose = useCallback(() => {
+    setShowDatePicker(false);
+  }, []);
+
+  const handleDateBadgeClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setDatePickerPosition({ x: rect.left, y: rect.bottom + 5 });
+    setShowDatePicker(true);
+  }, []);
+
   // Build className for the item
   const itemClasses = [
     'outline-item',
@@ -1148,6 +1188,13 @@ export const OutlineItem = memo(function OutlineItem({
             />
           )}
         </div>
+
+        {/* Date badge */}
+        {node.date && (
+          <span className="date-badge" onClick={handleDateBadgeClick}>
+            {formatDateRelative(node.date)}
+          </span>
+        )}
       </div>
 
       {/* Note row */}
@@ -1228,6 +1275,16 @@ export const OutlineItem = memo(function OutlineItem({
           position={dueDatePosition}
           onSelect={handleDueDateSelect}
           onClose={handleDueDateClose}
+        />
+      )}
+
+      {/* Date picker modal */}
+      {showDatePicker && (
+        <DatePicker
+          position={datePickerPosition}
+          currentDate={node.date}
+          onSelect={handleDateSelect}
+          onClose={handleDatePickerClose}
         />
       )}
     </div>

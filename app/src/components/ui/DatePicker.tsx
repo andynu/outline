@@ -10,20 +10,49 @@ interface DatePickerProps {
 
 export function DatePicker({ position, currentDate, onSelect, onClose }: DatePickerProps) {
   const [inputValue, setInputValue] = useState(currentDate || '');
+  const [adjustedPosition, setAdjustedPosition] = useState<{ x: number; y: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
 
   const parsedDate = parseNaturalDate(inputValue);
   const isValid = parsedDate !== null || inputValue === '';
 
-  // Focus and select on mount
+  // Adjust position to stay in viewport using useLayoutEffect for synchronous update
   useEffect(() => {
-    const input = inputRef.current;
-    if (input) {
-      input.focus();
-      input.select();
+    const popup = popupRef.current;
+    if (!popup) return;
+
+    // Measure the popup's dimensions
+    const rect = popup.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+
+    let newTop = position.y;
+    let newLeft = position.x;
+
+    // If popup would go below viewport, position above the trigger
+    if (position.y + rect.height > viewportHeight) {
+      newTop = Math.max(10, viewportHeight - rect.height - 10);
     }
 
-    // Click outside handler
+    // If popup would go outside right edge, shift left
+    if (position.x + rect.width > viewportWidth) {
+      newLeft = Math.max(10, viewportWidth - rect.width - 10);
+    }
+
+    setAdjustedPosition({ x: newLeft, y: newTop });
+  }, [position]);
+
+  // Focus input when position is set
+  useEffect(() => {
+    if (adjustedPosition && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [adjustedPosition]);
+
+  // Click outside handler
+  useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Element;
       if (!target.closest('.date-picker')) {
@@ -31,7 +60,7 @@ export function DatePicker({ position, currentDate, onSelect, onClose }: DatePic
       }
     };
 
-    // Delay to avoid immediate close
+    // Delay to avoid immediate close from the triggering click
     const timeoutId = setTimeout(() => {
       document.addEventListener('click', handleClickOutside);
     }, 0);
@@ -78,10 +107,20 @@ export function DatePicker({ position, currentDate, onSelect, onClose }: DatePic
       })
     : null;
 
+  // Use adjusted position once calculated, otherwise use initial position but hide with opacity
+  const displayPosition = adjustedPosition || position;
+  const isPositioned = adjustedPosition !== null;
+
   return (
     <div
+      ref={popupRef}
       className="date-picker"
-      style={{ left: position.x, top: position.y }}
+      style={{
+        left: displayPosition.x,
+        top: displayPosition.y,
+        opacity: isPositioned ? 1 : 0,
+        pointerEvents: isPositioned ? 'auto' : 'none',
+      }}
     >
       <div className="date-picker-header">
         <input
