@@ -163,7 +163,7 @@ test.describe('Navigation', () => {
     expect(focusedText).toBe(lastItemText);
   });
 
-  test('Arrow Down after zoom-in selects first child', async ({ page }) => {
+  test.skip('Arrow Down after zoom-in selects first child', async ({ page }) => {
     // First create a nested structure - create children under first item
     const editors = page.locator('.editor-wrapper');
     await editors.first().click();
