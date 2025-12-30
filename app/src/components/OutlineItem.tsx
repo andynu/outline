@@ -44,8 +44,14 @@ export const OutlineItem = memo(function OutlineItem({
   const moveToFirst = useOutlineStore(state => state.moveToFirst);
   const moveToLast = useOutlineStore(state => state.moveToLast);
   const zoomTo = useOutlineStore(state => state.zoomTo);
+  const selectedIds = useOutlineStore(state => state.selectedIds);
+  const toggleSelection = useOutlineStore(state => state.toggleSelection);
+  const selectRange = useOutlineStore(state => state.selectRange);
+  const clearSelection = useOutlineStore(state => state.clearSelection);
+  const toggleSelectedCheckboxes = useOutlineStore(state => state.toggleSelectedCheckboxes);
 
   const isFocused = focusedId === node.id;
+  const isNodeSelected = selectedIds.has(node.id);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const [editorReady, setEditorReady] = useState(false);
@@ -245,6 +251,12 @@ export const OutlineItem = memo(function OutlineItem({
 
             // === COMPLETION ===
             if (event.key === 'Enter' && mod && !event.shiftKey) {
+              const currentState = useOutlineStore.getState();
+              // If multi-selection, let App.tsx handle it to avoid double-firing
+              if (currentState.selectedIds.size > 0) {
+                return false; // Don't handle, let it bubble to App.tsx
+              }
+              // Single item - toggle just this node
               event.preventDefault();
               store.toggleCheckbox(nodeId);
               return true;
@@ -319,25 +331,66 @@ export const OutlineItem = memo(function OutlineItem({
 
   const handleRowClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
+
+    // Multi-selection with Ctrl/Cmd or Shift - always handle regardless of target
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      toggleSelection(node.id);
+      return;
+    }
+
+    if (e.shiftKey) {
+      e.preventDefault();
+      selectRange(node.id);
+      return;
+    }
+
+    // For regular clicks, skip if inside editor or drag handle
     if (target.closest('.outline-editor') || target.closest('.drag-handle')) {
       return;
     }
-    setFocusedId(node.id);
-  }, [node.id, setFocusedId]);
 
-  const handleStaticClick = useCallback(() => {
+    // Normal click: clear selection and focus
+    clearSelection();
     setFocusedId(node.id);
-  }, [node.id, setFocusedId]);
+  }, [node.id, setFocusedId, toggleSelection, selectRange, clearSelection]);
+
+  const handleStaticClick = useCallback((e: React.MouseEvent) => {
+    // Support multi-selection with Ctrl/Cmd or Shift
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      toggleSelection(node.id);
+    } else if (e.shiftKey) {
+      e.preventDefault();
+      selectRange(node.id);
+    } else {
+      clearSelection();
+      setFocusedId(node.id);
+    }
+  }, [node.id, setFocusedId, toggleSelection, selectRange, clearSelection]);
+
+  // Capture handler for modifier clicks to catch them before TipTap editor
+  const handleModifierClickCapture = useCallback((e: React.MouseEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleSelection(node.id);
+    } else if (e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      selectRange(node.id);
+    }
+  }, [node.id, toggleSelection, selectRange]);
 
   // Strip HTML tags for static display
   const staticContent = node.content?.replace(/<[^>]*>/g, '') || '\u00A0';
 
   return (
     <div
-      className={`outline-item ${isFocused ? 'focused' : ''} ${node.is_checked ? 'checked' : ''}`}
+      className={`outline-item ${isFocused ? 'focused' : ''} ${isNodeSelected ? 'selected' : ''} ${node.is_checked ? 'checked' : ''}`}
       style={{ marginLeft: depth * 24 }}
     >
-      <div className="item-row" onClick={handleRowClick}>
+      <div className="item-row" onClick={handleRowClick} onClickCapture={handleModifierClickCapture}>
         {/* Drag handle / bullet / checkbox */}
         <span className="drag-handle">
           {node.node_type === 'checkbox' ? (

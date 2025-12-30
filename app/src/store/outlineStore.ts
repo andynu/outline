@@ -16,6 +16,7 @@ interface OutlineState {
   // Core state
   nodes: Node[];
   focusedId: string | null;
+  selectedIds: Set<string>;  // Multi-selection (empty = single-selection mode)
   loading: boolean;
   error: string | null;
   pendingOperations: number;
@@ -85,6 +86,20 @@ interface OutlineState {
   clearUndoHistory: () => void;
   _pushUndo: (entry: UndoEntry) => void;
   _executeUndoAction: (action: UndoAction) => Promise<boolean>;
+
+  // Multi-selection
+  isSelected: (nodeId: string) => boolean;
+  toggleSelection: (nodeId: string) => void;
+  selectRange: (toId: string) => void;
+  clearSelection: () => void;
+  selectAll: () => void;
+  getSelectedNodes: () => Node[];
+
+  // Bulk operations on selection
+  deleteSelectedNodes: () => Promise<string | null>;
+  toggleSelectedCheckboxes: () => Promise<boolean>;
+  indentSelectedNodes: () => Promise<boolean>;
+  outdentSelectedNodes: () => Promise<boolean>;
 }
 
 // Check if a node matches the filter query
@@ -270,6 +285,7 @@ function getVisibleNodesFromTree(tree: TreeNode[]): Node[] {
 export const useOutlineStore = create<OutlineState>((set, get) => ({
   nodes: [],
   focusedId: null,
+  selectedIds: new Set<string>(),
   loading: false,
   error: null,
   pendingOperations: 0,
@@ -1168,6 +1184,231 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         default:
           return false;
       }
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  // === Multi-Selection ===
+
+  isSelected: (nodeId: string) => get().selectedIds.has(nodeId),
+
+  toggleSelection: (nodeId: string) => {
+    const { selectedIds, focusedId } = get();
+    const newSet = new Set(selectedIds);
+    if (newSet.has(nodeId)) {
+      newSet.delete(nodeId);
+    } else {
+      newSet.add(nodeId);
+    }
+    set({ selectedIds: newSet, focusedId: nodeId });
+  },
+
+  selectRange: (toId: string) => {
+    const { focusedId, getVisibleNodes } = get();
+    const visible = getVisibleNodes();
+
+    if (!focusedId) {
+      // No current focus, just select the target
+      set({ selectedIds: new Set([toId]), focusedId: toId });
+      return;
+    }
+
+    const fromIdx = visible.findIndex(n => n.id === focusedId);
+    const toIdx = visible.findIndex(n => n.id === toId);
+
+    if (fromIdx < 0 || toIdx < 0) {
+      // One of the nodes isn't visible, just select the target
+      set({ selectedIds: new Set([toId]), focusedId: toId });
+      return;
+    }
+
+    // Select all nodes in the range
+    const startIdx = Math.min(fromIdx, toIdx);
+    const endIdx = Math.max(fromIdx, toIdx);
+    const newSet = new Set<string>();
+    for (let i = startIdx; i <= endIdx; i++) {
+      newSet.add(visible[i].id);
+    }
+    set({ selectedIds: newSet, focusedId: toId });
+  },
+
+  clearSelection: () => {
+    const { selectedIds } = get();
+    if (selectedIds.size > 0) {
+      set({ selectedIds: new Set<string>() });
+    }
+  },
+
+  selectAll: () => {
+    const visible = get().getVisibleNodes();
+    set({ selectedIds: new Set(visible.map(n => n.id)) });
+  },
+
+  getSelectedNodes: () => {
+    const { selectedIds, getVisibleNodes } = get();
+    if (selectedIds.size === 0) return [];
+    const visible = getVisibleNodes();
+    return visible.filter(n => selectedIds.has(n.id));
+  },
+
+  // === Bulk Operations on Selection ===
+
+  deleteSelectedNodes: async () => {
+    const { getSelectedNodes, getVisibleNodes, updateFromState, selectedIds } = get();
+    const selected = getSelectedNodes();
+    if (selected.length === 0) return null;
+
+    const visible = getVisibleNodes();
+
+    // Don't delete if it would leave no nodes
+    const remainingCount = visible.length - selected.length;
+    if (remainingCount <= 0) return null;
+
+    // Find the first non-selected node to focus after deletion
+    const selectedSet = new Set(selected.map(n => n.id));
+    let newFocusId: string | null = null;
+    for (const node of visible) {
+      if (!selectedSet.has(node.id)) {
+        newFocusId = node.id;
+      }
+    }
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      // Delete nodes in reverse order to maintain valid indices
+      const sortedSelected = [...selected].reverse();
+      for (const node of sortedSelected) {
+        await api.deleteNode(node.id);
+      }
+
+      // Reload state after all deletions
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      // Clear selection and set focus
+      set({
+        selectedIds: new Set<string>(),
+        focusedId: newFocusId,
+      });
+
+      return newFocusId;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return null;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  toggleSelectedCheckboxes: async () => {
+    const { getSelectedNodes, updateFromState } = get();
+    const selected = getSelectedNodes();
+    if (selected.length === 0) return false;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      // Determine what the toggle should do:
+      // If any are unchecked (or not checkbox type), check them all; otherwise uncheck them all
+      const anyUnchecked = selected.some(n => n.node_type !== 'checkbox' || !n.is_checked);
+      const newState = anyUnchecked;
+
+      for (const node of selected) {
+        // Always set checkbox type and checked state
+        await api.updateNode(node.id, {
+          node_type: 'checkbox',
+          is_checked: newState
+        });
+      }
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      // Keep selection after toggle completion to allow toggling back
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  indentSelectedNodes: async () => {
+    const { getSelectedNodes, getSiblings, childrenOf, updateFromState, selectedIds } = get();
+    const selected = getSelectedNodes();
+    if (selected.length === 0) return false;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      // Process nodes in order - indent each one
+      for (const node of selected) {
+        const siblings = getSiblings(node.id);
+        const idx = siblings.findIndex(n => n.id === node.id);
+
+        // Can't indent first child
+        if (idx === 0) continue;
+
+        const newParent = siblings[idx - 1];
+        // Skip if new parent is also selected (would cause issues)
+        if (selectedIds.has(newParent.id)) continue;
+
+        const newPosition = childrenOf(newParent.id).length;
+        await api.moveNode(node.id, newParent.id, newPosition);
+
+        // Uncollapse new parent
+        if (newParent.collapsed) {
+          await api.updateNode(newParent.id, { collapsed: false });
+        }
+      }
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  outdentSelectedNodes: async () => {
+    const { getSelectedNodes, getParent, rootNodes, childrenOf, updateFromState } = get();
+    const selected = getSelectedNodes();
+    if (selected.length === 0) return false;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      // Process nodes in reverse order to avoid index shifting issues
+      const reversed = [...selected].reverse();
+      for (const node of reversed) {
+        if (!node.parent_id) continue; // Can't outdent root nodes
+
+        const parent = getParent(node.id);
+        if (!parent) continue;
+
+        // Position after parent in grandparent's children
+        const grandparentChildren = parent.parent_id === null
+          ? rootNodes()
+          : childrenOf(parent.parent_id);
+        const parentIdx = grandparentChildren.findIndex(n => n.id === parent.id);
+        const newPosition = parentIdx + 1;
+
+        await api.moveNode(node.id, parent.parent_id, newPosition);
+      }
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      return true;
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
       return false;

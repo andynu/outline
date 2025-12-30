@@ -100,6 +100,9 @@ function App() {
   const zoomedNodeId = useOutlineStore(state => state.zoomedNodeId);
   const undo = useOutlineStore(state => state.undo);
   const redo = useOutlineStore(state => state.redo);
+  const selectedIds = useOutlineStore(state => state.selectedIds);
+  const deleteSelectedNodes = useOutlineStore(state => state.deleteSelectedNodes);
+  const toggleSelectedCheckboxes = useOutlineStore(state => state.toggleSelectedCheckboxes);
   const zoomReset = useOutlineStore(state => state.zoomReset);
   const zoomTo = useOutlineStore(state => state.zoomTo);
   const focusedId = useOutlineStore(state => state.focusedId);
@@ -497,6 +500,20 @@ function App() {
         return;
       }
 
+      // Bulk delete selected (Ctrl+Shift+Backspace)
+      if (mod && event.shiftKey && event.key === 'Backspace' && selectedIds.size > 0) {
+        event.preventDefault();
+        deleteSelectedNodes();
+        return;
+      }
+
+      // Bulk toggle completion (Ctrl+Enter with selection)
+      if (mod && event.key === 'Enter' && selectedIds.size > 0) {
+        event.preventDefault();
+        toggleSelectedCheckboxes();
+        return;
+      }
+
       // Save
       if (mod && event.key === 's') {
         event.preventDefault();
@@ -608,7 +625,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
