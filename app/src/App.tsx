@@ -120,6 +120,10 @@ function App() {
   const moveToFirstChild = useOutlineStore(state => state.moveToFirstChild);
   const moveToNextSibling = useOutlineStore(state => state.moveToNextSibling);
   const moveToPrevSibling = useOutlineStore(state => state.moveToPrevSibling);
+  // Linear navigation (for arrow keys when no editor is focused)
+  const moveToPrevious = useOutlineStore(state => state.moveToPrevious);
+  const moveToNext = useOutlineStore(state => state.moveToNext);
+  const getVisibleNodes = useOutlineStore(state => state.getVisibleNodes);
 
   // Zoom store
   const zoomLevel = useZoomStore(state => state.percentage);
@@ -731,6 +735,23 @@ function App() {
         }
       }
 
+      // Arrow key navigation when focusedId points to an invisible node (e.g., zoomed-in node)
+      // Only handle arrow keys if the focused node is NOT visible (otherwise TipTap handles it)
+      if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !mod && !event.shiftKey) {
+        const visible = getVisibleNodes();
+        const focusedIsVisible = visible.some(n => n.id === focusedId);
+        if (!focusedIsVisible && focusedId) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (event.key === 'ArrowDown') {
+            moveToNext();
+          } else {
+            moveToPrevious();
+          }
+          return;
+        }
+      }
+
       // Escape clears selection, filter, or exits zoom (when no modal is open)
       if (event.key === 'Escape' && !showSearchModal && !showQuickNavigator && !showQuickMove && !showDateViews && !showTagsPanel && !showInboxPanel && !showKeyboardShortcuts && !showSettings) {
         // First clear selection if any, then filter, then zoom
@@ -770,7 +791,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, getVisibleNodes, focusedId]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId

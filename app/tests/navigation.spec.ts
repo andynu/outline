@@ -163,7 +163,7 @@ test.describe('Navigation', () => {
     expect(focusedText).toBe(lastItemText);
   });
 
-  test.skip('Arrow Down after zoom-in selects first child', async ({ page }) => {
+  test('Arrow Down after zoom-in selects first child', async ({ page }) => {
     // First create a nested structure - create children under first item
     const editors = page.locator('.editor-wrapper');
     await editors.first().click();
@@ -184,8 +184,9 @@ test.describe('Navigation', () => {
 
     // Go back to parent and zoom into it
     await page.keyboard.press('ArrowUp');
+    await page.waitForTimeout(150);  // Wait for editor to mount after focus change
     await page.keyboard.press('ArrowUp');
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(150);
 
     // Now zoom in with Ctrl+]
     await page.keyboard.press('Control+]');
