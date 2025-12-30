@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useOutlineStore } from './store/outlineStore';
+import { useZoomStore } from './store/zoomStore';
 import { OutlineItem } from './components/OutlineItem';
 import { VirtualOutlineList } from './components/VirtualOutlineList';
 import { Sidebar, SidebarRef } from './components/Sidebar';
@@ -109,6 +110,13 @@ function App() {
   const setFocusedId = useOutlineStore(state => state.setFocusedId);
   const getTree = useOutlineStore(state => state.getTree);
 
+  // Zoom store
+  const zoomLevel = useZoomStore(state => state.percentage);
+  const zoomIn = useZoomStore(state => state.zoomIn);
+  const zoomOut = useZoomStore(state => state.zoomOut);
+  const resetZoom = useZoomStore(state => state.reset);
+  const initZoom = useZoomStore(state => state.init);
+
   // Ref for scroll position tracking
   const contentAreaRef = useRef<HTMLElement>(null);
   const sessionRestored = useRef(false);
@@ -177,6 +185,11 @@ function App() {
       document.documentElement.classList.remove('dark');
     }
   }, []);
+
+  // Initialize zoom from localStorage
+  useEffect(() => {
+    initZoom();
+  }, [initZoom]);
 
   // Save session state when document changes
   useEffect(() => {
@@ -453,8 +466,12 @@ function App() {
     { label: 'Collapse All', shortcut: 'Ctrl+Shift+.', action: collapseAll, separator: false },
     { label: 'Expand All', shortcut: 'Ctrl+Shift+,', action: expandAll, separator: false },
     { separator: true },
+    { label: 'Zoom In', shortcut: 'Ctrl++', action: zoomIn, separator: false },
+    { label: 'Zoom Out', shortcut: 'Ctrl+-', action: zoomOut, separator: false },
+    { label: 'Reset Zoom', shortcut: 'Ctrl+0', action: resetZoom, separator: false },
+    { separator: true },
     { label: isDark ? 'Light Mode' : 'Dark Mode', action: toggleTheme, separator: false },
-  ], [toggleSidebar, toggleTheme, isDark, collapseAll, expandAll, hideCompleted, toggleHideCompleted]);
+  ], [toggleSidebar, toggleTheme, isDark, collapseAll, expandAll, hideCompleted, toggleHideCompleted, zoomIn, zoomOut, resetZoom]);
 
   // Help menu items
   const helpMenuItems: MenuEntry[] = useMemo(() => [
@@ -607,6 +624,27 @@ function App() {
         return;
       }
 
+      // Zoom In (Ctrl+= or Ctrl++)
+      if (mod && (event.key === '=' || event.key === '+')) {
+        event.preventDefault();
+        zoomIn();
+        return;
+      }
+
+      // Zoom Out (Ctrl+-)
+      if (mod && event.key === '-') {
+        event.preventDefault();
+        zoomOut();
+        return;
+      }
+
+      // Reset Zoom (Ctrl+0)
+      if (mod && event.key === '0') {
+        event.preventDefault();
+        resetZoom();
+        return;
+      }
+
       // Escape clears filter or exits zoom (when no modal is open)
       if (event.key === 'Escape' && !showSearchModal && !showQuickNavigator && !showQuickMove && !showDateViews && !showTagsPanel && !showInboxPanel && !showKeyboardShortcuts && !showSettings) {
         // First clear filter if active, then exit zoom
@@ -623,9 +661,25 @@ function App() {
       }
     };
 
+    // Mousewheel zoom (Ctrl+scroll)
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        if (event.deltaY < 0) {
+          zoomIn();
+        } else {
+          zoomOut();
+        }
+      }
+    };
+
     window.addEventListener('keydown', handleKeydown);
-    return () => window.removeEventListener('keydown', handleKeydown);
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes]);
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      window.removeEventListener('keydown', handleKeydown);
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, zoomIn, zoomOut, resetZoom]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
@@ -921,6 +975,13 @@ function App() {
               (hiding completed)
             </span>
           )}
+          <button
+            className="zoom-indicator"
+            onClick={resetZoom}
+            title="Click to reset zoom (Ctrl+0)"
+          >
+            {zoomLevel}%
+          </button>
           {saveStatus === 'saving' && <span className="save-status saving">Saving...</span>}
           {saveStatus === 'saved' && <span className="save-status saved">Saved</span>}
         </span>
