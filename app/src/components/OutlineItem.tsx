@@ -331,6 +331,25 @@ export const OutlineItem = memo(function OutlineItem({
               return false;
             }
 
+            // Auto-convert [ ] or [x] to checkbox when followed by space
+            if (text === ' ') {
+              // Get text content before the cursor
+              const docText = state.doc.textContent;
+              const textBeforeCursor = docText.substring(0, from - 1); // -1 because from is 1-indexed in TipTap
+
+              // Check for [ ] or [x] pattern at start of content
+              if (textBeforeCursor === '[ ]' || textBeforeCursor === '[x]' ||
+                  textBeforeCursor === '[X]') {
+                const isChecked = textBeforeCursor.toLowerCase() === '[x]';
+
+                // Convert to checkbox and clear content
+                useOutlineStore.getState().convertToCheckbox(nodeId, isChecked);
+
+                // Prevent the space from being inserted
+                return true;
+              }
+            }
+
             return false;
           },
           handleKeyDown: (view, event) => {

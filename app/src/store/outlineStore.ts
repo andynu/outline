@@ -84,6 +84,7 @@ interface OutlineState {
   swapWithNext: (nodeId: string) => Promise<boolean>;
   toggleCheckbox: (nodeId: string) => Promise<boolean>;
   toggleNodeType: (nodeId: string) => Promise<boolean>;
+  convertToCheckbox: (nodeId: string, isChecked: boolean) => Promise<boolean>;
   moveNodeTo: (nodeId: string, newParentId: string | null, newPosition: number) => Promise<boolean>;
 
   // Drag and drop
@@ -1158,6 +1159,41 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         description: newType === 'checkbox' ? 'Convert to checkbox' : 'Convert to bullet',
         undo: { type: 'update', id: nodeId, changes: { node_type: oldType, is_checked: oldIsChecked } },
         redo: { type: 'update', id: nodeId, changes: { node_type: newType, is_checked: newIsChecked } },
+        timestamp: Date.now(),
+      });
+
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  convertToCheckbox: async (nodeId: string, isChecked: boolean) => {
+    const { getNode, updateFromState, _pushUndo } = get();
+    const node = getNode(nodeId);
+    if (!node) return false;
+
+    const oldType = node.node_type;
+    const oldIsChecked = node.is_checked;
+    const oldContent = node.content;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      const state = await api.updateNode(nodeId, {
+        node_type: 'checkbox',
+        is_checked: isChecked,
+        content: '',  // Clear the [ ] or [x] prefix
+      });
+      updateFromState(state);
+
+      // Push undo entry
+      _pushUndo({
+        description: isChecked ? 'Convert to checked checkbox' : 'Convert to checkbox',
+        undo: { type: 'update', id: nodeId, changes: { node_type: oldType, is_checked: oldIsChecked, content: oldContent } },
+        redo: { type: 'update', id: nodeId, changes: { node_type: 'checkbox', is_checked: isChecked, content: '' } },
         timestamp: Date.now(),
       });
 
