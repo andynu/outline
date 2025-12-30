@@ -123,6 +123,9 @@ interface OutlineState {
   selectRange: (toId: string) => void;
   clearSelection: () => void;
   selectAll: () => void;
+  selectSiblings: () => void;
+  selectChildren: () => void;
+  invertSelection: () => void;
   getSelectedNodes: () => Node[];
 
   // Bulk operations on selection
@@ -1918,6 +1921,77 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   selectAll: () => {
     const visible = get().getVisibleNodes();
     set({ selectedIds: new Set(visible.map(n => n.id)) });
+  },
+
+  selectSiblings: () => {
+    const { focusedId, selectedIds, getSiblings, getVisibleNodes } = get();
+    const visible = getVisibleNodes();
+    const visibleIds = new Set(visible.map(n => n.id));
+
+    // Get target node(s): selected nodes or focused node
+    let targetIds: string[] = [];
+    if (selectedIds.size > 0) {
+      targetIds = Array.from(selectedIds);
+    } else if (focusedId) {
+      targetIds = [focusedId];
+    }
+
+    if (targetIds.length === 0) return;
+
+    // Collect all siblings of target nodes
+    const newSelection = new Set<string>();
+    for (const nodeId of targetIds) {
+      const siblings = getSiblings(nodeId);
+      for (const sibling of siblings) {
+        if (visibleIds.has(sibling.id)) {
+          newSelection.add(sibling.id);
+        }
+      }
+    }
+
+    set({ selectedIds: newSelection });
+  },
+
+  selectChildren: () => {
+    const { selectedIds, childrenOf, getVisibleNodes } = get();
+    if (selectedIds.size === 0) return;
+
+    const visible = getVisibleNodes();
+    const visibleIds = new Set(visible.map(n => n.id));
+
+    // Collect all children of selected nodes
+    const newSelection = new Set<string>(selectedIds);
+    const addChildren = (nodeId: string) => {
+      const children = childrenOf(nodeId);
+      for (const child of children) {
+        if (visibleIds.has(child.id)) {
+          newSelection.add(child.id);
+          // Recursively add descendants
+          addChildren(child.id);
+        }
+      }
+    };
+
+    for (const nodeId of selectedIds) {
+      addChildren(nodeId);
+    }
+
+    set({ selectedIds: newSelection });
+  },
+
+  invertSelection: () => {
+    const { selectedIds, getVisibleNodes } = get();
+    const visible = getVisibleNodes();
+
+    // Toggle selection for all visible nodes
+    const newSelection = new Set<string>();
+    for (const node of visible) {
+      if (!selectedIds.has(node.id)) {
+        newSelection.add(node.id);
+      }
+    }
+
+    set({ selectedIds: newSelection });
   },
 
   getSelectedNodes: () => {
