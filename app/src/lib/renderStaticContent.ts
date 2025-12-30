@@ -10,7 +10,9 @@ import { getDateStatus } from './dateUtils';
 const HASHTAG_PATTERN = /(?:^|(?<=\s))#([a-zA-Z][a-zA-Z0-9_-]*)/g;
 const MENTION_PATTERN = /(?:^|(?<=\s))@([a-zA-Z][a-zA-Z0-9_-]*)/g;
 const DUE_DATE_PATTERN = /!\((\d{4}-\d{2}-\d{2})\)/g;
-const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\(((?:https?:\/\/|ftp:\/\/|www\.)[^\s)]+)\)/g;
+// Markdown link pattern: [text](url) - accepts URLs with protocol, www., or bare domains
+// Bare domains must have at least one dot and a valid TLD-like segment
+const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\(((?:https?:\/\/|ftp:\/\/|www\.)?[^\s)]+\.[^\s)]+)\)/g;
 const URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.)[^\s<>[\]{}|\\^`"']+/g;
 
 /**
@@ -113,8 +115,8 @@ function processTextNode(textNode: Text): Node[] | null {
     const start = match.index!;
     const end = start + match[0].length;
 
-    // Add https:// prefix to www URLs
-    if (url.startsWith('www.')) {
+    // Add https:// prefix to URLs without a protocol
+    if (!url.match(/^(?:https?|ftp):\/\//)) {
       url = `https://${url}`;
     }
 

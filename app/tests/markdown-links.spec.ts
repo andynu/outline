@@ -98,4 +98,40 @@ test.describe('Markdown links', () => {
     expect(text).not.toContain('https://');
     expect(text).not.toContain('](');
   });
+
+  test('bare domain URLs render as links in static content', async ({ page }) => {
+    // Type a markdown link with a bare domain (no protocol)
+    const editor = page.locator('.outline-item.focused .outline-editor');
+    await editor.fill('Visit [Google](google.com) for search');
+    await page.waitForTimeout(200);
+
+    // Press down arrow to unfocus
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(100);
+
+    // The link should be rendered with https:// protocol added
+    const firstItem = page.locator('.outline-item').first();
+    const link = firstItem.locator('a.markdown-link');
+    await expect(link).toBeVisible();
+    await expect(link).toHaveText('Google');
+    await expect(link).toHaveAttribute('href', 'https://google.com');
+  });
+
+  test('bare domain URLs with path render correctly', async ({ page }) => {
+    // Type a markdown link with domain and path
+    const editor = page.locator('.outline-item.focused .outline-editor');
+    await editor.fill('Check [the docs](example.com/path/to/page) out');
+    await page.waitForTimeout(200);
+
+    // Press down arrow to unfocus
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(100);
+
+    // The link should be rendered correctly
+    const firstItem = page.locator('.outline-item').first();
+    const link = firstItem.locator('a.markdown-link');
+    await expect(link).toBeVisible();
+    await expect(link).toHaveText('the docs');
+    await expect(link).toHaveAttribute('href', 'https://example.com/path/to/page');
+  });
 });

@@ -9,8 +9,9 @@ export interface MarkdownLinkOptions {
 }
 
 // Markdown link pattern: [text](url)
-// Matches [display text](url) where URL can be http(s), ftp, or www
-const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\(((?:https?:\/\/|ftp:\/\/|www\.)[^\s)]+)\)/g;
+// Matches [display text](url) where URL can be http(s), ftp, www, or bare domains
+// Bare domains must have at least one dot and a valid TLD-like segment
+const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\(((?:https?:\/\/|ftp:\/\/|www\.)?[^\s)]+\.[^\s)]+)\)/g;
 
 // Find all markdown links in text and return their positions
 function findMarkdownLinks(
@@ -35,8 +36,8 @@ function findMarkdownLinks(
     const from = startPos + match.index!;
     const to = from + match[0].length;
 
-    // Add https:// prefix to www URLs for the href
-    const href = url.startsWith('www.') ? `https://${url}` : url;
+    // Add https:// prefix to URLs without a protocol
+    const href = url.match(/^(?:https?|ftp):\/\//) ? url : `https://${url}`;
 
     matches.push({
       from,
