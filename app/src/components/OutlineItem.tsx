@@ -62,6 +62,14 @@ export const OutlineItem = memo(function OutlineItem({
   const selectRange = useOutlineStore(state => state.selectRange);
   const clearSelection = useOutlineStore(state => state.clearSelection);
   const toggleSelectedCheckboxes = useOutlineStore(state => state.toggleSelectedCheckboxes);
+  const completeSelectedNodes = useOutlineStore(state => state.completeSelectedNodes);
+  const uncompleteSelectedNodes = useOutlineStore(state => state.uncompleteSelectedNodes);
+  const convertSelectedToCheckbox = useOutlineStore(state => state.convertSelectedToCheckbox);
+  const convertSelectedToBullet = useOutlineStore(state => state.convertSelectedToBullet);
+  const indentSelectedNodes = useOutlineStore(state => state.indentSelectedNodes);
+  const outdentSelectedNodes = useOutlineStore(state => state.outdentSelectedNodes);
+  const deleteSelectedNodes = useOutlineStore(state => state.deleteSelectedNodes);
+  const getSelectedNodes = useOutlineStore(state => state.getSelectedNodes);
   const draggedId = useOutlineStore(state => state.draggedId);
   const startDrag = useOutlineStore(state => state.startDrag);
   const endDrag = useOutlineStore(state => state.endDrag);
@@ -1078,6 +1086,58 @@ export const OutlineItem = memo(function OutlineItem({
     },
   ], [node.id, node.is_checked, node.node_type, node.collapsed, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch]);
 
+  // Multi-selection context menu (shown when multiple items are selected)
+  const bulkContextMenuItems = useMemo(() => {
+    const selected = getSelectedNodes();
+    const selectionCount = selected.length;
+    const hasAnyUnchecked = selected.some(n => !n.is_checked || n.node_type !== 'checkbox');
+    const hasAnyChecked = selected.some(n => n.is_checked && n.node_type === 'checkbox');
+    const hasAnyBullet = selected.some(n => n.node_type === 'bullet');
+    const hasAnyCheckbox = selected.some(n => n.node_type === 'checkbox');
+
+    return [
+      {
+        label: `Complete all (${selectionCount})`,
+        action: completeSelectedNodes,
+        shortcut: 'Ctrl+Enter',
+        disabled: !hasAnyUnchecked,
+      },
+      {
+        label: `Uncomplete all (${selectionCount})`,
+        action: uncompleteSelectedNodes,
+        disabled: !hasAnyChecked,
+      },
+      { separator: true as const },
+      {
+        label: 'Convert to checkbox',
+        action: convertSelectedToCheckbox,
+        disabled: !hasAnyBullet,
+      },
+      {
+        label: 'Convert to bullet',
+        action: convertSelectedToBullet,
+        disabled: !hasAnyCheckbox,
+      },
+      { separator: true as const },
+      {
+        label: 'Indent',
+        action: indentSelectedNodes,
+        shortcut: 'Tab',
+      },
+      {
+        label: 'Outdent',
+        action: outdentSelectedNodes,
+        shortcut: 'Shift+Tab',
+      },
+      { separator: true as const },
+      {
+        label: `Delete selected (${selectionCount})`,
+        action: deleteSelectedNodes,
+        shortcut: 'Ctrl+Shift+Backspace',
+      },
+    ];
+  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes]);
+
   // Wiki link suggestion handlers
   const handleWikiLinkSelect = useCallback((nodeId: string, displayText: string) => {
     const editor = editorRef.current;
@@ -1347,10 +1407,10 @@ export const OutlineItem = memo(function OutlineItem({
         </div>
       )}
 
-      {/* Context menu */}
+      {/* Context menu - show bulk menu when multiple items selected, otherwise single item menu */}
       {showContextMenu && (
         <ContextMenu
-          items={contextMenuItems}
+          items={selectedIds.size > 1 ? bulkContextMenuItems : contextMenuItems}
           position={contextMenuPosition}
           onClose={() => setShowContextMenu(false)}
         />

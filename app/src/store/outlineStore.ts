@@ -113,6 +113,10 @@ interface OutlineState {
   // Bulk operations on selection
   deleteSelectedNodes: () => Promise<string | null>;
   toggleSelectedCheckboxes: () => Promise<boolean>;
+  completeSelectedNodes: () => Promise<boolean>;
+  uncompleteSelectedNodes: () => Promise<boolean>;
+  convertSelectedToCheckbox: () => Promise<boolean>;
+  convertSelectedToBullet: () => Promise<boolean>;
   indentSelectedNodes: () => Promise<boolean>;
   outdentSelectedNodes: () => Promise<boolean>;
 }
@@ -1708,6 +1712,119 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       updateFromState(state);
 
       // Keep selection after toggle completion to allow toggling back
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  completeSelectedNodes: async () => {
+    const { getSelectedNodes, updateFromState } = get();
+    const selected = getSelectedNodes();
+    if (selected.length === 0) return false;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      for (const node of selected) {
+        // Convert to checkbox if needed and mark complete
+        await api.updateNode(node.id, {
+          node_type: 'checkbox',
+          is_checked: true
+        });
+      }
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  uncompleteSelectedNodes: async () => {
+    const { getSelectedNodes, updateFromState } = get();
+    const selected = getSelectedNodes();
+    if (selected.length === 0) return false;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      for (const node of selected) {
+        // Only uncheck if it's a checkbox
+        if (node.node_type === 'checkbox') {
+          await api.updateNode(node.id, { is_checked: false });
+        }
+      }
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  convertSelectedToCheckbox: async () => {
+    const { getSelectedNodes, updateFromState } = get();
+    const selected = getSelectedNodes();
+    if (selected.length === 0) return false;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      for (const node of selected) {
+        if (node.node_type !== 'checkbox') {
+          await api.updateNode(node.id, {
+            node_type: 'checkbox',
+            is_checked: false
+          });
+        }
+      }
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  convertSelectedToBullet: async () => {
+    const { getSelectedNodes, updateFromState } = get();
+    const selected = getSelectedNodes();
+    if (selected.length === 0) return false;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      for (const node of selected) {
+        if (node.node_type !== 'bullet') {
+          await api.updateNode(node.id, {
+            node_type: 'bullet',
+            is_checked: false
+          });
+        }
+      }
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
       return true;
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });

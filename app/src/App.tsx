@@ -104,6 +104,8 @@ function App() {
   const selectedIds = useOutlineStore(state => state.selectedIds);
   const deleteSelectedNodes = useOutlineStore(state => state.deleteSelectedNodes);
   const toggleSelectedCheckboxes = useOutlineStore(state => state.toggleSelectedCheckboxes);
+  const indentSelectedNodes = useOutlineStore(state => state.indentSelectedNodes);
+  const outdentSelectedNodes = useOutlineStore(state => state.outdentSelectedNodes);
   const selectAll = useOutlineStore(state => state.selectAll);
   const clearSelection = useOutlineStore(state => state.clearSelection);
   const zoomReset = useOutlineStore(state => state.zoomReset);
@@ -541,6 +543,26 @@ function App() {
         return;
       }
 
+      // Bulk indent (Tab with selection) - only when not in an editor
+      if (event.key === 'Tab' && !event.shiftKey && selectedIds.size > 0) {
+        const activeElement = document.activeElement;
+        if (!activeElement?.closest('.outline-editor') && !activeElement?.closest('input') && !activeElement?.closest('textarea')) {
+          event.preventDefault();
+          indentSelectedNodes();
+          return;
+        }
+      }
+
+      // Bulk outdent (Shift+Tab with selection) - only when not in an editor
+      if (event.key === 'Tab' && event.shiftKey && selectedIds.size > 0) {
+        const activeElement = document.activeElement;
+        if (!activeElement?.closest('.outline-editor') && !activeElement?.closest('input') && !activeElement?.closest('textarea')) {
+          event.preventDefault();
+          outdentSelectedNodes();
+          return;
+        }
+      }
+
       // Select all (Ctrl+A) - only when not in an input/editor
       if (mod && event.key === 'a') {
         const activeElement = document.activeElement;
@@ -704,7 +726,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, zoomIn, zoomOut, resetZoom]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, zoomIn, zoomOut, resetZoom]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId

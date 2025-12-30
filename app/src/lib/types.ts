@@ -15,6 +15,7 @@ export interface Node {
   tags?: string[];
   date?: string;
   date_recurrence?: string;
+  recurrence?: string;  // Alias for date_recurrence (used by UI)
   collapsed: boolean;
   mirror_source_id?: string;
   created_at: string;
@@ -35,6 +36,7 @@ export interface NodeChanges {
   tags?: string[];
   date?: string;
   date_recurrence?: string;
+  recurrence?: string;  // Alias for date_recurrence (used by UI)
   collapsed?: boolean;
   mirror_source_id?: string;
 }

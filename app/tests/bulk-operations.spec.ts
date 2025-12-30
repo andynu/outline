@@ -202,4 +202,152 @@ test.describe('Bulk operations on multi-selection', () => {
       await expect(page.locator('.outline-item').first()).toHaveClass(/selected/);
     });
   });
+
+  test.describe('Bulk context menu', () => {
+    test('shows bulk menu when multiple items selected', async ({ page }) => {
+      const items = page.locator('.outline-item');
+      const editors = page.locator('.editor-wrapper');
+
+      // Select first two items
+      await editors.first().click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+      await editors.nth(1).click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+
+      // Verify both are selected
+      await expect(items.first()).toHaveClass(/selected/);
+      await expect(items.nth(1)).toHaveClass(/selected/);
+
+      // Right-click to open context menu
+      await items.first().click({ button: 'right' });
+      await page.waitForTimeout(100);
+
+      // Context menu should appear with bulk options
+      const contextMenu = page.locator('.context-menu');
+      await expect(contextMenu).toBeVisible();
+
+      // Should have "Complete all" option with count
+      await expect(contextMenu.locator('text=/Complete all.*2/')).toBeVisible();
+    });
+
+    test('bulk context menu complete all marks items checked', async ({ page }) => {
+      const items = page.locator('.outline-item');
+      const editors = page.locator('.editor-wrapper');
+
+      // Select first two items
+      await editors.first().click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+      await editors.nth(1).click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+
+      // Right-click to open context menu
+      await items.first().click({ button: 'right' });
+      await page.waitForTimeout(100);
+
+      // Click "Complete all"
+      const contextMenu = page.locator('.context-menu');
+      await contextMenu.locator('text=/Complete all/').click();
+      await page.waitForTimeout(200);
+
+      // Both items should be checked
+      await expect(items.first()).toHaveClass(/checked/);
+      await expect(items.nth(1)).toHaveClass(/checked/);
+    });
+
+    test('bulk context menu delete removes selected items', async ({ page }) => {
+      const items = page.locator('.outline-item');
+      const editors = page.locator('.editor-wrapper');
+
+      const initialCount = await items.count();
+      expect(initialCount).toBeGreaterThanOrEqual(3);
+
+      // Select first two items
+      await editors.first().click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+      await editors.nth(1).click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+
+      // Right-click to open context menu
+      await items.first().click({ button: 'right' });
+      await page.waitForTimeout(100);
+
+      // Click "Delete selected"
+      const contextMenu = page.locator('.context-menu');
+      await contextMenu.locator('text=/Delete selected/').click();
+      await page.waitForTimeout(200);
+
+      // Should have fewer items
+      const newCount = await items.count();
+      expect(newCount).toBeLessThan(initialCount);
+    });
+  });
+
+  test.describe('Type conversion', () => {
+    test('convert to checkbox via context menu', async ({ page }) => {
+      const items = page.locator('.outline-item');
+      const editors = page.locator('.editor-wrapper');
+
+      // Select first item (which should be a bullet)
+      await editors.first().click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+      await editors.nth(1).click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+
+      // Right-click to open context menu
+      await items.first().click({ button: 'right' });
+      await page.waitForTimeout(100);
+
+      // Click "Convert to checkbox" if available
+      const contextMenu = page.locator('.context-menu');
+      const convertBtn = contextMenu.locator('text=Convert to checkbox');
+
+      // Only test if the button is enabled (items have bullets)
+      if (await convertBtn.isEnabled()) {
+        await convertBtn.click();
+        await page.waitForTimeout(200);
+
+        // Both items should now have checkboxes
+        const firstCheckbox = items.first().locator('.checkbox-btn');
+        const secondCheckbox = items.nth(1).locator('.checkbox-btn');
+        await expect(firstCheckbox).toBeVisible();
+        await expect(secondCheckbox).toBeVisible();
+      }
+    });
+
+    test('convert to bullet via context menu', async ({ page }) => {
+      const items = page.locator('.outline-item');
+      const editors = page.locator('.editor-wrapper');
+
+      // First, convert items to checkboxes
+      await editors.first().click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+      await editors.nth(1).click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+
+      // Press Ctrl+Enter to make them checkboxes
+      await page.keyboard.press('Control+Enter');
+      await page.waitForTimeout(200);
+
+      // Verify they're now checkboxes
+      await expect(items.first().locator('.checkbox-btn')).toBeVisible();
+      await expect(items.nth(1).locator('.checkbox-btn')).toBeVisible();
+
+      // Right-click to open context menu
+      await items.first().click({ button: 'right' });
+      await page.waitForTimeout(100);
+
+      // Click "Convert to bullet"
+      const contextMenu = page.locator('.context-menu');
+      const convertBtn = contextMenu.locator('text=Convert to bullet');
+
+      if (await convertBtn.isEnabled()) {
+        await convertBtn.click();
+        await page.waitForTimeout(200);
+
+        // Both items should now have bullets (no checkbox-btn)
+        await expect(items.first().locator('.checkbox-btn')).toHaveCount(0);
+        await expect(items.nth(1).locator('.checkbox-btn')).toHaveCount(0);
+      }
+    });
+  });
 });
