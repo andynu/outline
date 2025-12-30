@@ -462,7 +462,7 @@ function App() {
 
   // View menu items
   const viewMenuItems: MenuEntry[] = useMemo(() => [
-    { label: 'Toggle Sidebar', shortcut: 'Ctrl+B', action: toggleSidebar, separator: false },
+    { label: 'Toggle Sidebar', shortcut: 'Ctrl+\\', action: toggleSidebar, separator: false },
     { separator: true },
     { label: hideCompleted ? 'Show Completed' : 'Hide Completed', shortcut: 'Ctrl+Shift+H', action: toggleHideCompleted, separator: false },
     { label: 'Collapse All', shortcut: 'Ctrl+Shift+.', action: collapseAll, separator: false },
@@ -550,8 +550,8 @@ function App() {
         return;
       }
 
-      // Toggle sidebar
-      if (mod && event.key === 'b') {
+      // Toggle sidebar (Ctrl+\)
+      if (mod && event.key === '\\') {
         event.preventDefault();
         toggleSidebar();
         return;
