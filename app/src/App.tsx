@@ -94,6 +94,7 @@ function App() {
   const load = useOutlineStore(state => state.load);
   const collapseAll = useOutlineStore(state => state.collapseAll);
   const expandAll = useOutlineStore(state => state.expandAll);
+  const toggleFocusedCollapse = useOutlineStore(state => state.toggleFocusedCollapse);
   const hideCompleted = useOutlineStore(state => state.hideCompleted);
   const toggleHideCompleted = useOutlineStore(state => state.toggleHideCompleted);
   const filterQuery = useOutlineStore(state => state.filterQuery);
@@ -688,6 +689,13 @@ function App() {
         return;
       }
 
+      // Toggle collapse on focused item (Ctrl+.)
+      if (mod && event.key === '.') {
+        event.preventDefault();
+        toggleFocusedCollapse();
+        return;
+      }
+
       // Zoom In (Ctrl+= or Ctrl++)
       if (mod && (event.key === '=' || event.key === '+')) {
         event.preventDefault();
@@ -837,7 +845,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, showSearchModal, showQuickNavigator, showQuickMove, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId

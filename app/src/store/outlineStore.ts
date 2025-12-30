@@ -82,8 +82,13 @@ interface OutlineState {
   deleteNode: (nodeId: string) => Promise<string | null>;
   deleteAllCompleted: () => Promise<number>;
   toggleCollapse: (nodeId: string) => Promise<void>;
+  collapseNode: (nodeId: string) => Promise<void>;
+  expandNode: (nodeId: string) => Promise<void>;
   collapseAll: () => Promise<void>;
   expandAll: () => Promise<void>;
+  expandToLevel: (level: number) => Promise<void>;
+  collapseSiblings: (nodeId: string) => Promise<void>;
+  toggleFocusedCollapse: () => Promise<void>;
   indentNode: (nodeId: string) => Promise<boolean>;
   outdentNode: (nodeId: string) => Promise<boolean>;
   swapWithPrevious: (nodeId: string) => Promise<boolean>;
@@ -1124,6 +1129,138 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     } finally {
       set(s => ({ pendingOperations: s.pendingOperations - 1 }));
     }
+  },
+
+  collapseNode: async (nodeId: string) => {
+    const { getNode, hasChildren, updateFromState, _pushUndo } = get();
+    const node = getNode(nodeId);
+    if (!node) return;
+    if (!hasChildren(nodeId)) return;
+    if (node.collapsed) return; // Already collapsed
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      const state = await api.updateNode(nodeId, { collapsed: true });
+      updateFromState(state);
+      _pushUndo({
+        description: 'Collapse item',
+        undo: { type: 'update', id: nodeId, changes: { collapsed: false } },
+        redo: { type: 'update', id: nodeId, changes: { collapsed: true } },
+        timestamp: Date.now(),
+      });
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  expandNode: async (nodeId: string) => {
+    const { getNode, hasChildren, updateFromState, _pushUndo } = get();
+    const node = getNode(nodeId);
+    if (!node) return;
+    if (!hasChildren(nodeId)) return;
+    if (!node.collapsed) return; // Already expanded
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      const state = await api.updateNode(nodeId, { collapsed: false });
+      updateFromState(state);
+      _pushUndo({
+        description: 'Expand item',
+        undo: { type: 'update', id: nodeId, changes: { collapsed: true } },
+        redo: { type: 'update', id: nodeId, changes: { collapsed: false } },
+        timestamp: Date.now(),
+      });
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  expandToLevel: async (level: number) => {
+    const { nodes, hasChildren, updateFromState, _nodesById } = get();
+
+    // Helper to calculate depth of a node
+    const getDepth = (nodeId: string | null): number => {
+      if (!nodeId) return 0;
+      const node = _nodesById.get(nodeId);
+      if (!node) return 0;
+      return 1 + getDepth(node.parent_id);
+    };
+
+    // Find nodes that need to be collapsed (depth > level) or expanded (depth <= level)
+    const toCollapse: Node[] = [];
+    const toExpand: Node[] = [];
+
+    for (const node of nodes) {
+      if (!hasChildren(node.id)) continue;
+      const depth = getDepth(node.id);
+
+      if (depth < level && node.collapsed) {
+        toExpand.push(node);
+      } else if (depth >= level && !node.collapsed) {
+        toCollapse.push(node);
+      }
+    }
+
+    if (toCollapse.length === 0 && toExpand.length === 0) return;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      let lastState;
+      for (const node of toExpand) {
+        lastState = await api.updateNode(node.id, { collapsed: false });
+      }
+      for (const node of toCollapse) {
+        lastState = await api.updateNode(node.id, { collapsed: true });
+      }
+      if (lastState) {
+        updateFromState(lastState);
+      }
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  collapseSiblings: async (nodeId: string) => {
+    const { getNode, getSiblings, hasChildren, updateFromState } = get();
+    const node = getNode(nodeId);
+    if (!node) return;
+
+    // Get all siblings (including self)
+    const siblings = getSiblings(nodeId);
+
+    // Find siblings that have children and are not collapsed (excluding self)
+    const toCollapse = siblings.filter(s =>
+      s.id !== nodeId && hasChildren(s.id) && !s.collapsed
+    );
+
+    if (toCollapse.length === 0) return;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      let lastState;
+      for (const sibling of toCollapse) {
+        lastState = await api.updateNode(sibling.id, { collapsed: true });
+      }
+      if (lastState) {
+        updateFromState(lastState);
+      }
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  toggleFocusedCollapse: async () => {
+    const { focusedId, toggleCollapse } = get();
+    if (!focusedId) return;
+    await toggleCollapse(focusedId);
   },
 
   indentNode: async (nodeId: string) => {
