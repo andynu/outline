@@ -5,6 +5,7 @@
  */
 
 import { getDateStatus } from './dateUtils';
+import { openUrl } from './api';
 
 // Patterns matching TipTap extensions
 const HASHTAG_PATTERN = /(?:^|(?<=\s))#([a-zA-Z][a-zA-Z0-9_-]*)/g;
@@ -306,7 +307,17 @@ export function handleStaticContentClick(
     }
   }
 
-  // Auto-links handle themselves via href
+  // Check for external link click (auto-link or markdown-link)
+  // In Tauri, we need to explicitly open URLs in the system browser
+  if (target.classList.contains('auto-link') || target.classList.contains('markdown-link')) {
+    const href = target.getAttribute('href');
+    if (href) {
+      event.preventDefault();
+      event.stopPropagation();
+      openUrl(href);
+      return true;
+    }
+  }
 
   return false;
 }
