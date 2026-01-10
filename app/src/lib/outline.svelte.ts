@@ -1977,10 +1977,17 @@ export const outline = {
   },
 
   // Collapse all nodes that have children
+  // When a filter is active, only collapses nodes in the filtered set
   async collapseAll() {
+    // Get the set of node IDs that should be considered for collapsing
+    const filteredIds = filterQuery ? getFilteredNodeIds(filterQuery) : null;
+
     const nodesToCollapse = nodes.filter(n => {
       if (n.collapsed) return false;
-      return childrenOf(n.id).length > 0;
+      if (childrenOf(n.id).length === 0) return false;
+      // If filtering, only collapse nodes in the filtered set
+      if (filteredIds && !filteredIds.has(n.id)) return false;
+      return true;
     });
 
     if (nodesToCollapse.length === 0) return;
@@ -2003,8 +2010,17 @@ export const outline = {
   },
 
   // Expand all collapsed nodes
+  // When a filter is active, only expands nodes in the filtered set
   async expandAll() {
-    const nodesToExpand = nodes.filter(n => n.collapsed);
+    // Get the set of node IDs that should be considered for expansion
+    const filteredIds = filterQuery ? getFilteredNodeIds(filterQuery) : null;
+
+    const nodesToExpand = nodes.filter(n => {
+      if (!n.collapsed) return false;
+      // If filtering, only expand nodes in the filtered set
+      if (filteredIds && !filteredIds.has(n.id)) return false;
+      return true;
+    });
 
     if (nodesToExpand.length === 0) return;
 
