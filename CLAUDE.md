@@ -143,3 +143,29 @@ The Playwright suite covers:
 - Context menus
 - Date views panel
 - Tags panel
+
+## Coding Conventions
+
+### Null vs Undefined Handling
+
+Data from the Rust backend may have `undefined` where TypeScript types say `null` (due to JSON serialization of `Option<T>`). To prevent bugs:
+
+1. **Use loose equality for null checks** - `== null` catches both `null` and `undefined`:
+   ```typescript
+   // GOOD - handles both null and undefined
+   if (node.parent_id == null) { ... }
+
+   // BAD - misses undefined, causes blank views
+   if (node.parent_id === null) { ... }
+   ```
+
+2. **Coerce undefined to null when assigning** - use nullish coalescing:
+   ```typescript
+   // GOOD
+   zoomedNodeId = node.parent_id ?? null;
+
+   // BAD - propagates undefined
+   zoomedNodeId = node.parent_id;
+   ```
+
+3. **Key fields affected**: `parent_id`, and any `Option<T>` field from Rust
