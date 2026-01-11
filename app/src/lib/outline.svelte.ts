@@ -435,9 +435,12 @@ export const outline = {
   zoomTo(nodeId: string) {
     const node = nodesById().get(nodeId);
     if (!node) return;
+    // Don't zoom into leaf nodes (they have no children to show)
+    const children = childrenOf(nodeId);
+    if (children.length === 0) return;
     zoomedNodeId = nodeId;
-    // Focus the zoomed node
-    focusedId = nodeId;
+    // Focus the first child since the zoomed node itself isn't shown
+    focusedId = children[0].id;
   },
 
   // Zoom out one level (to parent of current zoom)
