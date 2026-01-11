@@ -397,14 +397,15 @@ const keyboardShortcuts: KeyboardShortcut[] = [
   { key: 'ArrowDown', mod: false, shift: false, handler: handleArrowDown, noOtherMods: true, description: 'Move to next node' },
 
   // Vim-style navigation (Ctrl+HJKL)
-  { key: 'h', mod: true, shift: false, handler: handleAltH, description: 'Go to parent' },
-  { key: 'H', mod: true, shift: false, handler: handleAltH, description: 'Go to parent' },
-  { key: 'l', mod: true, shift: false, handler: handleAltL, description: 'Go to first child' },
-  { key: 'L', mod: true, shift: false, handler: handleAltL, description: 'Go to first child' },
-  { key: 'j', mod: true, shift: false, handler: handleAltJ, description: 'Next sibling' },
-  { key: 'J', mod: true, shift: false, handler: handleAltJ, description: 'Next sibling' },
-  { key: 'k', mod: true, shift: false, handler: handleAltK, description: 'Previous sibling' },
-  { key: 'K', mod: true, shift: false, handler: handleAltK, description: 'Previous sibling' },
+  // J/K = up/down (like arrows), H/L = sibling navigation (same level)
+  { key: 'j', mod: true, shift: false, handler: handleArrowDown, description: 'Next item' },
+  { key: 'J', mod: true, shift: false, handler: handleArrowDown, description: 'Next item' },
+  { key: 'k', mod: true, shift: false, handler: handleArrowUp, description: 'Previous item' },
+  { key: 'K', mod: true, shift: false, handler: handleArrowUp, description: 'Previous item' },
+  { key: 'h', mod: true, shift: false, handler: handleAltK, description: 'Previous sibling' },
+  { key: 'H', mod: true, shift: false, handler: handleAltK, description: 'Previous sibling' },
+  { key: 'l', mod: true, shift: false, handler: handleAltJ, description: 'Next sibling' },
+  { key: 'L', mod: true, shift: false, handler: handleAltJ, description: 'Next sibling' },
 
   // Indent/dedent alternatives
   { key: ',', mod: true, handler: handleCtrlComma, description: 'Dedent' },
