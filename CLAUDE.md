@@ -22,8 +22,10 @@ Outline is a self-hosted Dynalist/Workflowy replacement - a hierarchical outline
 │                    Local File Storage (~/.outline-data/)        │
 │  ├── documents/{uuid}/state.json      (merged state)           │
 │  ├── documents/{uuid}/pending.*.jsonl (per-machine ops)        │
-│  ├── inbox.jsonl (captured items)                              │
-│  └── .cache/outline.db (SQLite, not synced)                    │
+│  └── inbox.jsonl (captured items)                              │
+├─────────────────────────────────────────────────────────────────┤
+│  Platform Cache (~/Library/Caches/outline/ on macOS)           │
+│  └── outline.db (SQLite FTS5 search index, not synced)         │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               │ Dropbox / Syncthing
