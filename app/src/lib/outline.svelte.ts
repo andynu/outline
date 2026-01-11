@@ -135,13 +135,8 @@ function computeChangedParents(oldNodes: Node[], newNodes: Node[]): Set<string |
   return affectedParents;
 }
 
-let rebuildCallCount = 0;
-
 function rebuildIndexes() {
   if (cachedNodes === nodes) return; // No change
-  rebuildCallCount++;
-
-  const startTime = performance.now();
 
   // If we can do a surgical update (have dirty parents and existing cache)
   if (!needsFullRebuild && dirtyParentIds.size > 0 && cachedNodesById.size > 0) {
@@ -180,25 +175,16 @@ function rebuildIndexes() {
 
     cachedNodesById = newNodesById;
     cachedNodes = nodes;
-    const numDirty = dirtyParentIds.size;
     dirtyParentIds.clear();
     needsFullRebuild = true; // Reset for next change
-
-    const elapsed = performance.now() - startTime;
-    if (elapsed > 2) {
-      console.log(`[perf] rebuildIndexes (surgical, ${numDirty} parents): ${elapsed.toFixed(1)}ms`);
-    }
     return;
   }
 
   // Full rebuild
-  const mapStart = performance.now();
   cachedNodes = nodes;
   cachedNodesById = new Map(nodes.map(n => [n.id, n]));
-  const mapTime = performance.now() - mapStart;
 
   // Build children index - group by parent_id
-  const groupStart = performance.now();
   const childrenMap = new Map<string | null, Node[]>();
   for (const node of nodes) {
     const parentId = node.parent_id ?? null;
@@ -209,23 +195,15 @@ function rebuildIndexes() {
     }
     children.push(node);
   }
-  const groupTime = performance.now() - groupStart;
 
   // Sort each children array by position
-  const sortStart = performance.now();
   for (const children of childrenMap.values()) {
     children.sort((a, b) => a.position - b.position);
   }
-  const sortTime = performance.now() - sortStart;
 
   cachedChildrenByParent = childrenMap;
   dirtyParentIds.clear();
   needsFullRebuild = true; // Reset for next change
-
-  const elapsed = performance.now() - startTime;
-  if (elapsed > 5) {
-    console.log(`[perf] rebuildIndexes (full) call#${rebuildCallCount}: ${elapsed.toFixed(1)}ms for ${nodes.length} nodes (map=${mapTime.toFixed(1)}ms, group=${groupTime.toFixed(1)}ms, sort=${sortTime.toFixed(1)}ms)`);
-  }
 }
 
 // Derived: nodes indexed by ID
@@ -276,17 +254,11 @@ function getFilteredNodeIds(filter: string): Set<string> {
   return visibleIds;
 }
 
-// Performance tracking
-let lastBuildTreeTime = 0;
-let buildTreeCallCount = 0;
-
 // Build tree structure for rendering - optimized version
 // For large flat lists, this avoids unnecessary recursive calls
 function buildTree(parentId: string | null, depth: number, filteredIds?: Set<string>, excludeCompleted: boolean = false): TreeNode[] {
-  const isRoot = parentId === null;
-  // Get children first (may trigger rebuildIndexes) before measuring tree building time
+  // Get children (may trigger rebuildIndexes)
   const children = parentId === null ? rootNodes() : childrenOf(parentId);
-  const startTime = isRoot ? performance.now() : 0;
 
   // Filter children based on active filters
   let visibleChildren = children;
@@ -329,14 +301,6 @@ function buildTree(parentId: string | null, depth: number, filteredIds?: Set<str
       children: childTree
     };
   });
-
-  if (isRoot) {
-    lastBuildTreeTime = performance.now() - startTime;
-    buildTreeCallCount++;
-    if (lastBuildTreeTime > 10) {
-      console.log(`[perf] buildTree: ${lastBuildTreeTime.toFixed(1)}ms (call #${buildTreeCallCount}, ${nodes.length} nodes)`);
-    }
-  }
 
   return result;
 }
@@ -1244,7 +1208,6 @@ export const outline = {
 
   // Delete node
   async deleteNode(nodeId: string): Promise<string | null> {
-    const deleteStart = performance.now();
     const visible = this.getVisibleNodes();
     const idx = visible.findIndex(n => n.id === nodeId);
 
@@ -1257,13 +1220,8 @@ export const outline = {
     const savedNode = { ...nodeToDelete };
 
     return await withOperation(async () => {
-      const apiStart = performance.now();
       const state = await api.deleteNode(nodeId);
-      const apiTime = performance.now() - apiStart;
-
-      const updateStart = performance.now();
       updateFromState(state);
-      const updateTime = performance.now() - updateStart;
 
       // Push undo entry
       pushUndo({
@@ -1278,9 +1236,6 @@ export const outline = {
       if (newFocusId) {
         focusedId = newFocusId;
       }
-
-      const totalTime = performance.now() - deleteStart;
-      console.log(`[perf] deleteNode: total=${totalTime.toFixed(1)}ms, api=${apiTime.toFixed(1)}ms, updateState=${updateTime.toFixed(1)}ms`);
 
       return newFocusId || null;
     });
