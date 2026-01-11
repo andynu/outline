@@ -2256,6 +2256,76 @@ export const outline = {
     redoStack = [];
   },
 
+  // Check if there are any completed items in the document
+  hasCompletedItems(): boolean {
+    return nodes.some(n => n.is_checked);
+  },
+
+  // Delete all completed items in the document
+  // Returns the count of items deleted
+  async deleteAllCompleted(): Promise<number> {
+    // Find all completed items (is_checked = true)
+    const completedNodes = nodes.filter(n => n.is_checked);
+
+    if (completedNodes.length === 0) return 0;
+
+    // Ensure at least one node remains after deletion
+    const remainingCount = nodes.length - completedNodes.length;
+    if (remainingCount <= 0) {
+      // Can't delete all nodes - need at least one
+      return 0;
+    }
+
+    // Get IDs to delete (we'll delete in reverse order of position to maintain tree integrity)
+    const idsToDelete = completedNodes.map(n => n.id);
+
+    // If focused node is being deleted, find a new focus target
+    let newFocusId: string | null = null;
+    if (focusedId && idsToDelete.includes(focusedId)) {
+      const visible = this.getVisibleNodes();
+      const focusedIdx = visible.findIndex(n => n.id === focusedId);
+      // Find first non-deleted node after or before the focused one
+      for (let i = focusedIdx + 1; i < visible.length; i++) {
+        if (!idsToDelete.includes(visible[i].id)) {
+          newFocusId = visible[i].id;
+          break;
+        }
+      }
+      if (!newFocusId) {
+        for (let i = focusedIdx - 1; i >= 0; i--) {
+          if (!idsToDelete.includes(visible[i].id)) {
+            newFocusId = visible[i].id;
+            break;
+          }
+        }
+      }
+    }
+
+    startOperation();
+    try {
+      // Delete each completed node
+      for (const id of idsToDelete) {
+        await api.deleteNode(id);
+      }
+
+      // Reload state after all deletions
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      // Update focus
+      if (newFocusId) {
+        focusedId = newFocusId;
+      }
+
+      return idsToDelete.length;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      return 0;
+    } finally {
+      endOperation();
+    }
+  },
+
   // Export selected nodes (or focused node) to markdown file
   async exportSelection(includeCompletedChildren: boolean = true): Promise<boolean> {
     // Get nodes to export: either selected nodes or focused node

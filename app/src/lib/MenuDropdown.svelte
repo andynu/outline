@@ -6,6 +6,7 @@
     shortcut?: string;
     action: () => void;
     separator?: false;
+    disabled?: boolean;
   }
 
   interface MenuSeparator {
@@ -35,6 +36,7 @@
   }
 
   function handleItemClick(item: MenuItem) {
+    if (item.disabled) return;
     item.action();
     onClose();
   }
@@ -85,8 +87,10 @@
         {:else}
           <button
             class="menu-item-btn"
+            class:disabled={item.disabled}
             role="menuitem"
             onclick={() => handleItemClick(item)}
+            disabled={item.disabled}
           >
             <span class="item-label">{item.label}</span>
             {#if item.shortcut}
@@ -147,8 +151,13 @@
     text-align: left;
   }
 
-  .menu-item-btn:hover {
+  .menu-item-btn:hover:not(.disabled) {
     background: var(--bg-tertiary);
+  }
+
+  .menu-item-btn.disabled {
+    color: var(--text-tertiary);
+    cursor: not-allowed;
   }
 
   .item-label {

@@ -702,6 +702,19 @@
     },
   ]);
 
+  // Edit menu items
+  const editMenuItems = $derived([
+    { label: 'Undo', shortcut: 'Ctrl+Z', action: () => outline.undo(), separator: false as const },
+    { label: 'Redo', shortcut: 'Ctrl+Y', action: () => outline.redo(), separator: false as const },
+    { separator: true as const },
+    {
+      label: 'Delete Completed Items',
+      action: () => outline.deleteAllCompleted(),
+      disabled: !outline.hasCompletedItems(),
+      separator: false as const,
+    },
+  ]);
+
   // Help menu items
   const helpMenuItems = [
     { label: 'Keyboard Shortcuts', shortcut: 'Ctrl+/', action: () => { showKeyboardShortcuts = true; }, separator: false as const },
@@ -726,7 +739,13 @@
       onOpen={() => openMenuDropdown('file')}
       onClose={closeMenuDropdown}
     />
-    <button class="menu-item">Edit</button>
+    <MenuDropdown
+      label="Edit"
+      items={editMenuItems}
+      isOpen={openMenu === 'edit'}
+      onOpen={() => openMenuDropdown('edit')}
+      onClose={closeMenuDropdown}
+    />
     <MenuDropdown
       label="View"
       items={viewMenuItems}
@@ -1133,21 +1152,6 @@
     background: var(--chrome-bg);
     border-bottom: 1px solid var(--chrome-border);
     flex-shrink: 0;
-  }
-
-  .menu-item {
-    padding: 6px 12px;
-    background: transparent;
-    border: none;
-    font-size: 13px;
-    color: var(--text-primary);
-    cursor: pointer;
-    border-radius: 4px;
-    margin: 2px 0;
-  }
-
-  .menu-item:hover {
-    background: var(--bg-tertiary);
   }
 
   /* Icon Toolbar */
