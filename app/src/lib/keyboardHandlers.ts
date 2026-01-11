@@ -398,6 +398,11 @@ const keyboardShortcuts: KeyboardShortcut[] = [
 
   // Vim-style navigation (Ctrl+HJKL)
   // J/K = up/down (like arrows), H/L = sibling navigation (same level)
+  // Ctrl+Shift+J/K = swap/move item (like Shift+arrows)
+  { key: 'j', mod: true, shift: true, handler: handleSwapDown, description: 'Move item down' },
+  { key: 'J', mod: true, shift: true, handler: handleSwapDown, description: 'Move item down' },
+  { key: 'k', mod: true, shift: true, handler: handleSwapUp, description: 'Move item up' },
+  { key: 'K', mod: true, shift: true, handler: handleSwapUp, description: 'Move item up' },
   { key: 'j', mod: true, shift: false, handler: handleArrowDown, description: 'Next item' },
   { key: 'J', mod: true, shift: false, handler: handleArrowDown, description: 'Next item' },
   { key: 'k', mod: true, shift: false, handler: handleArrowUp, description: 'Previous item' },

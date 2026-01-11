@@ -67,6 +67,8 @@
             <li><kbd>↑</kbd> / <kbd>↓</kbd> Move focus</li>
             <li><kbd>Shift+↑</kbd> Move up</li>
             <li><kbd>Shift+↓</kbd> Move down</li>
+            <li><kbd>Ctrl+Shift+K</kbd> Move up</li>
+            <li><kbd>Ctrl+Shift+J</kbd> Move down</li>
             <li><kbd>Ctrl+Home</kbd> First item</li>
             <li><kbd>Ctrl+End</kbd> Last item</li>
             <li><kbd>Ctrl+J</kbd> Next item</li>
