@@ -396,15 +396,15 @@ const keyboardShortcuts: KeyboardShortcut[] = [
   { key: 'ArrowUp', mod: false, shift: false, handler: handleArrowUp, noOtherMods: true, description: 'Move to previous node' },
   { key: 'ArrowDown', mod: false, shift: false, handler: handleArrowDown, noOtherMods: true, description: 'Move to next node' },
 
-  // Vim-style navigation (Alt+HJKL)
-  { key: 'h', alt: true, mod: false, shift: false, handler: handleAltH, description: 'Go to parent' },
-  { key: 'H', alt: true, mod: false, shift: false, handler: handleAltH, description: 'Go to parent' },
-  { key: 'l', alt: true, mod: false, shift: false, handler: handleAltL, description: 'Go to first child' },
-  { key: 'L', alt: true, mod: false, shift: false, handler: handleAltL, description: 'Go to first child' },
-  { key: 'j', alt: true, mod: false, shift: false, handler: handleAltJ, description: 'Next sibling' },
-  { key: 'J', alt: true, mod: false, shift: false, handler: handleAltJ, description: 'Next sibling' },
-  { key: 'k', alt: true, mod: false, shift: false, handler: handleAltK, description: 'Previous sibling' },
-  { key: 'K', alt: true, mod: false, shift: false, handler: handleAltK, description: 'Previous sibling' },
+  // Vim-style navigation (Ctrl+HJKL)
+  { key: 'h', mod: true, shift: false, handler: handleAltH, description: 'Go to parent' },
+  { key: 'H', mod: true, shift: false, handler: handleAltH, description: 'Go to parent' },
+  { key: 'l', mod: true, shift: false, handler: handleAltL, description: 'Go to first child' },
+  { key: 'L', mod: true, shift: false, handler: handleAltL, description: 'Go to first child' },
+  { key: 'j', mod: true, shift: false, handler: handleAltJ, description: 'Next sibling' },
+  { key: 'J', mod: true, shift: false, handler: handleAltJ, description: 'Next sibling' },
+  { key: 'k', mod: true, shift: false, handler: handleAltK, description: 'Previous sibling' },
+  { key: 'K', mod: true, shift: false, handler: handleAltK, description: 'Previous sibling' },
 
   // Indent/dedent alternatives
   { key: ',', mod: true, handler: handleCtrlComma, description: 'Dedent' },

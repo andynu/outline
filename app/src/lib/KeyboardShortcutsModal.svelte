@@ -69,10 +69,10 @@
             <li><kbd>Shift+↓</kbd> Move down</li>
             <li><kbd>Ctrl+Home</kbd> First item</li>
             <li><kbd>Ctrl+End</kbd> Last item</li>
-            <li><kbd>Alt+H</kbd> Go to parent</li>
-            <li><kbd>Alt+L</kbd> Go to child</li>
-            <li><kbd>Alt+K</kbd> Prev sibling</li>
-            <li><kbd>Alt+J</kbd> Next sibling</li>
+            <li><kbd>Ctrl+H</kbd> Go to parent</li>
+            <li><kbd>Ctrl+L</kbd> Go to child</li>
+            <li><kbd>Ctrl+K</kbd> Prev sibling</li>
+            <li><kbd>Ctrl+J</kbd> Next sibling</li>
             <li><kbd>Ctrl+O</kbd> Go to document</li>
             <li><kbd>Ctrl+Shift+O</kbd> Go to item</li>
             <li><kbd>Ctrl+Shift+M</kbd> Move item to...</li>
