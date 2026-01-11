@@ -218,11 +218,32 @@ function handleDelete(ctx: KeyboardContext): HandlerResult {
   const docSize = ctx.view.state.doc.content.size;
   const isEmpty = ctx.view.state.doc.textContent.length === 0;
   const isAtEnd = from === to && to === docSize - 1;
+  const isAtStart = from === 1 && to === 1; // Position 1 is start of text in ProseMirror
 
   if (isEmpty) {
     // Empty node: just delete it
     ctx.event.preventDefault();
     outline.deleteNode(ctx.nodeId);
+    return true;
+  } else if (isAtStart) {
+    // At start of content with text: merge into previous node
+    ctx.event.preventDefault();
+    outline.mergeWithPreviousNode(ctx.nodeId).then(result => {
+      if (result) {
+        // Focus the target node and position cursor at the merge point
+        tick().then(() => {
+          outline.focus(result.targetId);
+          // Wait for editor to be ready, then set cursor position
+          tick().then(() => {
+            const editor = (document.activeElement as any)?.__tiptap_editor;
+            if (editor) {
+              const pos = Math.min(result.cursorPos + 1, editor.state.doc.content.size);
+              editor.commands.setTextSelection(pos);
+            }
+          });
+        });
+      }
+    });
     return true;
   } else if (isAtEnd) {
     // At end of content: merge with next sibling

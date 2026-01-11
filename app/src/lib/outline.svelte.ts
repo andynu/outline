@@ -1337,6 +1337,49 @@ export const outline = {
     });
   },
 
+  // Merge with previous visible node: append current content to previous node
+  // Used when Delete is pressed at start of item content (position 0)
+  // Returns the target node ID and cursor position (end of previous content, start of appended text)
+  async mergeWithPreviousNode(nodeId: string): Promise<{ targetId: string; cursorPos: number } | null> {
+    const node = nodesById().get(nodeId);
+    if (!node) return null;
+
+    // Find the previous visible node
+    const visible = this.getVisibleNodes();
+    const idx = visible.findIndex(n => n.id === nodeId);
+    if (idx <= 0) return null; // No previous node
+
+    const prevNode = visible[idx - 1];
+
+    // Calculate cursor position (end of previous content, before merge)
+    const plainTextLength = stripHtml(prevNode.content).length;
+
+    return await withOperation(async () => {
+      // Merge content: append current node's content to previous node
+      const mergedContent = prevNode.content + node.content;
+      await api.updateNode(prevNode.id, { content: mergedContent });
+
+      // Move current node's children to previous node (at the end)
+      const prevChildren = childrenOf(prevNode.id);
+      const currentChildren = childrenOf(nodeId);
+      for (let i = 0; i < currentChildren.length; i++) {
+        await api.moveNode(currentChildren[i].id, prevNode.id, prevChildren.length + i);
+      }
+
+      // Delete the current node (now empty)
+      await api.deleteNode(nodeId);
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      // Focus the previous node
+      focusedId = prevNode.id;
+
+      return { targetId: prevNode.id, cursorPos: plainTextLength };
+    });
+  },
+
   // Toggle completion on all selected nodes
   async toggleSelectedCheckboxes(): Promise<boolean> {
     const selected = this.getSelectedNodes();
