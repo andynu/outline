@@ -44,6 +44,28 @@ function nodeMatchesFilter(node: Node, filter: string): boolean {
   return false;
 }
 
+// Merge two HTML content strings into one, combining paragraphs properly
+// e.g., "<p>ABC</p>" + "<p>DEF</p>" becomes "<p>ABCDEF</p>"
+// This preserves inline formatting like bold, italic, links, etc.
+function mergeHtmlContent(first: string, second: string): string {
+  // Handle empty cases
+  if (!first || first === '<p></p>') return second;
+  if (!second || second === '<p></p>') return first;
+
+  // Extract content from paragraph tags
+  // TipTap wraps content in <p>...</p>
+  const firstMatch = first.match(/^<p>(.*)<\/p>$/s);
+  const secondMatch = second.match(/^<p>(.*)<\/p>$/s);
+
+  if (firstMatch && secondMatch) {
+    // Both have paragraph wrappers - merge the inner content
+    return `<p>${firstMatch[1]}${secondMatch[1]}</p>`;
+  }
+
+  // Fallback: just concatenate (shouldn't normally happen with TipTap content)
+  return first + second;
+}
+
 // Reactive state
 let nodes = $state<Node[]>([]);
 let focusedId = $state<string | null>(null);
@@ -1338,7 +1360,7 @@ export const outline = {
   },
 
   // Merge with previous visible node: append current content to previous node
-  // Used when Delete is pressed at start of item content (position 0)
+  // Used when Backspace/Delete is pressed at start of item content (position 0)
   // Returns the target node ID and cursor position (end of previous content, start of appended text)
   async mergeWithPreviousNode(nodeId: string): Promise<{ targetId: string; cursorPos: number } | null> {
     const node = nodesById().get(nodeId);
@@ -1356,7 +1378,9 @@ export const outline = {
 
     return await withOperation(async () => {
       // Merge content: append current node's content to previous node
-      const mergedContent = prevNode.content + node.content;
+      // Need to properly combine paragraph content, not just concatenate HTML
+      // e.g., "<p>ABC</p>" + "<p>DEF</p>" should become "<p>ABCDEF</p>", not two paragraphs
+      const mergedContent = mergeHtmlContent(prevNode.content, node.content);
       await api.updateNode(prevNode.id, { content: mergedContent });
 
       // Move current node's children to previous node (at the end)

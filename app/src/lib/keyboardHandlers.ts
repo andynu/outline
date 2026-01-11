@@ -203,25 +203,12 @@ function handleCtrlShiftBackspace(ctx: KeyboardContext): HandlerResult {
 }
 
 function handleBackspace(ctx: KeyboardContext): HandlerResult {
-  const { from } = ctx.view.state.selection;
-  const isEmpty = ctx.view.state.doc.textContent.length === 0;
-  if (from === 1 && isEmpty) {
-    ctx.event.preventDefault();
-    outline.deleteNode(ctx.nodeId);
-    return true;
-  }
-  return false;
-}
-
-function handleDelete(ctx: KeyboardContext): HandlerResult {
   const { from, to } = ctx.view.state.selection;
-  const docSize = ctx.view.state.doc.content.size;
   const isEmpty = ctx.view.state.doc.textContent.length === 0;
-  const isAtEnd = from === to && to === docSize - 1;
   const isAtStart = from === 1 && to === 1; // Position 1 is start of text in ProseMirror
 
   if (isEmpty && isAtStart) {
-    // Empty node at start: delete it and focus previous item at end
+    // Empty node: delete it and focus previous item at end
     ctx.event.preventDefault();
     const visible = outline.getVisibleNodes();
     const idx = visible.findIndex(n => n.id === ctx.nodeId);
@@ -232,13 +219,17 @@ function handleDelete(ctx: KeyboardContext): HandlerResult {
     if (prevNode) {
       tick().then(() => {
         outline.focus(prevNode.id);
-        tick().then(() => {
-          const editor = (document.activeElement as any)?.__tiptap_editor;
+        setTimeout(() => {
+          let element = document.activeElement as HTMLElement | null;
+          let editor: any = null;
+          while (element && !editor) {
+            editor = (element as any).__tiptap_editor;
+            element = element.parentElement;
+          }
           if (editor) {
-            // Position cursor at end
             editor.commands.setTextSelection(editor.state.doc.content.size - 1);
           }
-        });
+        }, 50);
       });
     }
     return true;
@@ -247,17 +238,61 @@ function handleDelete(ctx: KeyboardContext): HandlerResult {
     ctx.event.preventDefault();
     outline.mergeWithPreviousNode(ctx.nodeId).then(result => {
       if (result) {
-        // Focus the target node and position cursor at the merge point
         tick().then(() => {
           outline.focus(result.targetId);
-          // Wait for editor to be ready, then set cursor position
-          tick().then(() => {
-            const editor = (document.activeElement as any)?.__tiptap_editor;
+          setTimeout(() => {
+            let element = document.activeElement as HTMLElement | null;
+            let editor: any = null;
+            while (element && !editor) {
+              editor = (element as any).__tiptap_editor;
+              element = element.parentElement;
+            }
             if (editor) {
               const pos = Math.min(result.cursorPos + 1, editor.state.doc.content.size);
               editor.commands.setTextSelection(pos);
             }
-          });
+          }, 50);
+        });
+      }
+    });
+    return true;
+  }
+  return false;
+}
+
+function handleDelete(ctx: KeyboardContext): HandlerResult {
+  // Forward Delete key (fn+Delete on Mac)
+  // - On empty item: delete it and focus next item at start
+  // - At end of content: merge with next sibling
+  // - Otherwise: let default behavior work (delete next char)
+  const { from, to } = ctx.view.state.selection;
+  const docSize = ctx.view.state.doc.content.size;
+  const isEmpty = ctx.view.state.doc.textContent.length === 0;
+  const isAtEnd = from === to && to === docSize - 1;
+
+  if (isEmpty) {
+    // Empty node: delete it and focus next item at start
+    ctx.event.preventDefault();
+    const visible = outline.getVisibleNodes();
+    const idx = visible.findIndex(n => n.id === ctx.nodeId);
+    const nextNode = idx < visible.length - 1 ? visible[idx + 1] : null;
+
+    outline.deleteNode(ctx.nodeId).then(() => {
+      if (nextNode) {
+        tick().then(() => {
+          outline.focus(nextNode.id);
+          // Position cursor at start
+          setTimeout(() => {
+            let element = document.activeElement as HTMLElement | null;
+            let editor: any = null;
+            while (element && !editor) {
+              editor = (element as any).__tiptap_editor;
+              element = element.parentElement;
+            }
+            if (editor) {
+              editor.commands.setTextSelection(1);
+            }
+          }, 50);
         });
       }
     });

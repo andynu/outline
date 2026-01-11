@@ -402,6 +402,9 @@
       }
     });
 
+    // Store editor reference on the element for external access
+    (editorElement as any).__tiptap_editor = editor;
+
     // Focus the newly created editor
     setTimeout(() => {
       editor?.commands.focus('end');
