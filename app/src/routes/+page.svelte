@@ -360,8 +360,8 @@
       event.preventDefault();
       outline.toggleHideCompleted();
     }
-    // Ctrl+/ or ?: Show keyboard shortcuts
-    else if ((event.ctrlKey && event.key === '/') || (event.key === '?' && !event.ctrlKey && !event.altKey)) {
+    // Ctrl+/ or Ctrl+?: Show keyboard shortcuts
+    else if (event.ctrlKey && (event.key === '/' || event.key === '?')) {
       event.preventDefault();
       showKeyboardShortcuts = true;
     }
@@ -895,7 +895,7 @@
       <button
         class="toolbar-btn"
         onclick={() => showKeyboardShortcuts = true}
-        title="Keyboard Shortcuts (?)"
+        title="Keyboard Shortcuts (Ctrl+/)"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10"/>
