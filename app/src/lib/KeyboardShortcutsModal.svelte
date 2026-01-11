@@ -73,6 +73,7 @@
             <li><kbd>Ctrl+K</kbd> Prev item</li>
             <li><kbd>Ctrl+H</kbd> Prev sibling</li>
             <li><kbd>Ctrl+L</kbd> Next sibling</li>
+            <li><kbd>Ctrl+-</kbd> Go to parent</li>
             <li><kbd>Ctrl+O</kbd> Go to document</li>
             <li><kbd>Ctrl+Shift+O</kbd> Go to item</li>
             <li><kbd>Ctrl+Shift+M</kbd> Move item to...</li>

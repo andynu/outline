@@ -406,6 +406,7 @@ const keyboardShortcuts: KeyboardShortcut[] = [
   { key: 'H', mod: true, shift: false, handler: handleAltK, description: 'Previous sibling' },
   { key: 'l', mod: true, shift: false, handler: handleAltJ, description: 'Next sibling' },
   { key: 'L', mod: true, shift: false, handler: handleAltJ, description: 'Next sibling' },
+  { key: '-', mod: true, handler: handleAltH, description: 'Go to parent' },
 
   // Indent/dedent alternatives
   { key: ',', mod: true, handler: handleCtrlComma, description: 'Dedent' },
