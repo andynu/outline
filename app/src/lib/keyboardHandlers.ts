@@ -220,10 +220,27 @@ function handleDelete(ctx: KeyboardContext): HandlerResult {
   const isAtEnd = from === to && to === docSize - 1;
   const isAtStart = from === 1 && to === 1; // Position 1 is start of text in ProseMirror
 
-  if (isEmpty) {
-    // Empty node: just delete it
+  if (isEmpty && isAtStart) {
+    // Empty node at start: delete it and focus previous item at end
     ctx.event.preventDefault();
+    const visible = outline.getVisibleNodes();
+    const idx = visible.findIndex(n => n.id === ctx.nodeId);
+    const prevNode = idx > 0 ? visible[idx - 1] : null;
+
     outline.deleteNode(ctx.nodeId);
+
+    if (prevNode) {
+      tick().then(() => {
+        outline.focus(prevNode.id);
+        tick().then(() => {
+          const editor = (document.activeElement as any)?.__tiptap_editor;
+          if (editor) {
+            // Position cursor at end
+            editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+          }
+        });
+      });
+    }
     return true;
   } else if (isAtStart) {
     // At start of content with text: merge into previous node
