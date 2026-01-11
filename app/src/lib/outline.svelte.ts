@@ -409,6 +409,20 @@ function endOperation() {
   lastSavedAt = new Date();
 }
 
+// Wrapper for async operations that handles startOperation/endOperation and error handling
+// Returns null on error, otherwise returns the function's result
+async function withOperation<T>(fn: () => Promise<T>): Promise<T | null> {
+  startOperation();
+  try {
+    return await fn();
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    return null;
+  } finally {
+    endOperation();
+  }
+}
+
 // --- Public API ---
 
 export const outline = {
@@ -764,8 +778,7 @@ export const outline = {
     const idx = siblings.findIndex(n => n.id === nodeId);
     const newPosition = idx + 1;
 
-    startOperation();
-    try {
+    return await withOperation(async () => {
       // Shift siblings after insertion point
       for (let i = idx + 1; i < siblings.length; i++) {
         await api.moveNode(siblings[i].id, node.parent_id, i + 1);
@@ -787,12 +800,7 @@ export const outline = {
       }
 
       return result.id;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return null;
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Create a new sibling before the current node (for Enter at beginning)
@@ -804,8 +812,7 @@ export const outline = {
     const idx = siblings.findIndex(n => n.id === nodeId);
     const newPosition = idx;
 
-    startOperation();
-    try {
+    return await withOperation(async () => {
       // Shift current node and all siblings after it
       for (let i = idx; i < siblings.length; i++) {
         await api.moveNode(siblings[i].id, node.parent_id, i + 1);
@@ -828,12 +835,7 @@ export const outline = {
       }
 
       return result.id;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return null;
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Split a node at cursor position: update current with beforeContent, create new with afterContent
@@ -853,8 +855,7 @@ export const outline = {
     // If so, we need to zoom out after the split to avoid an empty view
     const wasZoomedIntoSplitNode = zoomedNodeId === nodeId && children.length > 0;
 
-    startOperation();
-    try {
+    return await withOperation(async () => {
       // Update current node with "before" content
       await api.updateNode(nodeId, { content: beforeContent });
 
@@ -889,12 +890,7 @@ export const outline = {
       // TODO: Add proper undo support for split
 
       return result.id;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return null;
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Create multiple items from parsed markdown list
@@ -910,8 +906,7 @@ export const outline = {
     const anchorNode = nodesById().get(afterNodeId);
     if (!anchorNode) return null;
 
-    startOperation();
-    try {
+    return await withOperation(async () => {
       // Get siblings and position for insertion
       const siblings = getSiblings(afterNodeId);
       const anchorIdx = siblings.findIndex(n => n.id === afterNodeId);
@@ -991,25 +986,15 @@ export const outline = {
       }
 
       return firstCreatedId;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return null;
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Update node content
   async updateContent(nodeId: string, content: string) {
-    startOperation();
-    try {
+    await withOperation(async () => {
       const state = await api.updateNode(nodeId, { content });
       updateFromState(state);
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Toggle collapsed state
@@ -1024,8 +1009,7 @@ export const outline = {
     // Save old state for undo
     const wasCollapsed = node.collapsed;
 
-    startOperation();
-    try {
+    await withOperation(async () => {
       const state = await api.updateNode(nodeId, { collapsed: !wasCollapsed });
       updateFromState(state);
 
@@ -1036,11 +1020,7 @@ export const outline = {
         redo: { type: 'update', id: nodeId, changes: { collapsed: !wasCollapsed } },
         timestamp: Date.now(),
       });
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Indent node (make child of previous sibling)
@@ -1061,8 +1041,7 @@ export const outline = {
     const oldParentId = node.parent_id;
     const oldPosition = node.position;
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       const state = await api.moveNode(nodeId, newParent.id, newPosition);
       updateFromState(state);
 
@@ -1080,12 +1059,9 @@ export const outline = {
       });
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Outdent node (move to parent's level)
@@ -1108,8 +1084,7 @@ export const outline = {
     const newPosition = parentIdx + 1;
     const newParentId = parent.parent_id;
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       const state = await api.moveNode(nodeId, newParentId, newPosition);
       updateFromState(state);
 
@@ -1122,12 +1097,9 @@ export const outline = {
       });
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Move node to a new parent (used by QuickMove, supports undo)
@@ -1142,8 +1114,7 @@ export const outline = {
     // Don't move if nothing changed
     if (oldParentId === newParentId && oldPosition === newPosition) return true;
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       const state = await api.moveNode(nodeId, newParentId, newPosition);
       updateFromState(state);
 
@@ -1164,12 +1135,9 @@ export const outline = {
       });
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Swap with previous sibling
@@ -1192,35 +1160,34 @@ export const outline = {
     const prevNodeOldPosition = prevNode.position;
 
     isMoving = true;
-    startOperation();
     try {
-      // Swap positions
-      await api.moveNode(nodeId, node.parent_id, prevNodeOldPosition);
-      const state = await api.moveNode(prevNode.id, prevNode.parent_id, nodeOldPosition);
-      updateFromState(state);
+      const result = await withOperation(async () => {
+        // Swap positions
+        await api.moveNode(nodeId, node.parent_id, prevNodeOldPosition);
+        const state = await api.moveNode(prevNode.id, prevNode.parent_id, nodeOldPosition);
+        updateFromState(state);
 
-      // Force focus update after DOM reorder - toggle off then on to trigger effect
-      const savedFocusId = focusedId;
-      focusedId = null;
-      // Allow DOM to update, then restore focus
-      await new Promise(resolve => setTimeout(resolve, 0));
-      focusedId = savedFocusId;
+        // Force focus update after DOM reorder - toggle off then on to trigger effect
+        const savedFocusId = focusedId;
+        focusedId = null;
+        // Allow DOM to update, then restore focus
+        await new Promise(resolve => setTimeout(resolve, 0));
+        focusedId = savedFocusId;
 
-      // Push undo entry - undo swaps them back to original positions
-      pushUndo({
-        description: 'Move item up',
-        undo: { type: 'swap', id: nodeId, position: nodeOldPosition, otherId: prevNode.id, otherPosition: prevNodeOldPosition },
-        redo: { type: 'swap', id: nodeId, position: prevNodeOldPosition, otherId: prevNode.id, otherPosition: nodeOldPosition },
-        timestamp: Date.now(),
+        // Push undo entry - undo swaps them back to original positions
+        pushUndo({
+          description: 'Move item up',
+          undo: { type: 'swap', id: nodeId, position: nodeOldPosition, otherId: prevNode.id, otherPosition: prevNodeOldPosition },
+          redo: { type: 'swap', id: nodeId, position: prevNodeOldPosition, otherId: prevNode.id, otherPosition: nodeOldPosition },
+          timestamp: Date.now(),
+        });
+
+        return true;
       });
 
-      return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
+      return result ?? false;
     } finally {
       isMoving = false;
-      endOperation();
     }
   },
 
@@ -1244,35 +1211,34 @@ export const outline = {
     const nextNodeOldPosition = nextNode.position;
 
     isMoving = true;
-    startOperation();
     try {
-      // Swap positions
-      await api.moveNode(nodeId, node.parent_id, nextNodeOldPosition);
-      const state = await api.moveNode(nextNode.id, nextNode.parent_id, nodeOldPosition);
-      updateFromState(state);
+      const result = await withOperation(async () => {
+        // Swap positions
+        await api.moveNode(nodeId, node.parent_id, nextNodeOldPosition);
+        const state = await api.moveNode(nextNode.id, nextNode.parent_id, nodeOldPosition);
+        updateFromState(state);
 
-      // Force focus update after DOM reorder - toggle off then on to trigger effect
-      const savedFocusId = focusedId;
-      focusedId = null;
-      // Allow DOM to update, then restore focus
-      await new Promise(resolve => setTimeout(resolve, 0));
-      focusedId = savedFocusId;
+        // Force focus update after DOM reorder - toggle off then on to trigger effect
+        const savedFocusId = focusedId;
+        focusedId = null;
+        // Allow DOM to update, then restore focus
+        await new Promise(resolve => setTimeout(resolve, 0));
+        focusedId = savedFocusId;
 
-      // Push undo entry - undo swaps them back to original positions
-      pushUndo({
-        description: 'Move item down',
-        undo: { type: 'swap', id: nodeId, position: nodeOldPosition, otherId: nextNode.id, otherPosition: nextNodeOldPosition },
-        redo: { type: 'swap', id: nodeId, position: nextNodeOldPosition, otherId: nextNode.id, otherPosition: nodeOldPosition },
-        timestamp: Date.now(),
+        // Push undo entry - undo swaps them back to original positions
+        pushUndo({
+          description: 'Move item down',
+          undo: { type: 'swap', id: nodeId, position: nodeOldPosition, otherId: nextNode.id, otherPosition: nextNodeOldPosition },
+          redo: { type: 'swap', id: nodeId, position: nextNodeOldPosition, otherId: nextNode.id, otherPosition: nodeOldPosition },
+          timestamp: Date.now(),
+        });
+
+        return true;
       });
 
-      return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
+      return result ?? false;
     } finally {
       isMoving = false;
-      endOperation();
     }
   },
 
@@ -1290,8 +1256,7 @@ export const outline = {
     if (!nodeToDelete) return null;
     const savedNode = { ...nodeToDelete };
 
-    startOperation();
-    try {
+    return await withOperation(async () => {
       const apiStart = performance.now();
       const state = await api.deleteNode(nodeId);
       const apiTime = performance.now() - apiStart;
@@ -1318,12 +1283,7 @@ export const outline = {
       console.log(`[perf] deleteNode: total=${totalTime.toFixed(1)}ms, api=${apiTime.toFixed(1)}ms, updateState=${updateTime.toFixed(1)}ms`);
 
       return newFocusId || null;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return null;
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Delete all selected nodes
@@ -1348,8 +1308,7 @@ export const outline = {
       }
     }
 
-    startOperation();
-    try {
+    return await withOperation(async () => {
       // Delete nodes in reverse order to maintain valid indices
       // (deleting from end first)
       const sortedSelected = [...selected].reverse();
@@ -1368,12 +1327,7 @@ export const outline = {
       }
 
       return newFocusId;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return null;
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Merge with next sibling: append next sibling's content and children to current node
@@ -1394,8 +1348,7 @@ export const outline = {
     // Strip HTML tags to get text length
     const plainTextLength = stripHtml(node.content).length;
 
-    startOperation();
-    try {
+    return await withOperation(async () => {
       // Merge content: append next sibling's content to current node
       const mergedContent = node.content + nextSibling.content;
       await api.updateNode(nodeId, { content: mergedContent });
@@ -1418,12 +1371,7 @@ export const outline = {
       // TODO: Add proper undo support for merge
 
       return { cursorPos: plainTextLength };
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return null;
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Toggle completion on all selected nodes
@@ -1431,8 +1379,7 @@ export const outline = {
     const selected = this.getSelectedNodes();
     if (selected.length === 0) return false;
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       // Determine what the toggle should do:
       // If any are unchecked, check them all; otherwise uncheck them all
       const anyUnchecked = selected.some(n => !n.is_checked);
@@ -1449,12 +1396,9 @@ export const outline = {
       updateFromState(state);
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Indent all selected nodes
@@ -1462,8 +1406,7 @@ export const outline = {
     const selected = this.getSelectedNodes();
     if (selected.length === 0) return false;
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       // Process nodes in order - indent each one
       for (const node of selected) {
         const siblings = getSiblings(node.id);
@@ -1490,12 +1433,9 @@ export const outline = {
       updateFromState(state);
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Outdent all selected nodes
@@ -1503,8 +1443,7 @@ export const outline = {
     const selected = this.getSelectedNodes();
     if (selected.length === 0) return false;
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       // Process nodes in reverse order to avoid index shifting issues
       const reversed = [...selected].reverse();
       for (const node of reversed) {
@@ -1528,12 +1467,9 @@ export const outline = {
       updateFromState(state);
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Compact (save state.json, clear pending)
@@ -1583,8 +1519,7 @@ export const outline = {
       }
     }
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       // If this is a recurring task being checked, calculate next occurrence
       if (!node.is_checked && node.date_recurrence && node.date) {
         // Get next occurrence date
@@ -1629,12 +1564,9 @@ export const outline = {
       }
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Toggle node type between bullet and checkbox
@@ -1646,8 +1578,7 @@ export const outline = {
     const oldType = node.node_type;
     const oldIsChecked = node.is_checked;
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       const newType = node.node_type === 'checkbox' ? 'bullet' : 'checkbox';
       const newIsChecked = newType === 'checkbox' ? node.is_checked : false;
       const state = await api.updateNode(nodeId, {
@@ -1666,12 +1597,9 @@ export const outline = {
       });
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Set date on a node (pass null or empty string to clear)
@@ -1683,8 +1611,7 @@ export const outline = {
     const oldDate = node.date;
     const newDate = date ?? '';
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       // Empty string signals to backend to clear the date
       const state = await api.updateNode(nodeId, {
         date: newDate,
@@ -1700,12 +1627,9 @@ export const outline = {
       });
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Clear date from a node
@@ -1722,8 +1646,7 @@ export const outline = {
     const oldRecurrence = node.date_recurrence;
     const newRecurrence = rrule ?? '';
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       // Empty string signals to backend to clear the recurrence
       const state = await api.updateNode(nodeId, {
         date_recurrence: newRecurrence,
@@ -1739,12 +1662,9 @@ export const outline = {
       });
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Update note on a node (pass empty string to clear)
@@ -1863,8 +1783,7 @@ export const outline = {
       checkId = node?.parent_id ?? null;
     }
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       let newParentId: string | null;
       let newPosition: number;
 
@@ -1895,13 +1814,12 @@ export const outline = {
       updateFromState(state);
       draggedId = null;
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+    });
+
+    if (result === null) {
       draggedId = null;
-      return false;
-    } finally {
-      endOperation();
     }
+    return result ?? false;
   },
 
   // DEV ONLY: Generate test nodes for performance testing
@@ -1950,15 +1868,10 @@ export const outline = {
     const children = childrenOf(nodeId);
     if (children.length === 0) return;
 
-    startOperation();
-    try {
+    await withOperation(async () => {
       const state = await api.updateNode(nodeId, { collapsed: true });
       updateFromState(state);
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Expand a specific node (set collapsed=false)
@@ -1966,15 +1879,10 @@ export const outline = {
     const node = nodesById().get(nodeId);
     if (!node || !node.collapsed) return;
 
-    startOperation();
-    try {
+    await withOperation(async () => {
       const state = await api.updateNode(nodeId, { collapsed: false });
       updateFromState(state);
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Collapse all nodes that have children
@@ -1993,8 +1901,7 @@ export const outline = {
 
     if (nodesToCollapse.length === 0) return;
 
-    startOperation();
-    try {
+    await withOperation(async () => {
       // Update each node - the API returns full state each time
       let state: DocumentState | null = null;
       for (const node of nodesToCollapse) {
@@ -2003,11 +1910,7 @@ export const outline = {
       if (state) {
         updateFromState(state);
       }
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Expand all collapsed nodes
@@ -2025,8 +1928,7 @@ export const outline = {
 
     if (nodesToExpand.length === 0) return;
 
-    startOperation();
-    try {
+    await withOperation(async () => {
       let state: DocumentState | null = null;
       for (const node of nodesToExpand) {
         state = await api.updateNode(node.id, { collapsed: false });
@@ -2034,11 +1936,7 @@ export const outline = {
       if (state) {
         updateFromState(state);
       }
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Expand all nodes up to a specific depth level (1-based)
@@ -2088,8 +1986,7 @@ export const outline = {
 
     if (changes.length === 0) return;
 
-    startOperation();
-    try {
+    await withOperation(async () => {
       let state: DocumentState | null = null;
       for (const change of changes) {
         state = await api.updateNode(change.id, { collapsed: change.collapsed });
@@ -2097,11 +1994,7 @@ export const outline = {
       if (state) {
         updateFromState(state);
       }
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Collapse all siblings of the focused node
@@ -2118,8 +2011,7 @@ export const outline = {
 
     if (siblingsToCollapse.length === 0) return;
 
-    startOperation();
-    try {
+    await withOperation(async () => {
       let state: DocumentState | null = null;
       for (const sibling of siblingsToCollapse) {
         state = await api.updateNode(sibling.id, { collapsed: true });
@@ -2127,11 +2019,7 @@ export const outline = {
       if (state) {
         updateFromState(state);
       }
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Check if a node has children (useful for UI)
@@ -2184,8 +2072,7 @@ export const outline = {
 
   // Execute an undo action without adding to undo stack
   async _executeUndoAction(action: UndoAction): Promise<boolean> {
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       switch (action.type) {
         case 'create': {
           // Recreate a deleted node
@@ -2243,12 +2130,9 @@ export const outline = {
           return true;
         }
       }
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Clear undo/redo stacks (called on sync/reload)
@@ -2302,8 +2186,7 @@ export const outline = {
       }
     }
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       // Delete each completed node
       for (const id of idsToDelete) {
         await api.deleteNode(id);
@@ -2319,12 +2202,9 @@ export const outline = {
       }
 
       return idsToDelete.length;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return 0;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? 0;
   },
 
   // Export selected nodes (or focused node) to markdown file
