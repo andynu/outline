@@ -360,6 +360,26 @@
       event.preventDefault();
       outline.toggleHideCompleted();
     }
+    // Ctrl+[: Zoom out (page-level handler for when no items are focused)
+    // Skip if focus is in an editor - OutlineItem handles it there
+    else if (event.ctrlKey && event.key === '[') {
+      const activeElement = document.activeElement;
+      if (!activeElement?.closest('.outline-editor')) {
+        event.preventDefault();
+        outline.zoomOut();
+      }
+    }
+    // Ctrl+]: Zoom into focused item (page-level handler)
+    // Skip if focus is in an editor - OutlineItem handles it there
+    else if (event.ctrlKey && event.key === ']') {
+      const activeElement = document.activeElement;
+      if (!activeElement?.closest('.outline-editor')) {
+        event.preventDefault();
+        if (outline.focusedId) {
+          outline.zoomTo(outline.focusedId);
+        }
+      }
+    }
     // Ctrl+/ or Ctrl+?: Show keyboard shortcuts
     else if (event.ctrlKey && (event.key === '/' || event.key === '?')) {
       event.preventDefault();

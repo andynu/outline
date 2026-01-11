@@ -453,7 +453,8 @@ export const outline = {
       return;
     }
     // Zoom to parent, or all the way out if at root
-    zoomedNodeId = node.parent_id;
+    // Use ?? null to handle undefined parent_id (root nodes)
+    zoomedNodeId = node.parent_id ?? null;
   },
 
   // Zoom all the way out (show full document)
