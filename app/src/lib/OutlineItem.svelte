@@ -79,8 +79,11 @@
   let isSelected = $derived(outline.isSelected(item.node.id));
 
   // Sync content from store to editor when it changes externally
+  // Only sync when this node is NOT the focused one in our state
+  // We don't check editor.isFocused because during async re-renders the DOM focus
+  // can briefly become unreliable, causing content to be reset mid-typing
   $effect(() => {
-    if (editor && !editor.isFocused) {
+    if (editor && !isFocused) {
       const currentContent = editor.getHTML();
       if (currentContent !== item.node.content) {
         editor.commands.setContent(item.node.content || '');
@@ -106,9 +109,10 @@
     // Wait for editorElement to be available
     if (!editorElement) return;
 
-    // Already have editor
+    // Already have editor - don't call focus() at all when re-running this effect
+    // The editor is already set up and focused from creation, and calling focus('end')
+    // during typing would disrupt cursor position
     if (editor) {
-      editor.commands.focus('end');
       return;
     }
 
@@ -1375,6 +1379,7 @@
     outline: none;
     min-height: 24px;
     line-height: 24px;
+    white-space: pre-wrap;
   }
 
   .editor-wrapper :global(.outline-editor p) {
