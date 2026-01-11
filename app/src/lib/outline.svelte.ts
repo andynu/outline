@@ -446,6 +446,7 @@ export const outline = {
   // Zoom out one level (to parent of current zoom)
   zoomOut() {
     if (!zoomedNodeId) return;
+    const exitedNodeId = zoomedNodeId;
     const node = nodesById().get(zoomedNodeId);
     if (!node) {
       // Node was deleted, zoom all the way out
@@ -455,6 +456,9 @@ export const outline = {
     // Zoom to parent, or all the way out if at root
     // Use ?? null to handle undefined parent_id (root nodes)
     zoomedNodeId = node.parent_id ?? null;
+    // Focus on the node we just exited (B when zooming out from B to A)
+    // B is now visible as a child of A
+    focusedId = exitedNodeId;
   },
 
   // Zoom all the way out (show full document)
