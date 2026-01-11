@@ -258,7 +258,7 @@ function getFilteredNodeIds(filter: string): Set<string> {
 // For large flat lists, this avoids unnecessary recursive calls
 function buildTree(parentId: string | null, depth: number, filteredIds?: Set<string>, excludeCompleted: boolean = false): TreeNode[] {
   // Get children (may trigger rebuildIndexes)
-  const children = parentId === null ? rootNodes() : childrenOf(parentId);
+  const children = parentId == null ? rootNodes() : childrenOf(parentId);
 
   // Filter children based on active filters
   let visibleChildren = children;
@@ -342,7 +342,7 @@ function getParent(nodeId: string): Node | null {
 function getSiblings(nodeId: string): Node[] {
   const node = nodesById().get(nodeId);
   if (!node) return [];
-  return node.parent_id === null ? rootNodes() : childrenOf(node.parent_id);
+  return node.parent_id == null ? rootNodes() : childrenOf(node.parent_id);
 }
 
 // Update state from API response
@@ -1045,7 +1045,7 @@ export const outline = {
     const oldPosition = node.position;
 
     // Position after parent in grandparent's children
-    const grandparentChildren = parent.parent_id === null
+    const grandparentChildren = parent.parent_id == null
       ? rootNodes()
       : childrenOf(parent.parent_id);
     const parentIdx = grandparentChildren.findIndex(n => n.id === parent.id);
@@ -1412,7 +1412,7 @@ export const outline = {
         if (!parent) continue;
 
         // Position after parent in grandparent's children
-        const grandparentChildren = parent.parent_id === null
+        const grandparentChildren = parent.parent_id == null
           ? rootNodes()
           : childrenOf(parent.parent_id);
         const parentIdx = grandparentChildren.findIndex(n => n.id === parent.id);
@@ -1757,8 +1757,8 @@ export const outline = {
         }
       } else {
         // Drop as sibling after target
-        newParentId = targetNode.parent_id;
-        const siblings = newParentId === null ? rootNodes() : childrenOf(newParentId);
+        newParentId = targetNode.parent_id ?? null;
+        const siblings = newParentId == null ? rootNodes() : childrenOf(newParentId);
         const targetIdx = siblings.findIndex(n => n.id === targetId);
         newPosition = targetIdx + 1;
         // Shift siblings after insertion point
