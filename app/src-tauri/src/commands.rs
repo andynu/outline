@@ -16,6 +16,11 @@ use crate::data::{
 };
 use crate::search::{BacklinkResult, SearchIndex, SearchResult};
 
+/// Parse a UUID string, returning a descriptive error
+fn parse_uuid(id: &str) -> Result<Uuid, String> {
+    Uuid::parse_str(id).map_err(|e| format!("Invalid UUID: {}", e))
+}
+
 /// State managed by Tauri for the current document
 pub struct AppState {
     pub current_document: Mutex<Option<Document>>,
@@ -45,7 +50,7 @@ pub fn load_document(
     ensure_dirs()?;
 
     let doc_uuid = if let Some(id_str) = doc_id {
-        Uuid::parse_str(&id_str).map_err(|e| format!("Invalid UUID: {}", e))?
+        parse_uuid(&id_str)?
     } else {
         // Use a fixed UUID for the default/test document
         Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap()
@@ -119,7 +124,7 @@ pub fn create_node(
     content: String,
 ) -> Result<(Uuid, DocumentState), String> {
     let parent_uuid = if let Some(id_str) = parent_id {
-        Some(Uuid::parse_str(&id_str).map_err(|e| format!("Invalid parent UUID: {}", e))?)
+        Some(parse_uuid(&id_str)?)
     } else {
         None
     };
@@ -144,9 +149,9 @@ pub fn create_node_with_id(
     content: String,
     node_type: NodeType,
 ) -> Result<(Uuid, DocumentState), String> {
-    let node_id = Uuid::parse_str(&id).map_err(|e| format!("Invalid UUID: {}", e))?;
+    let node_id = parse_uuid(&id)?;
     let parent_uuid = if let Some(id_str) = parent_id {
-        Some(Uuid::parse_str(&id_str).map_err(|e| format!("Invalid parent UUID: {}", e))?)
+        Some(parse_uuid(&id_str)?)
     } else {
         None
     };
@@ -164,7 +169,7 @@ pub fn update_node(
     id: String,
     changes: NodeChanges,
 ) -> Result<DocumentState, String> {
-    let node_id = Uuid::parse_str(&id).map_err(|e| format!("Invalid UUID: {}", e))?;
+    let node_id = parse_uuid(&id)?;
     let op = update_op(node_id, changes);
     save_op(state, op)
 }
@@ -177,9 +182,9 @@ pub fn move_node(
     parent_id: Option<String>,
     position: i32,
 ) -> Result<DocumentState, String> {
-    let node_id = Uuid::parse_str(&id).map_err(|e| format!("Invalid UUID: {}", e))?;
+    let node_id = parse_uuid(&id)?;
     let parent_uuid = if let Some(id_str) = parent_id {
-        Some(Uuid::parse_str(&id_str).map_err(|e| format!("Invalid parent UUID: {}", e))?)
+        Some(parse_uuid(&id_str)?)
     } else {
         None
     };
@@ -191,7 +196,7 @@ pub fn move_node(
 /// Delete a node (convenience command that wraps save_op)
 #[tauri::command]
 pub fn delete_node(state: State<AppState>, id: String) -> Result<DocumentState, String> {
-    let node_id = Uuid::parse_str(&id).map_err(|e| format!("Invalid UUID: {}", e))?;
+    let node_id = parse_uuid(&id)?;
     let op = delete_op(node_id);
     save_op(state, op)
 }
@@ -281,7 +286,7 @@ pub fn search(
     limit: Option<usize>,
 ) -> Result<Vec<SearchResult>, String> {
     let doc_uuid = if let Some(id_str) = doc_id {
-        Some(Uuid::parse_str(&id_str).map_err(|e| format!("Invalid UUID: {}", e))?)
+        Some(parse_uuid(&id_str)?)
     } else {
         None
     };
@@ -373,7 +378,7 @@ pub fn get_backlinks(
     state: State<AppState>,
     node_id: String,
 ) -> Result<Vec<BacklinkResult>, String> {
-    let node_uuid = Uuid::parse_str(&node_id).map_err(|e| format!("Invalid UUID: {}", e))?;
+    let node_uuid = parse_uuid(&node_id)?;
 
     let search_index = state.search_index.lock().unwrap();
     let index = search_index
