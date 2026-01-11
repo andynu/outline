@@ -1,6 +1,7 @@
 import type { DocumentState, Node, NodeChanges, TreeNode, UndoEntry, UndoAction } from './types';
 import type { ParsedItem } from './markdownPaste';
 import * as api from './api';
+import { stripHtml } from './utils';
 
 // Debounce timers for text updates (content and note)
 const pendingTextUpdates = new Map<string, { timer: ReturnType<typeof setTimeout>; field: 'content' | 'note'; value: string }>();
@@ -32,7 +33,7 @@ function extractMentions(text: string): string[] {
 
 // Check if node content matches a filter (hashtag or mention)
 function nodeMatchesFilter(node: Node, filter: string): boolean {
-  const plainText = node.content.replace(/<[^>]*>/g, '');
+  const plainText = stripHtml(node.content);
   if (filter.startsWith('#')) {
     const tag = filter.slice(1);
     return extractHashtags(plainText).includes(tag);
@@ -1391,7 +1392,7 @@ export const outline = {
 
     // Calculate cursor position (end of current content, before merge)
     // Strip HTML tags to get text length
-    const plainTextLength = node.content.replace(/<[^>]*>/g, '').length;
+    const plainTextLength = stripHtml(node.content).length;
 
     startOperation();
     try {
@@ -1796,7 +1797,7 @@ export const outline = {
 
     for (const node of nodes) {
       // Extract tags from content (strip HTML first)
-      const plainText = node.content.replace(/<[^>]*>/g, '');
+      const plainText = stripHtml(node.content);
       const contentTags = extractHashtags(plainText);
 
       for (const tag of contentTags) {
@@ -1818,7 +1819,7 @@ export const outline = {
   // Get nodes that have a specific tag
   getNodesWithTag(tag: string): Node[] {
     return nodes.filter(node => {
-      const plainText = node.content.replace(/<[^>]*>/g, '');
+      const plainText = stripHtml(node.content);
       const tags = extractHashtags(plainText);
       return tags.includes(tag);
     });
@@ -2349,7 +2350,7 @@ export const outline = {
       let suggestedName = 'export';
       if (firstNode) {
         // Strip HTML and use first 30 chars of content
-        const plainText = firstNode.content.replace(/<[^>]*>/g, '').trim();
+        const plainText = stripHtml(firstNode.content);
         if (plainText) {
           suggestedName = plainText.slice(0, 30).replace(/[^a-zA-Z0-9\s-]/g, '').trim();
         }

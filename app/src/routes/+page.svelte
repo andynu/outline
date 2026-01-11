@@ -16,6 +16,7 @@
   import { theme } from '$lib/theme.svelte';
   import { zoom } from '$lib/zoom.svelte';
   import { settings } from '$lib/settings.svelte';
+  import { stripHtml } from '$lib/utils';
   import SettingsModal from '$lib/SettingsModal.svelte';
   import { loadSessionState, saveSessionState, type SessionState } from '$lib/sessionState';
 
@@ -998,14 +999,14 @@
               <span class="breadcrumb-separator">›</span>
               {#if i === outline.getZoomBreadcrumbs().length - 1}
                 <span class="breadcrumb-item breadcrumb-current">
-                  {@html crumb.content.replace(/<[^>]*>/g, '').slice(0, 30) || 'Untitled'}
+                  {stripHtml(crumb.content).slice(0, 30) || 'Untitled'}
                 </span>
               {:else}
                 <button
                   class="breadcrumb-item breadcrumb-link"
                   onclick={() => outline.zoomTo(crumb.id)}
                 >
-                  {@html crumb.content.replace(/<[^>]*>/g, '').slice(0, 30) || 'Untitled'}
+                  {stripHtml(crumb.content).slice(0, 30) || 'Untitled'}
                 </button>
               {/if}
             {/each}

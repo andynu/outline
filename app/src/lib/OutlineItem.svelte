@@ -23,6 +23,7 @@
   import { processStaticContentElement, handleStaticContentClick } from './renderStaticContent';
   import { zoom } from './zoom.svelte';
   import { openUrl } from './api';
+  import { stripHtml } from './utils';
   import { parseMarkdownList, looksLikeMarkdownList } from './markdownPaste';
   import { settings } from './settings.svelte';
 
@@ -675,7 +676,7 @@
           if (items.length === 1) {
             // Insert the formatted content from the single item
             const singleItem = items[0];
-            view.dispatch(view.state.tr.insertText(singleItem.content.replace(/<[^>]*>/g, '')));
+            view.dispatch(view.state.tr.insertText(stripHtml(singleItem.content)));
 
             // If it's a checkbox, convert this node
             if (singleItem.nodeType === 'checkbox' && item.node.node_type !== 'checkbox') {

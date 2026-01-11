@@ -1,4 +1,5 @@
 import type { DocumentState, Node, NodeChanges, NodeType, Operation } from './types';
+import { stripHtml } from './utils';
 
 // Check if we're running in Tauri
 let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null | undefined = undefined;
@@ -664,17 +665,6 @@ function generateMockMarkdown(): string {
   }
 
   return lines.join('\n');
-}
-
-// Helper: Strip HTML tags
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .trim();
 }
 
 // Helper: Escape XML special characters
