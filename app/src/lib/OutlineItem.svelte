@@ -126,31 +126,13 @@
     };
     editorElement.addEventListener('keydown', tabHandler, { capture: true });
 
-    function updateHashtagPosition(view: any) {
+    function updatePopupPosition(view: any, setter: (pos: { x: number; y: number }) => void) {
       const coords = view.coordsAtPos(view.state.selection.from);
       const zoomLevel = zoom.level;
-      hashtagPosition = {
+      setter({
         x: coords.left / zoomLevel,
         y: (coords.bottom + 5) / zoomLevel,
-      };
-    }
-
-    function updateDueDatePosition(view: any) {
-      const coords = view.coordsAtPos(view.state.selection.from);
-      const zoomLevel = zoom.level;
-      dueDatePosition = {
-        x: coords.left / zoomLevel,
-        y: (coords.bottom + 5) / zoomLevel,
-      };
-    }
-
-    function updateSuggestionPosition(view: any) {
-      const coords = view.coordsAtPos(view.state.selection.from);
-      const zoomLevel = zoom.level;
-      suggestionPosition = {
-        x: coords.left / zoomLevel,
-        y: (coords.bottom + 5) / zoomLevel,
-      };
+      });
     }
 
     editor = new Editor({
@@ -232,7 +214,7 @@
             showWikiLinkSuggestion = true;
             wikiLinkQuery = '';
             wikiLinkRange = { from: from - 1, to: from + 1 };
-            updateSuggestionPosition(view);
+            updatePopupPosition(view, (pos) => suggestionPosition = pos);
             return false;
           }
 
@@ -259,7 +241,7 @@
             showHashtagSuggestion = true;
             hashtagQuery = '';
             hashtagRange = { from: from, to: from + 1 };
-            updateHashtagPosition(view);
+            updatePopupPosition(view, (pos) => hashtagPosition = pos);
             return false;
           }
 
@@ -284,7 +266,7 @@
             showDueDateSuggestion = true;
             dueDateQuery = '';
             dueDateRange = { from: from - 1, to: from + 1 };
-            updateDueDatePosition(view);
+            updatePopupPosition(view, (pos) => dueDatePosition = pos);
             return false;
           }
 
