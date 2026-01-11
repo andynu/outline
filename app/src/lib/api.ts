@@ -1,4 +1,4 @@
-import type { DocumentState, Node, NodeChanges, NodeType, Operation } from './types';
+import type { DocumentState, Node, NodeChanges, NodeType } from './types';
 import { stripHtml } from './utils';
 
 // Check if we're running in Tauri
@@ -181,11 +181,6 @@ export async function loadDocument(docId?: string): Promise<DocumentState> {
     mockState = createMockData();
   }
   return mockState;
-}
-
-// Save a raw operation
-export async function saveOp(op: Operation): Promise<DocumentState> {
-  return invokeOrMock('save_op', { op }, () => mockState);
 }
 
 // Create a new node
