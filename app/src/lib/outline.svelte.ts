@@ -1,6 +1,7 @@
 import type { DocumentState, Node, NodeChanges, TreeNode, UndoEntry, UndoAction } from './types';
 import type { ParsedItem } from './markdownPaste';
 import * as api from './api';
+import { stripHtml } from './utils';
 
 // Debounce timers for text updates (content and note)
 const pendingTextUpdates = new Map<string, { timer: ReturnType<typeof setTimeout>; field: 'content' | 'note'; value: string }>();
@@ -32,7 +33,7 @@ function extractMentions(text: string): string[] {
 
 // Check if node content matches a filter (hashtag or mention)
 function nodeMatchesFilter(node: Node, filter: string): boolean {
-  const plainText = node.content.replace(/<[^>]*>/g, '');
+  const plainText = stripHtml(node.content);
   if (filter.startsWith('#')) {
     const tag = filter.slice(1);
     return extractHashtags(plainText).includes(tag);
@@ -41,6 +42,28 @@ function nodeMatchesFilter(node: Node, filter: string): boolean {
     return extractMentions(plainText).includes(mention);
   }
   return false;
+}
+
+// Merge two HTML content strings into one, combining paragraphs properly
+// e.g., "<p>ABC</p>" + "<p>DEF</p>" becomes "<p>ABCDEF</p>"
+// This preserves inline formatting like bold, italic, links, etc.
+function mergeHtmlContent(first: string, second: string): string {
+  // Handle empty cases
+  if (!first || first === '<p></p>') return second;
+  if (!second || second === '<p></p>') return first;
+
+  // Extract content from paragraph tags
+  // TipTap wraps content in <p>...</p>
+  const firstMatch = first.match(/^<p>(.*)<\/p>$/s);
+  const secondMatch = second.match(/^<p>(.*)<\/p>$/s);
+
+  if (firstMatch && secondMatch) {
+    // Both have paragraph wrappers - merge the inner content
+    return `<p>${firstMatch[1]}${secondMatch[1]}</p>`;
+  }
+
+  // Fallback: just concatenate (shouldn't normally happen with TipTap content)
+  return first + second;
 }
 
 // Reactive state
@@ -136,13 +159,8 @@ function computeChangedParents(oldNodes: Node[], newNodes: Node[]): Set<string |
   return affectedParents;
 }
 
-let rebuildCallCount = 0;
-
 function rebuildIndexes() {
   if (cachedNodes === nodes) return; // No change
-  rebuildCallCount++;
-
-  const startTime = performance.now();
 
   // If we can do a surgical update (have dirty parents and existing cache)
   if (!needsFullRebuild && dirtyParentIds.size > 0 && cachedNodesById.size > 0) {
@@ -181,25 +199,16 @@ function rebuildIndexes() {
 
     cachedNodesById = newNodesById;
     cachedNodes = nodes;
-    const numDirty = dirtyParentIds.size;
     dirtyParentIds.clear();
     needsFullRebuild = true; // Reset for next change
-
-    const elapsed = performance.now() - startTime;
-    if (elapsed > 2) {
-      console.log(`[perf] rebuildIndexes (surgical, ${numDirty} parents): ${elapsed.toFixed(1)}ms`);
-    }
     return;
   }
 
   // Full rebuild
-  const mapStart = performance.now();
   cachedNodes = nodes;
   cachedNodesById = new Map(nodes.map(n => [n.id, n]));
-  const mapTime = performance.now() - mapStart;
 
   // Build children index - group by parent_id
-  const groupStart = performance.now();
   const childrenMap = new Map<string | null, Node[]>();
   for (const node of nodes) {
     const parentId = node.parent_id ?? null;
@@ -210,23 +219,15 @@ function rebuildIndexes() {
     }
     children.push(node);
   }
-  const groupTime = performance.now() - groupStart;
 
   // Sort each children array by position
-  const sortStart = performance.now();
   for (const children of childrenMap.values()) {
     children.sort((a, b) => a.position - b.position);
   }
-  const sortTime = performance.now() - sortStart;
 
   cachedChildrenByParent = childrenMap;
   dirtyParentIds.clear();
   needsFullRebuild = true; // Reset for next change
-
-  const elapsed = performance.now() - startTime;
-  if (elapsed > 5) {
-    console.log(`[perf] rebuildIndexes (full) call#${rebuildCallCount}: ${elapsed.toFixed(1)}ms for ${nodes.length} nodes (map=${mapTime.toFixed(1)}ms, group=${groupTime.toFixed(1)}ms, sort=${sortTime.toFixed(1)}ms)`);
-  }
 }
 
 // Derived: nodes indexed by ID
@@ -277,17 +278,11 @@ function getFilteredNodeIds(filter: string): Set<string> {
   return visibleIds;
 }
 
-// Performance tracking
-let lastBuildTreeTime = 0;
-let buildTreeCallCount = 0;
-
 // Build tree structure for rendering - optimized version
 // For large flat lists, this avoids unnecessary recursive calls
 function buildTree(parentId: string | null, depth: number, filteredIds?: Set<string>, excludeCompleted: boolean = false): TreeNode[] {
-  const isRoot = parentId === null;
-  // Get children first (may trigger rebuildIndexes) before measuring tree building time
-  const children = parentId === null ? rootNodes() : childrenOf(parentId);
-  const startTime = isRoot ? performance.now() : 0;
+  // Get children (may trigger rebuildIndexes)
+  const children = parentId == null ? rootNodes() : childrenOf(parentId);
 
   // Filter children based on active filters
   let visibleChildren = children;
@@ -331,14 +326,6 @@ function buildTree(parentId: string | null, depth: number, filteredIds?: Set<str
     };
   });
 
-  if (isRoot) {
-    lastBuildTreeTime = performance.now() - startTime;
-    buildTreeCallCount++;
-    if (lastBuildTreeTime > 10) {
-      console.log(`[perf] buildTree: ${lastBuildTreeTime.toFixed(1)}ms (call #${buildTreeCallCount}, ${nodes.length} nodes)`);
-    }
-  }
-
   return result;
 }
 
@@ -379,7 +366,7 @@ function getParent(nodeId: string): Node | null {
 function getSiblings(nodeId: string): Node[] {
   const node = nodesById().get(nodeId);
   if (!node) return [];
-  return node.parent_id === null ? rootNodes() : childrenOf(node.parent_id);
+  return node.parent_id == null ? rootNodes() : childrenOf(node.parent_id);
 }
 
 // Update state from API response
@@ -408,6 +395,20 @@ function startOperation() {
 function endOperation() {
   pendingOperations--;
   lastSavedAt = new Date();
+}
+
+// Wrapper for async operations that handles startOperation/endOperation and error handling
+// Returns null on error, otherwise returns the function's result
+async function withOperation<T>(fn: () => Promise<T>): Promise<T | null> {
+  startOperation();
+  try {
+    return await fn();
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    return null;
+  } finally {
+    endOperation();
+  }
 }
 
 // --- Public API ---
@@ -460,14 +461,18 @@ export const outline = {
   zoomTo(nodeId: string) {
     const node = nodesById().get(nodeId);
     if (!node) return;
+    // Don't zoom into leaf nodes (they have no children to show)
+    const children = childrenOf(nodeId);
+    if (children.length === 0) return;
     zoomedNodeId = nodeId;
-    // Focus the zoomed node
-    focusedId = nodeId;
+    // Focus the first child since the zoomed node itself isn't shown
+    focusedId = children[0].id;
   },
 
   // Zoom out one level (to parent of current zoom)
   zoomOut() {
     if (!zoomedNodeId) return;
+    const exitedNodeId = zoomedNodeId;
     const node = nodesById().get(zoomedNodeId);
     if (!node) {
       // Node was deleted, zoom all the way out
@@ -475,7 +480,11 @@ export const outline = {
       return;
     }
     // Zoom to parent, or all the way out if at root
-    zoomedNodeId = node.parent_id;
+    // Use ?? null to handle undefined parent_id (root nodes)
+    zoomedNodeId = node.parent_id ?? null;
+    // Focus on the node we just exited (B when zooming out from B to A)
+    // B is now visible as a child of A
+    focusedId = exitedNodeId;
   },
 
   // Zoom all the way out (show full document)
@@ -824,8 +833,7 @@ export const outline = {
     const idx = siblings.findIndex(n => n.id === nodeId);
     const newPosition = idx + 1;
 
-    startOperation();
-    try {
+    return await withOperation(async () => {
       // Shift siblings after insertion point
       for (let i = idx + 1; i < siblings.length; i++) {
         await api.moveNode(siblings[i].id, node.parent_id, i + 1);
@@ -847,12 +855,7 @@ export const outline = {
       }
 
       return result.id;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return null;
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Create a new sibling before the current node (for Enter at beginning)
@@ -864,8 +867,7 @@ export const outline = {
     const idx = siblings.findIndex(n => n.id === nodeId);
     const newPosition = idx;
 
-    startOperation();
-    try {
+    return await withOperation(async () => {
       // Shift current node and all siblings after it
       for (let i = idx; i < siblings.length; i++) {
         await api.moveNode(siblings[i].id, node.parent_id, i + 1);
@@ -888,12 +890,7 @@ export const outline = {
       }
 
       return result.id;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return null;
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Split a node at cursor position: update current with beforeContent, create new with afterContent
@@ -913,8 +910,7 @@ export const outline = {
     // If so, we need to zoom out after the split to avoid an empty view
     const wasZoomedIntoSplitNode = zoomedNodeId === nodeId && children.length > 0;
 
-    startOperation();
-    try {
+    return await withOperation(async () => {
       // Update current node with "before" content
       await api.updateNode(nodeId, { content: beforeContent });
 
@@ -949,12 +945,7 @@ export const outline = {
       // TODO: Add proper undo support for split
 
       return result.id;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return null;
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Create multiple items from parsed markdown list
@@ -970,8 +961,7 @@ export const outline = {
     const anchorNode = nodesById().get(afterNodeId);
     if (!anchorNode) return null;
 
-    startOperation();
-    try {
+    return await withOperation(async () => {
       // Get siblings and position for insertion
       const siblings = getSiblings(afterNodeId);
       const anchorIdx = siblings.findIndex(n => n.id === afterNodeId);
@@ -1051,25 +1041,15 @@ export const outline = {
       }
 
       return firstCreatedId;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return null;
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Update node content
   async updateContent(nodeId: string, content: string) {
-    startOperation();
-    try {
+    await withOperation(async () => {
       const state = await api.updateNode(nodeId, { content });
       updateFromState(state);
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Toggle collapsed state
@@ -1084,8 +1064,7 @@ export const outline = {
     // Save old state for undo
     const wasCollapsed = node.collapsed;
 
-    startOperation();
-    try {
+    await withOperation(async () => {
       const state = await api.updateNode(nodeId, { collapsed: !wasCollapsed });
       updateFromState(state);
 
@@ -1096,11 +1075,7 @@ export const outline = {
         redo: { type: 'update', id: nodeId, changes: { collapsed: !wasCollapsed } },
         timestamp: Date.now(),
       });
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Indent node (make child of previous sibling)
@@ -1121,8 +1096,7 @@ export const outline = {
     const oldParentId = node.parent_id;
     const oldPosition = node.position;
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       const state = await api.moveNode(nodeId, newParent.id, newPosition);
       updateFromState(state);
 
@@ -1140,12 +1114,9 @@ export const outline = {
       });
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Outdent node (move to parent's level)
@@ -1161,15 +1132,14 @@ export const outline = {
     const oldPosition = node.position;
 
     // Position after parent in grandparent's children
-    const grandparentChildren = parent.parent_id === null
+    const grandparentChildren = parent.parent_id == null
       ? rootNodes()
       : childrenOf(parent.parent_id);
     const parentIdx = grandparentChildren.findIndex(n => n.id === parent.id);
     const newPosition = parentIdx + 1;
     const newParentId = parent.parent_id;
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       const state = await api.moveNode(nodeId, newParentId, newPosition);
       updateFromState(state);
 
@@ -1182,12 +1152,9 @@ export const outline = {
       });
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Move node to a new parent (used by QuickMove, supports undo)
@@ -1202,8 +1169,7 @@ export const outline = {
     // Don't move if nothing changed
     if (oldParentId === newParentId && oldPosition === newPosition) return true;
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       const state = await api.moveNode(nodeId, newParentId, newPosition);
       updateFromState(state);
 
@@ -1224,12 +1190,9 @@ export const outline = {
       });
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Swap with previous sibling
@@ -1252,35 +1215,34 @@ export const outline = {
     const prevNodeOldPosition = prevNode.position;
 
     isMoving = true;
-    startOperation();
     try {
-      // Swap positions
-      await api.moveNode(nodeId, node.parent_id, prevNodeOldPosition);
-      const state = await api.moveNode(prevNode.id, prevNode.parent_id, nodeOldPosition);
-      updateFromState(state);
+      const result = await withOperation(async () => {
+        // Swap positions
+        await api.moveNode(nodeId, node.parent_id, prevNodeOldPosition);
+        const state = await api.moveNode(prevNode.id, prevNode.parent_id, nodeOldPosition);
+        updateFromState(state);
 
-      // Force focus update after DOM reorder - toggle off then on to trigger effect
-      const savedFocusId = focusedId;
-      focusedId = null;
-      // Allow DOM to update, then restore focus
-      await new Promise(resolve => setTimeout(resolve, 0));
-      focusedId = savedFocusId;
+        // Force focus update after DOM reorder - toggle off then on to trigger effect
+        const savedFocusId = focusedId;
+        focusedId = null;
+        // Allow DOM to update, then restore focus
+        await new Promise(resolve => setTimeout(resolve, 0));
+        focusedId = savedFocusId;
 
-      // Push undo entry - undo swaps them back to original positions
-      pushUndo({
-        description: 'Move item up',
-        undo: { type: 'swap', id: nodeId, position: nodeOldPosition, otherId: prevNode.id, otherPosition: prevNodeOldPosition },
-        redo: { type: 'swap', id: nodeId, position: prevNodeOldPosition, otherId: prevNode.id, otherPosition: nodeOldPosition },
-        timestamp: Date.now(),
+        // Push undo entry - undo swaps them back to original positions
+        pushUndo({
+          description: 'Move item up',
+          undo: { type: 'swap', id: nodeId, position: nodeOldPosition, otherId: prevNode.id, otherPosition: prevNodeOldPosition },
+          redo: { type: 'swap', id: nodeId, position: prevNodeOldPosition, otherId: prevNode.id, otherPosition: nodeOldPosition },
+          timestamp: Date.now(),
+        });
+
+        return true;
       });
 
-      return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
+      return result ?? false;
     } finally {
       isMoving = false;
-      endOperation();
     }
   },
 
@@ -1304,41 +1266,39 @@ export const outline = {
     const nextNodeOldPosition = nextNode.position;
 
     isMoving = true;
-    startOperation();
     try {
-      // Swap positions
-      await api.moveNode(nodeId, node.parent_id, nextNodeOldPosition);
-      const state = await api.moveNode(nextNode.id, nextNode.parent_id, nodeOldPosition);
-      updateFromState(state);
+      const result = await withOperation(async () => {
+        // Swap positions
+        await api.moveNode(nodeId, node.parent_id, nextNodeOldPosition);
+        const state = await api.moveNode(nextNode.id, nextNode.parent_id, nodeOldPosition);
+        updateFromState(state);
 
-      // Force focus update after DOM reorder - toggle off then on to trigger effect
-      const savedFocusId = focusedId;
-      focusedId = null;
-      // Allow DOM to update, then restore focus
-      await new Promise(resolve => setTimeout(resolve, 0));
-      focusedId = savedFocusId;
+        // Force focus update after DOM reorder - toggle off then on to trigger effect
+        const savedFocusId = focusedId;
+        focusedId = null;
+        // Allow DOM to update, then restore focus
+        await new Promise(resolve => setTimeout(resolve, 0));
+        focusedId = savedFocusId;
 
-      // Push undo entry - undo swaps them back to original positions
-      pushUndo({
-        description: 'Move item down',
-        undo: { type: 'swap', id: nodeId, position: nodeOldPosition, otherId: nextNode.id, otherPosition: nextNodeOldPosition },
-        redo: { type: 'swap', id: nodeId, position: nextNodeOldPosition, otherId: nextNode.id, otherPosition: nodeOldPosition },
-        timestamp: Date.now(),
+        // Push undo entry - undo swaps them back to original positions
+        pushUndo({
+          description: 'Move item down',
+          undo: { type: 'swap', id: nodeId, position: nodeOldPosition, otherId: nextNode.id, otherPosition: nextNodeOldPosition },
+          redo: { type: 'swap', id: nodeId, position: nextNodeOldPosition, otherId: nextNode.id, otherPosition: nodeOldPosition },
+          timestamp: Date.now(),
+        });
+
+        return true;
       });
 
-      return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
+      return result ?? false;
     } finally {
       isMoving = false;
-      endOperation();
     }
   },
 
   // Delete node
   async deleteNode(nodeId: string): Promise<string | null> {
-    const deleteStart = performance.now();
     const visible = this.getVisibleNodes();
     const idx = visible.findIndex(n => n.id === nodeId);
 
@@ -1350,15 +1310,9 @@ export const outline = {
     if (!nodeToDelete) return null;
     const savedNode = { ...nodeToDelete };
 
-    startOperation();
-    try {
-      const apiStart = performance.now();
+    return await withOperation(async () => {
       const state = await api.deleteNode(nodeId);
-      const apiTime = performance.now() - apiStart;
-
-      const updateStart = performance.now();
       updateFromState(state);
-      const updateTime = performance.now() - updateStart;
 
       // Push undo entry
       pushUndo({
@@ -1374,16 +1328,8 @@ export const outline = {
         focusedId = newFocusId;
       }
 
-      const totalTime = performance.now() - deleteStart;
-      console.log(`[perf] deleteNode: total=${totalTime.toFixed(1)}ms, api=${apiTime.toFixed(1)}ms, updateState=${updateTime.toFixed(1)}ms`);
-
       return newFocusId || null;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return null;
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Delete all selected nodes
@@ -1408,8 +1354,7 @@ export const outline = {
       }
     }
 
-    startOperation();
-    try {
+    return await withOperation(async () => {
       // Delete nodes in reverse order to maintain valid indices
       // (deleting from end first)
       const sortedSelected = [...selected].reverse();
@@ -1428,12 +1373,7 @@ export const outline = {
       }
 
       return newFocusId;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return null;
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Merge with next sibling: append next sibling's content and children to current node
@@ -1452,10 +1392,9 @@ export const outline = {
 
     // Calculate cursor position (end of current content, before merge)
     // Strip HTML tags to get text length
-    const plainTextLength = node.content.replace(/<[^>]*>/g, '').length;
+    const plainTextLength = stripHtml(node.content).length;
 
-    startOperation();
-    try {
+    return await withOperation(async () => {
       // Merge content: append next sibling's content to current node
       const mergedContent = node.content + nextSibling.content;
       await api.updateNode(nodeId, { content: mergedContent });
@@ -1478,12 +1417,52 @@ export const outline = {
       // TODO: Add proper undo support for merge
 
       return { cursorPos: plainTextLength };
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return null;
-    } finally {
-      endOperation();
-    }
+    });
+  },
+
+  // Merge with previous visible node: append current content to previous node
+  // Used when Backspace/Delete is pressed at start of item content (position 0)
+  // Returns the target node ID and cursor position (end of previous content, start of appended text)
+  async mergeWithPreviousNode(nodeId: string): Promise<{ targetId: string; cursorPos: number } | null> {
+    const node = nodesById().get(nodeId);
+    if (!node) return null;
+
+    // Find the previous visible node
+    const visible = this.getVisibleNodes();
+    const idx = visible.findIndex(n => n.id === nodeId);
+    if (idx <= 0) return null; // No previous node
+
+    const prevNode = visible[idx - 1];
+
+    // Calculate cursor position (end of previous content, before merge)
+    const plainTextLength = stripHtml(prevNode.content).length;
+
+    return await withOperation(async () => {
+      // Merge content: append current node's content to previous node
+      // Need to properly combine paragraph content, not just concatenate HTML
+      // e.g., "<p>ABC</p>" + "<p>DEF</p>" should become "<p>ABCDEF</p>", not two paragraphs
+      const mergedContent = mergeHtmlContent(prevNode.content, node.content);
+      await api.updateNode(prevNode.id, { content: mergedContent });
+
+      // Move current node's children to previous node (at the end)
+      const prevChildren = childrenOf(prevNode.id);
+      const currentChildren = childrenOf(nodeId);
+      for (let i = 0; i < currentChildren.length; i++) {
+        await api.moveNode(currentChildren[i].id, prevNode.id, prevChildren.length + i);
+      }
+
+      // Delete the current node (now empty)
+      await api.deleteNode(nodeId);
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      // Focus the previous node
+      focusedId = prevNode.id;
+
+      return { targetId: prevNode.id, cursorPos: plainTextLength };
+    });
   },
 
   // Toggle completion on all selected nodes
@@ -1491,8 +1470,7 @@ export const outline = {
     const selected = this.getSelectedNodes();
     if (selected.length === 0) return false;
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       // Determine what the toggle should do:
       // If any are unchecked, check them all; otherwise uncheck them all
       const anyUnchecked = selected.some(n => !n.is_checked);
@@ -1509,12 +1487,9 @@ export const outline = {
       updateFromState(state);
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Indent all selected nodes
@@ -1522,8 +1497,7 @@ export const outline = {
     const selected = this.getSelectedNodes();
     if (selected.length === 0) return false;
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       // Process nodes in order - indent each one
       for (const node of selected) {
         const siblings = getSiblings(node.id);
@@ -1550,12 +1524,9 @@ export const outline = {
       updateFromState(state);
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Outdent all selected nodes
@@ -1563,8 +1534,7 @@ export const outline = {
     const selected = this.getSelectedNodes();
     if (selected.length === 0) return false;
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       // Process nodes in reverse order to avoid index shifting issues
       const reversed = [...selected].reverse();
       for (const node of reversed) {
@@ -1574,7 +1544,7 @@ export const outline = {
         if (!parent) continue;
 
         // Position after parent in grandparent's children
-        const grandparentChildren = parent.parent_id === null
+        const grandparentChildren = parent.parent_id == null
           ? rootNodes()
           : childrenOf(parent.parent_id);
         const parentIdx = grandparentChildren.findIndex(n => n.id === parent.id);
@@ -1588,12 +1558,9 @@ export const outline = {
       updateFromState(state);
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Compact (save state.json, clear pending)
@@ -1643,8 +1610,7 @@ export const outline = {
       }
     }
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       // If this is a recurring task being checked, calculate next occurrence
       if (!node.is_checked && node.date_recurrence && node.date) {
         // Get next occurrence date
@@ -1689,12 +1655,9 @@ export const outline = {
       }
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Toggle node type between bullet and checkbox
@@ -1706,8 +1669,7 @@ export const outline = {
     const oldType = node.node_type;
     const oldIsChecked = node.is_checked;
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       const newType = node.node_type === 'checkbox' ? 'bullet' : 'checkbox';
       const newIsChecked = newType === 'checkbox' ? node.is_checked : false;
       const state = await api.updateNode(nodeId, {
@@ -1726,12 +1688,9 @@ export const outline = {
       });
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Set date on a node (pass null or empty string to clear)
@@ -1743,8 +1702,7 @@ export const outline = {
     const oldDate = node.date;
     const newDate = date ?? '';
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       // Empty string signals to backend to clear the date
       const state = await api.updateNode(nodeId, {
         date: newDate,
@@ -1760,12 +1718,9 @@ export const outline = {
       });
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Clear date from a node
@@ -1782,8 +1737,7 @@ export const outline = {
     const oldRecurrence = node.date_recurrence;
     const newRecurrence = rrule ?? '';
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       // Empty string signals to backend to clear the recurrence
       const state = await api.updateNode(nodeId, {
         date_recurrence: newRecurrence,
@@ -1799,12 +1753,9 @@ export const outline = {
       });
 
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Update note on a node (pass empty string to clear)
@@ -1857,7 +1808,7 @@ export const outline = {
 
     for (const node of nodes) {
       // Extract tags from content (strip HTML first)
-      const plainText = node.content.replace(/<[^>]*>/g, '');
+      const plainText = stripHtml(node.content);
       const contentTags = extractHashtags(plainText);
 
       for (const tag of contentTags) {
@@ -1879,7 +1830,7 @@ export const outline = {
   // Get nodes that have a specific tag
   getNodesWithTag(tag: string): Node[] {
     return nodes.filter(node => {
-      const plainText = node.content.replace(/<[^>]*>/g, '');
+      const plainText = stripHtml(node.content);
       const tags = extractHashtags(plainText);
       return tags.includes(tag);
     });
@@ -1923,8 +1874,7 @@ export const outline = {
       checkId = node?.parent_id ?? null;
     }
 
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       let newParentId: string | null;
       let newPosition: number;
 
@@ -1939,8 +1889,8 @@ export const outline = {
         }
       } else {
         // Drop as sibling after target
-        newParentId = targetNode.parent_id;
-        const siblings = newParentId === null ? rootNodes() : childrenOf(newParentId);
+        newParentId = targetNode.parent_id ?? null;
+        const siblings = newParentId == null ? rootNodes() : childrenOf(newParentId);
         const targetIdx = siblings.findIndex(n => n.id === targetId);
         newPosition = targetIdx + 1;
         // Shift siblings after insertion point
@@ -1955,13 +1905,12 @@ export const outline = {
       updateFromState(state);
       draggedId = null;
       return true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+    });
+
+    if (result === null) {
       draggedId = null;
-      return false;
-    } finally {
-      endOperation();
     }
+    return result ?? false;
   },
 
   // DEV ONLY: Generate test nodes for performance testing
@@ -2010,15 +1959,10 @@ export const outline = {
     const children = childrenOf(nodeId);
     if (children.length === 0) return;
 
-    startOperation();
-    try {
+    await withOperation(async () => {
       const state = await api.updateNode(nodeId, { collapsed: true });
       updateFromState(state);
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Expand a specific node (set collapsed=false)
@@ -2026,28 +1970,29 @@ export const outline = {
     const node = nodesById().get(nodeId);
     if (!node || !node.collapsed) return;
 
-    startOperation();
-    try {
+    await withOperation(async () => {
       const state = await api.updateNode(nodeId, { collapsed: false });
       updateFromState(state);
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Collapse all nodes that have children
+  // When a filter is active, only collapses nodes in the filtered set
   async collapseAll() {
+    // Get the set of node IDs that should be considered for collapsing
+    const filteredIds = filterQuery ? getFilteredNodeIds(filterQuery) : null;
+
     const nodesToCollapse = nodes.filter(n => {
       if (n.collapsed) return false;
-      return childrenOf(n.id).length > 0;
+      if (childrenOf(n.id).length === 0) return false;
+      // If filtering, only collapse nodes in the filtered set
+      if (filteredIds && !filteredIds.has(n.id)) return false;
+      return true;
     });
 
     if (nodesToCollapse.length === 0) return;
 
-    startOperation();
-    try {
+    await withOperation(async () => {
       // Update each node - the API returns full state each time
       let state: DocumentState | null = null;
       for (const node of nodesToCollapse) {
@@ -2056,21 +2001,25 @@ export const outline = {
       if (state) {
         updateFromState(state);
       }
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Expand all collapsed nodes
+  // When a filter is active, only expands nodes in the filtered set
   async expandAll() {
-    const nodesToExpand = nodes.filter(n => n.collapsed);
+    // Get the set of node IDs that should be considered for expansion
+    const filteredIds = filterQuery ? getFilteredNodeIds(filterQuery) : null;
+
+    const nodesToExpand = nodes.filter(n => {
+      if (!n.collapsed) return false;
+      // If filtering, only expand nodes in the filtered set
+      if (filteredIds && !filteredIds.has(n.id)) return false;
+      return true;
+    });
 
     if (nodesToExpand.length === 0) return;
 
-    startOperation();
-    try {
+    await withOperation(async () => {
       let state: DocumentState | null = null;
       for (const node of nodesToExpand) {
         state = await api.updateNode(node.id, { collapsed: false });
@@ -2078,11 +2027,7 @@ export const outline = {
       if (state) {
         updateFromState(state);
       }
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Expand all nodes up to a specific depth level (1-based)
@@ -2132,8 +2077,7 @@ export const outline = {
 
     if (changes.length === 0) return;
 
-    startOperation();
-    try {
+    await withOperation(async () => {
       let state: DocumentState | null = null;
       for (const change of changes) {
         state = await api.updateNode(change.id, { collapsed: change.collapsed });
@@ -2141,11 +2085,7 @@ export const outline = {
       if (state) {
         updateFromState(state);
       }
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Collapse all siblings of the focused node
@@ -2162,8 +2102,7 @@ export const outline = {
 
     if (siblingsToCollapse.length === 0) return;
 
-    startOperation();
-    try {
+    await withOperation(async () => {
       let state: DocumentState | null = null;
       for (const sibling of siblingsToCollapse) {
         state = await api.updateNode(sibling.id, { collapsed: true });
@@ -2171,11 +2110,7 @@ export const outline = {
       if (state) {
         updateFromState(state);
       }
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      endOperation();
-    }
+    });
   },
 
   // Check if a node has children (useful for UI)
@@ -2228,8 +2163,7 @@ export const outline = {
 
   // Execute an undo action without adding to undo stack
   async _executeUndoAction(action: UndoAction): Promise<boolean> {
-    startOperation();
-    try {
+    const result = await withOperation(async () => {
       switch (action.type) {
         case 'create': {
           // Recreate a deleted node
@@ -2287,18 +2221,81 @@ export const outline = {
           return true;
         }
       }
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      return false;
-    } finally {
-      endOperation();
-    }
+    });
+
+    return result ?? false;
   },
 
   // Clear undo/redo stacks (called on sync/reload)
   clearUndoHistory() {
     undoStack = [];
     redoStack = [];
+  },
+
+  // Check if there are any completed items in the document
+  hasCompletedItems(): boolean {
+    return nodes.some(n => n.is_checked);
+  },
+
+  // Delete all completed items in the document
+  // Returns the count of items deleted
+  async deleteAllCompleted(): Promise<number> {
+    // Find all completed items (is_checked = true)
+    const completedNodes = nodes.filter(n => n.is_checked);
+
+    if (completedNodes.length === 0) return 0;
+
+    // Ensure at least one node remains after deletion
+    const remainingCount = nodes.length - completedNodes.length;
+    if (remainingCount <= 0) {
+      // Can't delete all nodes - need at least one
+      return 0;
+    }
+
+    // Get IDs to delete (we'll delete in reverse order of position to maintain tree integrity)
+    const idsToDelete = completedNodes.map(n => n.id);
+
+    // If focused node is being deleted, find a new focus target
+    let newFocusId: string | null = null;
+    if (focusedId && idsToDelete.includes(focusedId)) {
+      const visible = this.getVisibleNodes();
+      const focusedIdx = visible.findIndex(n => n.id === focusedId);
+      // Find first non-deleted node after or before the focused one
+      for (let i = focusedIdx + 1; i < visible.length; i++) {
+        if (!idsToDelete.includes(visible[i].id)) {
+          newFocusId = visible[i].id;
+          break;
+        }
+      }
+      if (!newFocusId) {
+        for (let i = focusedIdx - 1; i >= 0; i--) {
+          if (!idsToDelete.includes(visible[i].id)) {
+            newFocusId = visible[i].id;
+            break;
+          }
+        }
+      }
+    }
+
+    const result = await withOperation(async () => {
+      // Delete each completed node
+      for (const id of idsToDelete) {
+        await api.deleteNode(id);
+      }
+
+      // Reload state after all deletions
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      // Update focus
+      if (newFocusId) {
+        focusedId = newFocusId;
+      }
+
+      return idsToDelete.length;
+    });
+
+    return result ?? 0;
   },
 
   // Export selected nodes (or focused node) to markdown file
@@ -2324,7 +2321,7 @@ export const outline = {
       let suggestedName = 'export';
       if (firstNode) {
         // Strip HTML and use first 30 chars of content
-        const plainText = firstNode.content.replace(/<[^>]*>/g, '').trim();
+        const plainText = stripHtml(firstNode.content);
         if (plainText) {
           suggestedName = plainText.slice(0, 30).replace(/[^a-zA-Z0-9\s-]/g, '').trim();
         }

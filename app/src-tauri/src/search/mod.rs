@@ -25,8 +25,13 @@ pub struct SearchIndex {
 
 impl SearchIndex {
     /// Get the path to the SQLite database
+    /// Uses platform cache directory (~/Library/Caches on macOS) to keep
+    /// the data directory clean for syncing via Nextcloud/Dropbox/etc.
     fn db_path() -> PathBuf {
-        data_dir().join(".cache").join("outline.db")
+        dirs::cache_dir()
+            .unwrap_or_else(|| data_dir())
+            .join("outline")
+            .join("outline.db")
     }
 
     /// Open or create the search index database

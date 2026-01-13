@@ -1,4 +1,5 @@
-import type { DocumentState, Node, NodeChanges, NodeType, Operation } from './types';
+import type { DocumentState, Node, NodeChanges, NodeType } from './types';
+import { stripHtml } from './utils';
 
 // Check if we're running in Tauri
 let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null | undefined = undefined;
@@ -21,6 +22,28 @@ async function initTauri() {
   // Not in Tauri - use mock mode
   console.log('[API] Browser-only mock mode');
   tauriInvoke = null;
+}
+
+/**
+ * Generic helper to invoke a Tauri command or fall back to a mock function.
+ * Reduces boilerplate for the common pattern of:
+ *   await initTauri();
+ *   if (tauriInvoke) { return tauriInvoke('cmd', args); }
+ *   // mock fallback...
+ */
+async function invokeOrMock<T>(
+  command: string,
+  args?: Record<string, unknown>,
+  mockFn?: () => T | Promise<T>
+): Promise<T> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke(command, args) as Promise<T>;
+  }
+  if (mockFn) {
+    return mockFn();
+  }
+  throw new Error(`No mock for ${command}`);
 }
 
 // In-memory state for browser-only mode
@@ -191,16 +214,6 @@ export async function loadDocument(docId?: string): Promise<DocumentState> {
   return mockState;
 }
 
-// Save a raw operation
-export async function saveOp(op: Operation): Promise<DocumentState> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('save_op', { op }) as Promise<DocumentState>;
-  }
-  // Browser-only mode: operations not persisted
-  return mockState;
-}
-
 // Create a new node
 export async function createNode(
   parentId: string | null,
@@ -348,31 +361,17 @@ export async function deleteNode(id: string): Promise<DocumentState> {
 
 // Compact document (merge pending into state.json)
 export async function compactDocument(): Promise<void> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('compact_document') as Promise<void>;
-  }
-  // Browser-only mode: no-op
+  return invokeOrMock('compact_document', undefined, () => {});
 }
 
 // Check if document has external changes from sync
 export async function checkForChanges(): Promise<boolean> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('check_for_changes') as Promise<boolean>;
-  }
-  // Browser-only mode: no external changes possible
-  return false;
+  return invokeOrMock('check_for_changes', undefined, () => false);
 }
 
 // Reload document if there are external changes, returns new state or null
 export async function reloadIfChanged(): Promise<DocumentState | null> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('reload_if_changed') as Promise<DocumentState | null>;
-  }
-  // Browser-only mode: no external changes possible
-  return null;
+  return invokeOrMock('reload_if_changed', undefined, () => null);
 }
 
 // Search result from backend
@@ -399,42 +398,35 @@ export async function search(
   docId?: string,
   limit?: number
 ): Promise<SearchResult[]> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('search', { query, docId, limit }) as Promise<SearchResult[]>;
-  }
-  // Browser-only mode: simple client-side search
-  const results: SearchResult[] = [];
-  const queryLower = query.toLowerCase();
-  for (const node of mockState.nodes) {
-    if (node.content.toLowerCase().includes(queryLower)) {
-      results.push({
-        node_id: node.id,
-        document_id: 'mock-doc',
-        content: node.content,
-        note: node.note || null,
-        snippet: node.content,
-        rank: 0,
-      });
+  return invokeOrMock('search', { query, docId, limit }, () => {
+    // Browser-only mode: simple client-side search
+    const results: SearchResult[] = [];
+    const queryLower = query.toLowerCase();
+    for (const node of mockState.nodes) {
+      if (node.content.toLowerCase().includes(queryLower)) {
+        results.push({
+          node_id: node.id,
+          document_id: 'mock-doc',
+          content: node.content,
+          note: node.note || null,
+          snippet: node.content,
+          rank: 0,
+        });
+      }
     }
-  }
-  return results.slice(0, limit || 50);
+    return results.slice(0, limit || 50);
+  });
 }
 
 // List all documents
 export async function listDocuments(): Promise<DocumentInfo[]> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('list_documents') as Promise<DocumentInfo[]>;
-  }
-  // Browser-only mode: return mock document
-  return [
+  return invokeOrMock('list_documents', undefined, () => [
     {
       id: 'mock-doc',
       title: 'Mock Document',
       node_count: mockState.nodes.length,
     },
-  ];
+  ]);
 }
 
 // Create a new document with a unique ID
@@ -460,12 +452,7 @@ export interface BacklinkResult {
 
 // Get backlinks for a node
 export async function getBacklinks(nodeId: string): Promise<BacklinkResult[]> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('get_backlinks', { nodeId }) as Promise<BacklinkResult[]>;
-  }
-  // Browser-only mode: return empty array
-  return [];
+  return invokeOrMock('get_backlinks', { nodeId }, () => []);
 }
 
 // Calculate the next occurrence for a recurring task
@@ -473,35 +460,30 @@ export async function getNextOccurrence(
   rruleStr: string,
   afterDate: string
 ): Promise<string | null> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('get_next_occurrence', { rruleStr, afterDate }) as Promise<string | null>;
-  }
-  // Browser-only mode: simple calculation for daily/weekly
-  // This is a fallback - real RRULE parsing happens in Rust
-  const after = new Date(afterDate);
-  after.setDate(after.getDate() + 1);
-  const year = after.getFullYear();
-  const month = String(after.getMonth() + 1).padStart(2, '0');
-  const day = String(after.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return invokeOrMock('get_next_occurrence', { rruleStr, afterDate }, () => {
+    // Browser-only mode: simple calculation for daily/weekly
+    // This is a fallback - real RRULE parsing happens in Rust
+    const after = new Date(afterDate);
+    after.setDate(after.getDate() + 1);
+    const year = after.getFullYear();
+    const month = String(after.getMonth() + 1).padStart(2, '0');
+    const day = String(after.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
 }
 
 // Generate iCalendar feed for all dated items
 export async function generateIcalFeed(): Promise<string> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('generate_ical_feed') as Promise<string>;
-  }
-  // Browser-only mode: return empty calendar
-  return `BEGIN:VCALENDAR
+  return invokeOrMock('generate_ical_feed', undefined, () =>
+    `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Outline//NONSGML v1.0//EN
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
 X-WR-CALNAME:Outline Tasks
 END:VCALENDAR
-`;
+`
+  );
 }
 
 // Inbox item type
@@ -516,43 +498,27 @@ export interface InboxItem {
 
 // Get all inbox items
 export async function getInbox(): Promise<InboxItem[]> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('get_inbox') as Promise<InboxItem[]>;
-  }
-  // Browser-only mode: return empty
-  return [];
+  return invokeOrMock('get_inbox', undefined, () => []);
 }
 
 // Get inbox item count
 export async function getInboxCount(): Promise<number> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('get_inbox_count') as Promise<number>;
-  }
-  return 0;
+  return invokeOrMock('get_inbox_count', undefined, () => 0);
 }
 
 // Clear processed inbox items
 export async function clearInboxItems(ids: string[]): Promise<void> {
-  await initTauri();
-  if (tauriInvoke) {
-    await tauriInvoke('clear_inbox_items', { ids });
-    return;
-  }
-  // Browser-only mode: no-op
+  return invokeOrMock('clear_inbox_items', { ids }, () => {});
 }
 
 // Import OPML content into the current document
 export async function importOpml(content: string): Promise<DocumentState> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('import_opml', { content }) as Promise<DocumentState>;
-  }
-  // Browser-only mode: parse OPML client-side (basic implementation)
-  // This is a simplified fallback - real parsing happens in Rust
-  console.warn('OPML import not fully supported in browser-only mode');
-  return mockState;
+  return invokeOrMock('import_opml', { content }, () => {
+    // Browser-only mode: parse OPML client-side (basic implementation)
+    // This is a simplified fallback - real parsing happens in Rust
+    console.warn('OPML import not fully supported in browser-only mode');
+    return mockState;
+  });
 }
 
 // Result from importing OPML as a new document
@@ -564,69 +530,52 @@ export interface ImportOpmlResult {
 
 // Import OPML content as a new document
 export async function importOpmlAsDocument(content: string): Promise<ImportOpmlResult> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('import_opml_as_document', { content }) as Promise<ImportOpmlResult>;
-  }
-  // Browser-only mode: create mock document
-  console.warn('OPML import as document not fully supported in browser-only mode');
-  return {
-    doc_id: 'mock-import-' + Date.now(),
-    title: 'Imported Document',
-    node_count: 0,
-  };
+  return invokeOrMock('import_opml_as_document', { content }, () => {
+    // Browser-only mode: create mock document
+    console.warn('OPML import as document not fully supported in browser-only mode');
+    return {
+      doc_id: 'mock-import-' + Date.now(),
+      title: 'Imported Document',
+      node_count: 0,
+    };
+  });
 }
 
 // Export current document to OPML format
 export async function exportOpml(title: string): Promise<string> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('export_opml', { title }) as Promise<string>;
-  }
-  // Browser-only mode: generate basic OPML
-  return generateMockOpml(title);
+  return invokeOrMock('export_opml', { title }, () => generateMockOpml(title));
 }
 
 // Export current document to Markdown format
 export async function exportMarkdown(): Promise<string> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('export_markdown') as Promise<string>;
-  }
-  // Browser-only mode: generate basic markdown
-  return generateMockMarkdown();
+  return invokeOrMock('export_markdown', undefined, () => generateMockMarkdown());
 }
 
 // Export current document to JSON backup format
 export async function exportJson(): Promise<string> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('export_json') as Promise<string>;
-  }
-  // Browser-only mode: return mock state as JSON
-  return JSON.stringify({
-    version: 1,
-    exported_at: new Date().toISOString(),
-    nodes: mockState.nodes,
-  }, null, 2);
+  return invokeOrMock('export_json', undefined, () =>
+    JSON.stringify({
+      version: 1,
+      exported_at: new Date().toISOString(),
+      nodes: mockState.nodes,
+    }, null, 2)
+  );
 }
 
 // Import JSON backup into the current document
 export async function importJson(content: string): Promise<DocumentState> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('import_json', { content }) as Promise<DocumentState>;
-  }
-  // Browser-only mode: parse JSON and merge into state
-  try {
-    const backup = JSON.parse(content);
-    if (backup.nodes) {
-      mockState.nodes = [...mockState.nodes, ...backup.nodes];
+  return invokeOrMock('import_json', { content }, () => {
+    // Browser-only mode: parse JSON and merge into state
+    try {
+      const backup = JSON.parse(content);
+      if (backup.nodes) {
+        mockState.nodes = [...mockState.nodes, ...backup.nodes];
+      }
+      return { ...mockState };
+    } catch {
+      throw new Error('Invalid JSON backup format');
     }
-    return { ...mockState };
-  } catch {
-    throw new Error('Invalid JSON backup format');
-  }
+  });
 }
 
 // Helper: Generate basic OPML for browser-only mode
@@ -699,17 +648,6 @@ function generateMockMarkdown(): string {
   return lines.join('\n');
 }
 
-// Helper: Strip HTML tags
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .trim();
-}
-
 // Helper: Escape XML special characters
 function escapeXml(str: string): string {
   return str
@@ -729,41 +667,28 @@ export interface DataDirectoryInfo {
 
 // Get the current data directory configuration
 export async function getDataDirectory(): Promise<DataDirectoryInfo> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('get_data_directory') as Promise<DataDirectoryInfo>;
-  }
-  // Browser-only mode: return mock info
-  return {
+  return invokeOrMock('get_data_directory', undefined, () => ({
     current: '~/.outline-data',
     default: '~/.outline-data',
     is_custom: false,
-  };
+  }));
 }
 
 // Set the data directory (requires app restart to take full effect)
 export async function setDataDirectory(path: string | null): Promise<DataDirectoryInfo> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('set_data_directory', { path }) as Promise<DataDirectoryInfo>;
-  }
-  // Browser-only mode: return mock info
-  return {
+  return invokeOrMock('set_data_directory', { path }, () => ({
     current: path || '~/.outline-data',
     default: '~/.outline-data',
     is_custom: !!path,
-  };
+  }));
 }
 
 // Open a directory picker dialog and return the selected path
 export async function pickDirectory(): Promise<string | null> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('pick_directory') as Promise<string | null>;
-  }
-  // Browser-only mode: not supported
-  console.warn('Directory picker not available in browser-only mode');
-  return null;
+  return invokeOrMock('pick_directory', undefined, () => {
+    console.warn('Directory picker not available in browser-only mode');
+    return null;
+  });
 }
 
 // Open a file picker dialog and return the file content
@@ -833,31 +758,21 @@ export interface FolderState {
 
 // Get all folders and document-folder assignments
 export async function getFolders(): Promise<FolderState> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('get_folders') as Promise<FolderState>;
-  }
-  // Browser-only mode: return empty state
-  return {
+  return invokeOrMock('get_folders', undefined, () => ({
     folders: [],
     document_folders: {},
     document_order: {},
-  };
+  }));
 }
 
 // Create a new folder
 export async function createFolder(name: string): Promise<Folder> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('create_folder', { name }) as Promise<Folder>;
-  }
-  // Browser-only mode: create mock folder
-  return {
+  return invokeOrMock('create_folder', { name }, () => ({
     id: 'mock-folder-' + Date.now(),
     name,
     position: 0,
     collapsed: false,
-  };
+  }));
 }
 
 // Update a folder's name or collapsed state
@@ -866,26 +781,17 @@ export async function updateFolder(
   name?: string,
   collapsed?: boolean
 ): Promise<Folder> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('update_folder', { id, name, collapsed }) as Promise<Folder>;
-  }
-  // Browser-only mode: return mock folder
-  return {
+  return invokeOrMock('update_folder', { id, name, collapsed }, () => ({
     id,
     name: name || 'Folder',
     position: 0,
     collapsed: collapsed || false,
-  };
+  }));
 }
 
 // Delete a folder (documents move to root level)
 export async function deleteFolder(id: string): Promise<void> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('delete_folder', { id }) as Promise<void>;
-  }
-  // Browser-only mode: no-op
+  return invokeOrMock('delete_folder', { id }, () => {});
 }
 
 // Move a document to a folder (or root level if folderId is null)
@@ -894,24 +800,12 @@ export async function moveDocumentToFolder(
   folderId: string | null,
   position?: number
 ): Promise<void> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('move_document_to_folder', {
-      docId,
-      folderId,
-      position,
-    }) as Promise<void>;
-  }
-  // Browser-only mode: no-op
+  return invokeOrMock('move_document_to_folder', { docId, folderId, position }, () => {});
 }
 
 // Reorder folders by providing the new order of folder IDs
 export async function reorderFolders(folderIds: string[]): Promise<void> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('reorder_folders', { folderIds }) as Promise<void>;
-  }
-  // Browser-only mode: no-op
+  return invokeOrMock('reorder_folders', { folderIds }, () => {});
 }
 
 // ============================================================================
@@ -923,15 +817,11 @@ export async function exportSelectionMarkdown(
   nodeIds: string[],
   includeCompletedChildren: boolean = true
 ): Promise<string> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('export_selection_markdown', {
-      nodeIds,
-      includeCompletedChildren,
-    }) as Promise<string>;
-  }
-  // Browser-only mode: generate markdown for selected nodes
-  return generateSelectionMarkdown(nodeIds, includeCompletedChildren);
+  return invokeOrMock(
+    'export_selection_markdown',
+    { nodeIds, includeCompletedChildren },
+    () => generateSelectionMarkdown(nodeIds, includeCompletedChildren)
+  );
 }
 
 // Save content to a file using a native file dialog
@@ -940,23 +830,21 @@ export async function saveToFileWithDialog(
   suggestedFilename: string,
   extension: string
 ): Promise<string | null> {
-  await initTauri();
-  if (tauriInvoke) {
-    return tauriInvoke('save_to_file_with_dialog', {
-      content,
-      suggestedFilename,
-      extension,
-    }) as Promise<string | null>;
-  }
-  // Browser-only mode: use download link
-  const blob = new Blob([content], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = suggestedFilename;
-  a.click();
-  URL.revokeObjectURL(url);
-  return suggestedFilename;
+  return invokeOrMock(
+    'save_to_file_with_dialog',
+    { content, suggestedFilename, extension },
+    () => {
+      // Browser-only mode: use download link
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = suggestedFilename;
+      a.click();
+      URL.revokeObjectURL(url);
+      return suggestedFilename;
+    }
+  );
 }
 
 // Helper: Generate markdown for selected nodes in browser-only mode

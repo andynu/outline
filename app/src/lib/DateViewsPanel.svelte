@@ -2,6 +2,7 @@
   import { outline } from './outline.svelte';
   import { getTodayISO, getDateStatus, formatDateRelative } from './dateUtils';
   import DateBadge from './DateBadge.svelte';
+  import { stripHtml } from './utils';
 
   interface Props {
     isOpen: boolean;
@@ -54,18 +55,6 @@
       return 0;
     });
   });
-
-  // Strip HTML for display
-  function stripHtml(html: string): string {
-    return html
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .trim();
-  }
 
   function handleKeyDown(e: KeyboardEvent) {
     if (e.key === 'Escape') {

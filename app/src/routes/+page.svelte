@@ -16,6 +16,7 @@
   import { theme } from '$lib/theme.svelte';
   import { zoom } from '$lib/zoom.svelte';
   import { settings } from '$lib/settings.svelte';
+  import { stripHtml } from '$lib/utils';
   import SettingsModal from '$lib/SettingsModal.svelte';
   import { loadSessionState, saveSessionState, type SessionState } from '$lib/sessionState';
 
@@ -359,8 +360,28 @@
       event.preventDefault();
       outline.toggleHideCompleted();
     }
-    // Ctrl+/ or ?: Show keyboard shortcuts
-    else if ((event.ctrlKey && event.key === '/') || (event.key === '?' && !event.ctrlKey && !event.altKey)) {
+    // Ctrl+[: Zoom out (page-level handler for when no items are focused)
+    // Skip if focus is in an editor - OutlineItem handles it there
+    else if (event.ctrlKey && event.key === '[') {
+      const activeElement = document.activeElement;
+      if (!activeElement?.closest('.outline-editor')) {
+        event.preventDefault();
+        outline.zoomOut();
+      }
+    }
+    // Ctrl+]: Zoom into focused item (page-level handler)
+    // Skip if focus is in an editor - OutlineItem handles it there
+    else if (event.ctrlKey && event.key === ']') {
+      const activeElement = document.activeElement;
+      if (!activeElement?.closest('.outline-editor')) {
+        event.preventDefault();
+        if (outline.focusedId) {
+          outline.zoomTo(outline.focusedId);
+        }
+      }
+    }
+    // Ctrl+/ or Ctrl+?: Show keyboard shortcuts
+    else if (event.ctrlKey && (event.key === '/' || event.key === '?')) {
       event.preventDefault();
       showKeyboardShortcuts = true;
     }
@@ -702,6 +723,19 @@
     },
   ]);
 
+  // Edit menu items
+  const editMenuItems = $derived([
+    { label: 'Undo', shortcut: 'Ctrl+Z', action: () => outline.undo(), separator: false as const },
+    { label: 'Redo', shortcut: 'Ctrl+Y', action: () => outline.redo(), separator: false as const },
+    { separator: true as const },
+    {
+      label: 'Delete Completed Items',
+      action: () => outline.deleteAllCompleted(),
+      disabled: !outline.hasCompletedItems(),
+      separator: false as const,
+    },
+  ]);
+
   // Help menu items
   const helpMenuItems = [
     { label: 'Keyboard Shortcuts', shortcut: 'Ctrl+/', action: () => { showKeyboardShortcuts = true; }, separator: false as const },
@@ -726,7 +760,13 @@
       onOpen={() => openMenuDropdown('file')}
       onClose={closeMenuDropdown}
     />
-    <button class="menu-item">Edit</button>
+    <MenuDropdown
+      label="Edit"
+      items={editMenuItems}
+      isOpen={openMenu === 'edit'}
+      onOpen={() => openMenuDropdown('edit')}
+      onClose={closeMenuDropdown}
+    />
     <MenuDropdown
       label="View"
       items={viewMenuItems}
@@ -875,7 +915,7 @@
       <button
         class="toolbar-btn"
         onclick={() => showKeyboardShortcuts = true}
-        title="Keyboard Shortcuts (?)"
+        title="Keyboard Shortcuts (Ctrl+/)"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10"/>
@@ -979,14 +1019,14 @@
               <span class="breadcrumb-separator">›</span>
               {#if i === outline.getZoomBreadcrumbs().length - 1}
                 <span class="breadcrumb-item breadcrumb-current">
-                  {@html crumb.content.replace(/<[^>]*>/g, '').slice(0, 30) || 'Untitled'}
+                  {stripHtml(crumb.content).slice(0, 30) || 'Untitled'}
                 </span>
               {:else}
                 <button
                   class="breadcrumb-item breadcrumb-link"
                   onclick={() => outline.zoomTo(crumb.id)}
                 >
-                  {@html crumb.content.replace(/<[^>]*>/g, '').slice(0, 30) || 'Untitled'}
+                  {stripHtml(crumb.content).slice(0, 30) || 'Untitled'}
                 </button>
               {/if}
             {/each}
@@ -1131,21 +1171,6 @@
     background: var(--chrome-bg);
     border-bottom: 1px solid var(--chrome-border);
     flex-shrink: 0;
-  }
-
-  .menu-item {
-    padding: 6px 12px;
-    background: transparent;
-    border: none;
-    font-size: 13px;
-    color: var(--text-primary);
-    cursor: pointer;
-    border-radius: 4px;
-    margin: 2px 0;
-  }
-
-  .menu-item:hover {
-    background: var(--bg-tertiary);
   }
 
   /* Icon Toolbar */

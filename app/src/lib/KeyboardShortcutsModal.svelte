@@ -45,6 +45,7 @@
             <li><kbd>Ctrl+S</kbd> Save</li>
             <li><kbd>Ctrl+Z</kbd> Undo</li>
             <li><kbd>Ctrl+Y</kbd> Redo</li>
+            <li><kbd>Ctrl+Shift+E</kbd> Export</li>
             <li><kbd>Ctrl+Q</kbd> Quit</li>
             <li><kbd>Ctrl+/</kbd> This help</li>
             <li><kbd>Ctrl+,</kbd> Settings</li>
@@ -54,6 +55,7 @@
           <h4>Editing</h4>
           <ul>
             <li><kbd>Enter</kbd> New sibling</li>
+            <li><kbd>Shift+Enter</kbd> Edit note</li>
             <li><kbd>Tab</kbd> Indent</li>
             <li><kbd>Shift+Tab</kbd> Outdent</li>
             <li><kbd>Ctrl+Shift+Backspace</kbd> Delete</li>
@@ -65,12 +67,15 @@
             <li><kbd>↑</kbd> / <kbd>↓</kbd> Move focus</li>
             <li><kbd>Shift+↑</kbd> Move up</li>
             <li><kbd>Shift+↓</kbd> Move down</li>
+            <li><kbd>Ctrl+Shift+K</kbd> Move up</li>
+            <li><kbd>Ctrl+Shift+J</kbd> Move down</li>
             <li><kbd>Ctrl+Home</kbd> First item</li>
             <li><kbd>Ctrl+End</kbd> Last item</li>
-            <li><kbd>Alt+H</kbd> Go to parent</li>
-            <li><kbd>Alt+L</kbd> Go to child</li>
-            <li><kbd>Alt+K</kbd> Prev sibling</li>
-            <li><kbd>Alt+J</kbd> Next sibling</li>
+            <li><kbd>Ctrl+J</kbd> Next item</li>
+            <li><kbd>Ctrl+K</kbd> Prev item</li>
+            <li><kbd>Ctrl+H</kbd> Prev sibling</li>
+            <li><kbd>Ctrl+L</kbd> Next sibling</li>
+            <li><kbd>Ctrl+-</kbd> Go to parent</li>
             <li><kbd>Ctrl+O</kbd> Go to document</li>
             <li><kbd>Ctrl+Shift+O</kbd> Go to item</li>
             <li><kbd>Ctrl+Shift+M</kbd> Move item to...</li>
@@ -93,6 +98,8 @@
             <li><kbd>Ctrl+.</kbd> Toggle collapse</li>
             <li><kbd>Ctrl+Shift+.</kbd> Collapse all</li>
             <li><kbd>Ctrl+Shift+,</kbd> Expand all</li>
+            <li><kbd>Ctrl+]</kbd> Zoom into</li>
+            <li><kbd>Ctrl+[</kbd> Zoom out</li>
           </ul>
         </div>
         <div class="shortcut-group">

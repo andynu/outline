@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { onDestroy, tick } from 'svelte';
+  import { onDestroy } from 'svelte';
   import { Editor } from '@tiptap/core';
-  import { DOMSerializer } from '@tiptap/pm/model';
   import StarterKit from '@tiptap/starter-kit';
   import { outline } from './outline.svelte';
   import type { TreeNode } from './types';
@@ -23,8 +22,10 @@
   import { processStaticContentElement, handleStaticContentClick } from './renderStaticContent';
   import { zoom } from './zoom.svelte';
   import { openUrl } from './api';
+  import { stripHtml } from './utils';
   import { parseMarkdownList, looksLikeMarkdownList } from './markdownPaste';
   import { settings } from './settings.svelte';
+  import { handleKeyDown as handleKeyboardShortcuts, type KeyboardContext } from './keyboardHandlers';
 
   interface Props {
     item: TreeNode;
@@ -79,8 +80,11 @@
   let isInbox = $derived(outline.isInboxNode(item.node.id));
 
   // Sync content from store to editor when it changes externally
+  // Only sync when this node is NOT the focused one in our state
+  // We don't check editor.isFocused because during async re-renders the DOM focus
+  // can briefly become unreliable, causing content to be reset mid-typing
   $effect(() => {
-    if (editor && !editor.isFocused) {
+    if (editor && !isFocused) {
       const currentContent = editor.getHTML();
       if (currentContent !== item.node.content) {
         editor.commands.setContent(item.node.content || '');
@@ -106,9 +110,10 @@
     // Wait for editorElement to be available
     if (!editorElement) return;
 
-    // Already have editor
+    // Already have editor - don't call focus() at all when re-running this effect
+    // The editor is already set up and focused from creation, and calling focus('end')
+    // during typing would disrupt cursor position
     if (editor) {
-      editor.commands.focus('end');
       return;
     }
 
@@ -126,31 +131,13 @@
     };
     editorElement.addEventListener('keydown', tabHandler, { capture: true });
 
-    function updateHashtagPosition(view: any) {
+    function updatePopupPosition(view: any, setter: (pos: { x: number; y: number }) => void) {
       const coords = view.coordsAtPos(view.state.selection.from);
       const zoomLevel = zoom.level;
-      hashtagPosition = {
+      setter({
         x: coords.left / zoomLevel,
         y: (coords.bottom + 5) / zoomLevel,
-      };
-    }
-
-    function updateDueDatePosition(view: any) {
-      const coords = view.coordsAtPos(view.state.selection.from);
-      const zoomLevel = zoom.level;
-      dueDatePosition = {
-        x: coords.left / zoomLevel,
-        y: (coords.bottom + 5) / zoomLevel,
-      };
-    }
-
-    function updateSuggestionPosition(view: any) {
-      const coords = view.coordsAtPos(view.state.selection.from);
-      const zoomLevel = zoom.level;
-      suggestionPosition = {
-        x: coords.left / zoomLevel,
-        y: (coords.bottom + 5) / zoomLevel,
-      };
+      });
     }
 
     editor = new Editor({
@@ -232,7 +219,7 @@
             showWikiLinkSuggestion = true;
             wikiLinkQuery = '';
             wikiLinkRange = { from: from - 1, to: from + 1 };
-            updateSuggestionPosition(view);
+            updatePopupPosition(view, (pos) => suggestionPosition = pos);
             return false;
           }
 
@@ -259,7 +246,7 @@
             showHashtagSuggestion = true;
             hashtagQuery = '';
             hashtagRange = { from: from, to: from + 1 };
-            updateHashtagPosition(view);
+            updatePopupPosition(view, (pos) => hashtagPosition = pos);
             return false;
           }
 
@@ -284,7 +271,7 @@
             showDueDateSuggestion = true;
             dueDateQuery = '';
             dueDateRange = { from: from - 1, to: from + 1 };
-            updateDueDatePosition(view);
+            updatePopupPosition(view, (pos) => dueDatePosition = pos);
             return false;
           }
 
@@ -308,347 +295,37 @@
           return false;
         },
         handleKeyDown: (view, event) => {
-          const mod = event.ctrlKey || event.metaKey;
-          const nodeId = item.node.id;
-
-          // === TAB HANDLING (must be first to prevent browser focus navigation) ===
-
-          // Tab: indent, Shift+Tab: outdent
-          // When there's a multi-selection, apply to all selected nodes
-          if (event.key === 'Tab') {
-            event.preventDefault();
-            event.stopPropagation();
-            if (outline.hasSelection) {
-              if (event.shiftKey) {
-                outline.outdentSelectedNodes();
-              } else {
-                outline.indentSelectedNodes();
-              }
-            } else {
-              if (event.shiftKey) {
-                outline.outdentNode(nodeId);
-              } else {
-                outline.indentNode(nodeId);
-              }
-            }
-            return true;
-          }
-
-          // Handle wiki link suggestion navigation
-          if (showWikiLinkSuggestion) {
-            if (event.key === 'Escape') {
+          // Build keyboard context for the extracted handler
+          const ctx: KeyboardContext = {
+            nodeId: item.node.id,
+            editor,
+            view,
+            event,
+            showWikiLinkSuggestion,
+            showHashtagSuggestion,
+            showDueDateSuggestion,
+            closeWikiLinkSuggestion: () => {
               showWikiLinkSuggestion = false;
               wikiLinkRange = null;
-              return true;
-            }
-            // Let ArrowUp/Down/Enter pass to suggestion component
-            // Return true to prevent ProseMirror's own Enter binding from running
-            if (['ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) {
-              event.preventDefault();
-              return true; // Stop ProseMirror bindings, window handler still fires
-            }
-          }
-
-          // Handle hashtag suggestion navigation
-          if (showHashtagSuggestion) {
-            if (event.key === 'Escape') {
+            },
+            closeHashtagSuggestion: () => {
               showHashtagSuggestion = false;
               hashtagRange = null;
-              return true;
-            }
-            // Let ArrowUp/Down/Enter/Tab pass to suggestion component
-            // Return true to prevent ProseMirror's own Enter binding from running
-            if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab'].includes(event.key)) {
-              event.preventDefault();
-              return true; // Stop ProseMirror bindings, window handler still fires
-            }
-          }
-
-          // Handle due date suggestion navigation
-          if (showDueDateSuggestion) {
-            if (event.key === 'Escape') {
+            },
+            closeDueDateSuggestion: () => {
               showDueDateSuggestion = false;
               dueDateRange = null;
-              return true;
-            }
-            // Let ArrowUp/Down/Enter/Tab pass to suggestion component
-            // Return true to prevent ProseMirror's own Enter binding from running
-            if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab'].includes(event.key)) {
-              event.preventDefault();
-              return true; // Stop ProseMirror bindings, window handler still fires
-            }
-          }
+            },
+            openNoteEditor: () => {
+              isEditingNote = true;
+              setTimeout(() => noteInputElement?.focus(), 0);
+            },
+            openDatePicker: (v) => openDatePicker(v),
+            openRecurrencePicker: (v) => openRecurrencePicker(v),
+            webSearch,
+          };
 
-          // === EDITING ===
-
-          // Shift+Enter: toggle note editing
-          if (event.key === 'Enter' && !mod && event.shiftKey) {
-            event.preventDefault();
-            isEditingNote = true;
-            // Focus the note input after it renders
-            setTimeout(() => noteInputElement?.focus(), 0);
-            return true;
-          }
-
-          // Enter: split item at cursor position
-          if (event.key === 'Enter' && !mod && !event.shiftKey) {
-            event.preventDefault();
-
-            const { from, to } = view.state.selection;
-            const docSize = view.state.doc.content.size;
-            const isEmpty = view.state.doc.textContent.length === 0;
-
-            // Cursor at end of content (or empty): add empty sibling after (current behavior)
-            // Note: ProseMirror doc always has from=1 at start, and size includes wrapper
-            if (from >= docSize - 1 || isEmpty) {
-              outline.addSiblingAfter(nodeId);
-              return true;
-            }
-
-            // Cursor at beginning: insert blank item above
-            if (from <= 1) {
-              outline.addSiblingBefore(nodeId);
-              return true;
-            }
-
-            // Cursor in middle: split content
-            // Get HTML content before and after cursor
-            const beforeSlice = view.state.doc.slice(0, from);
-            const afterSlice = view.state.doc.slice(to, docSize);
-
-            // Convert slices to HTML using DOMSerializer
-            const serializer = DOMSerializer.fromSchema(view.state.schema);
-            const beforeFragment = serializer.serializeFragment(beforeSlice.content);
-            const afterFragment = serializer.serializeFragment(afterSlice.content);
-
-            // Convert fragments to HTML strings using XMLSerializer (safe serialization)
-            const xmlSerializer = new XMLSerializer();
-            const tempContainer = document.createElement('div');
-
-            tempContainer.appendChild(beforeFragment);
-            const beforeHtml = tempContainer.childNodes.length > 0
-              ? Array.from(tempContainer.childNodes).map(n =>
-                  n.nodeType === Node.TEXT_NODE ? n.textContent : xmlSerializer.serializeToString(n)
-                ).join('')
-              : '';
-
-            while (tempContainer.firstChild) tempContainer.removeChild(tempContainer.firstChild);
-            tempContainer.appendChild(afterFragment);
-            const afterHtml = tempContainer.childNodes.length > 0
-              ? Array.from(tempContainer.childNodes).map(n =>
-                  n.nodeType === Node.TEXT_NODE ? n.textContent : xmlSerializer.serializeToString(n)
-                ).join('')
-              : '';
-
-            // Split: update current item with before content, create new item with after content
-            outline.splitNode(nodeId, beforeHtml, afterHtml);
-            return true;
-          }
-
-          // Ctrl+Shift+Backspace: delete item (or all selected items)
-          if (event.key === 'Backspace' && mod && event.shiftKey) {
-            event.preventDefault();
-            if (outline.hasSelection) {
-              outline.deleteSelectedNodes();
-            } else {
-              outline.deleteNode(nodeId);
-            }
-            return true;
-          }
-
-          // Backspace at start of empty node: delete
-          if (event.key === 'Backspace' && !mod && !event.shiftKey) {
-            const { from } = view.state.selection;
-            const isEmpty = view.state.doc.textContent.length === 0;
-            if (from === 1 && isEmpty) {
-              event.preventDefault();
-              outline.deleteNode(nodeId);
-              return true;
-            }
-          }
-
-          // Delete at end of content: merge with next sibling
-          // Delete on empty node: delete the node
-          if (event.key === 'Delete' && !mod && !event.shiftKey) {
-            const { from, to } = view.state.selection;
-            const docSize = view.state.doc.content.size;
-            const isEmpty = view.state.doc.textContent.length === 0;
-            const isAtEnd = from === to && to === docSize - 1;
-
-            if (isEmpty) {
-              // Empty node: just delete it
-              event.preventDefault();
-              outline.deleteNode(nodeId);
-              return true;
-            } else if (isAtEnd) {
-              // At end of content: merge with next sibling
-              event.preventDefault();
-              outline.mergeWithNextSibling(nodeId).then(result => {
-                if (result && editor) {
-                  // Position cursor at the merge point (end of original content)
-                  // Use tick to wait for the editor to update with new content
-                  tick().then(() => {
-                    if (editor) {
-                      // +1 because TipTap uses 1-based positions
-                      const pos = Math.min(result.cursorPos + 1, editor.state.doc.content.size);
-                      editor.commands.setTextSelection(pos);
-                      editor.commands.focus();
-                    }
-                  });
-                }
-              });
-              return true;
-            }
-          }
-
-          // === NAVIGATION ===
-
-          // Up arrow: previous node
-          if (event.key === 'ArrowUp' && !mod && !event.shiftKey) {
-            event.preventDefault();
-            outline.moveToPrevious();
-            return true;
-          }
-
-          // Down arrow: next node
-          if (event.key === 'ArrowDown' && !mod && !event.shiftKey) {
-            event.preventDefault();
-            outline.moveToNext();
-            return true;
-          }
-
-          // Shift+Up or Ctrl+Up: swap with previous sibling
-          if (event.key === 'ArrowUp' && (event.shiftKey || mod)) {
-            event.preventDefault();
-            outline.swapWithPrevious(nodeId);
-            return true;
-          }
-
-          // Shift+Down or Ctrl+Down: swap with next sibling
-          if (event.key === 'ArrowDown' && (event.shiftKey || mod)) {
-            event.preventDefault();
-            outline.swapWithNext(nodeId);
-            return true;
-          }
-
-          // Alt+H: go to parent (vim-style hierarchy navigation)
-          if (event.key.toLowerCase() === 'h' && event.altKey && !mod && !event.shiftKey) {
-            event.preventDefault();
-            outline.moveToParent();
-            return true;
-          }
-
-          // Alt+L: go to first child (vim-style hierarchy navigation)
-          if (event.key.toLowerCase() === 'l' && event.altKey && !mod && !event.shiftKey) {
-            event.preventDefault();
-            outline.moveToFirstChild();
-            return true;
-          }
-
-          // Alt+J: next sibling (vim-style hierarchy navigation)
-          if (event.key.toLowerCase() === 'j' && event.altKey && !mod && !event.shiftKey) {
-            event.preventDefault();
-            outline.moveToNextSibling();
-            return true;
-          }
-
-          // Alt+K: previous sibling (vim-style hierarchy navigation)
-          if (event.key.toLowerCase() === 'k' && event.altKey && !mod && !event.shiftKey) {
-            event.preventDefault();
-            outline.moveToPrevSibling();
-            return true;
-          }
-
-          // === INDENT/DEDENT (alternative shortcuts) ===
-
-          // Ctrl+, : dedent (< without shift)
-          if (event.key === ',' && mod) {
-            event.preventDefault();
-            outline.outdentNode(nodeId);
-            return true;
-          }
-
-          // Ctrl+. : toggle collapse/expand (matches context menu)
-          if (event.key === '.' && mod) {
-            event.preventDefault();
-            outline.toggleCollapse(nodeId);
-            return true;
-          }
-
-          // === COMPLETION ===
-
-          // Ctrl+Enter: toggle completion (works for any item type, or all selected items)
-          if (event.key === 'Enter' && mod && !event.shiftKey) {
-            event.preventDefault();
-            if (outline.hasSelection) {
-              outline.toggleSelectedCheckboxes();
-            } else {
-              outline.toggleCheckbox(nodeId);
-            }
-            return true;
-          }
-
-          // Ctrl+Shift+X: toggle node type (bullet <-> checkbox)
-          if (event.key.toLowerCase() === 'x' && mod && event.shiftKey) {
-            event.preventDefault();
-            outline.toggleNodeType(nodeId);
-            return true;
-          }
-
-          // === DATE ===
-
-          // Ctrl+D: open date picker
-          if (event.key === 'd' && mod && !event.shiftKey) {
-            event.preventDefault();
-            openDatePicker(view);
-            return true;
-          }
-
-          // Ctrl+Shift+D: clear date
-          if (event.key.toLowerCase() === 'd' && mod && event.shiftKey) {
-            event.preventDefault();
-            outline.clearDate(nodeId);
-            return true;
-          }
-
-          // Ctrl+Shift+E: export selection to markdown file
-          if (event.key.toLowerCase() === 'e' && mod && event.shiftKey) {
-            event.preventDefault();
-            outline.exportSelection();
-            return true;
-          }
-
-          // Ctrl+Shift+G: web search for item content
-          if (event.key.toLowerCase() === 'g' && mod && event.shiftKey) {
-            event.preventDefault();
-            webSearch();
-            return true;
-          }
-
-          // Ctrl+R: open recurrence picker
-          if (event.key === 'r' && mod && !event.shiftKey) {
-            event.preventDefault();
-            openRecurrencePicker(view);
-            return true;
-          }
-
-          // === ZOOM ===
-
-          // Ctrl+] : zoom into current node's subtree
-          if (event.key === ']' && mod) {
-            event.preventDefault();
-            outline.zoomTo(nodeId);
-            return true;
-          }
-
-          // Ctrl+[ : zoom out one level
-          if (event.key === '[' && mod) {
-            event.preventDefault();
-            outline.zoomOut();
-            return true;
-          }
-
-          return false;
+          return handleKeyboardShortcuts(ctx);
         },
         handleDrop: (view, event, slice, moved) => {
           // Prevent TipTap from handling drops of our outline nodes
@@ -676,7 +353,7 @@
           if (items.length === 1) {
             // Insert the formatted content from the single item
             const singleItem = items[0];
-            view.dispatch(view.state.tr.insertText(singleItem.content.replace(/<[^>]*>/g, '')));
+            view.dispatch(view.state.tr.insertText(stripHtml(singleItem.content)));
 
             // If it's a checkbox, convert this node
             if (singleItem.nodeType === 'checkbox' && item.node.node_type !== 'checkbox') {
@@ -725,6 +402,9 @@
         outline.focus(item.node.id);
       }
     });
+
+    // Store editor reference on the element for external access
+    (editorElement as any).__tiptap_editor = editor;
 
     // Focus the newly created editor
     setTimeout(() => {
@@ -1723,6 +1403,7 @@
     outline: none;
     min-height: 24px;
     line-height: 24px;
+    white-space: pre-wrap;
   }
 
   .editor-wrapper :global(.outline-editor p) {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { outline } from './outline.svelte';
+  import { stripHtml } from './utils';
 
   interface Props {
     isOpen: boolean;
@@ -26,18 +27,6 @@
     if (!selectedTag) return [];
     return outline.getNodesWithTag(selectedTag);
   });
-
-  // Strip HTML for display
-  function stripHtml(html: string): string {
-    return html
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .trim();
-  }
 
   function handleKeyDown(e: KeyboardEvent) {
     if (e.key === 'Escape') {

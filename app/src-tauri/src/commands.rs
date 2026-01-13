@@ -17,6 +17,11 @@ use crate::data::{
 };
 use crate::search::{BacklinkResult, SearchIndex, SearchResult};
 
+/// Parse a UUID string, returning a descriptive error
+fn parse_uuid(id: &str) -> Result<Uuid, String> {
+    Uuid::parse_str(id).map_err(|e| format!("Invalid UUID: {}", e))
+}
+
 /// State managed by Tauri for the current document
 pub struct AppState {
     pub current_document: Mutex<Option<Document>>,
@@ -46,7 +51,7 @@ pub fn load_document(
     ensure_dirs()?;
 
     let doc_uuid = if let Some(id_str) = doc_id {
-        Uuid::parse_str(&id_str).map_err(|e| format!("Invalid UUID: {}", e))?
+        parse_uuid(&id_str)?
     } else {
         // Use a fixed UUID for the default/test document
         Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap()
@@ -120,7 +125,7 @@ pub fn create_node(
     content: String,
 ) -> Result<(Uuid, DocumentState), String> {
     let parent_uuid = if let Some(id_str) = parent_id {
-        Some(Uuid::parse_str(&id_str).map_err(|e| format!("Invalid parent UUID: {}", e))?)
+        Some(parse_uuid(&id_str)?)
     } else {
         None
     };
@@ -145,9 +150,9 @@ pub fn create_node_with_id(
     content: String,
     node_type: NodeType,
 ) -> Result<(Uuid, DocumentState), String> {
-    let node_id = Uuid::parse_str(&id).map_err(|e| format!("Invalid UUID: {}", e))?;
+    let node_id = parse_uuid(&id)?;
     let parent_uuid = if let Some(id_str) = parent_id {
-        Some(Uuid::parse_str(&id_str).map_err(|e| format!("Invalid parent UUID: {}", e))?)
+        Some(parse_uuid(&id_str)?)
     } else {
         None
     };
@@ -165,7 +170,7 @@ pub fn update_node(
     id: String,
     changes: NodeChanges,
 ) -> Result<DocumentState, String> {
-    let node_id = Uuid::parse_str(&id).map_err(|e| format!("Invalid UUID: {}", e))?;
+    let node_id = parse_uuid(&id)?;
     let op = update_op(node_id, changes);
     save_op(state, op)
 }
@@ -178,9 +183,9 @@ pub fn move_node(
     parent_id: Option<String>,
     position: i32,
 ) -> Result<DocumentState, String> {
-    let node_id = Uuid::parse_str(&id).map_err(|e| format!("Invalid UUID: {}", e))?;
+    let node_id = parse_uuid(&id)?;
     let parent_uuid = if let Some(id_str) = parent_id {
-        Some(Uuid::parse_str(&id_str).map_err(|e| format!("Invalid parent UUID: {}", e))?)
+        Some(parse_uuid(&id_str)?)
     } else {
         None
     };
@@ -192,7 +197,7 @@ pub fn move_node(
 /// Delete a node (convenience command that wraps save_op)
 #[tauri::command]
 pub fn delete_node(state: State<AppState>, id: String) -> Result<DocumentState, String> {
-    let node_id = Uuid::parse_str(&id).map_err(|e| format!("Invalid UUID: {}", e))?;
+    let node_id = parse_uuid(&id)?;
     let op = delete_op(node_id);
     save_op(state, op)
 }
@@ -282,7 +287,7 @@ pub fn search(
     limit: Option<usize>,
 ) -> Result<Vec<SearchResult>, String> {
     let doc_uuid = if let Some(id_str) = doc_id {
-        Some(Uuid::parse_str(&id_str).map_err(|e| format!("Invalid UUID: {}", e))?)
+        Some(parse_uuid(&id_str)?)
     } else {
         None
     };
@@ -374,7 +379,7 @@ pub fn get_backlinks(
     state: State<AppState>,
     node_id: String,
 ) -> Result<Vec<BacklinkResult>, String> {
-    let node_uuid = Uuid::parse_str(&node_id).map_err(|e| format!("Invalid UUID: {}", e))?;
+    let node_uuid = parse_uuid(&node_id)?;
 
     let search_index = state.search_index.lock().unwrap();
     let index = search_index
@@ -519,22 +524,12 @@ pub fn clear_inbox_items(ids: Vec<String>) -> Result<(), String> {
     remove_inbox_items(&ids)
 }
 
-/// Import OPML content into the current document
-#[tauri::command]
-pub fn import_opml(
-    state: State<AppState>,
-    content: String,
-) -> Result<DocumentState, String> {
-    let mut current = state.current_document.lock().unwrap();
-    let doc = current.as_mut().ok_or("No document loaded")?;
-
-    // Parse OPML
-    let nodes = crate::import_export::parse_opml(&content)?;
-
-    // Add nodes to document via operations
+/// Import nodes into a document by creating operations for each node.
+/// This is shared logic used by both OPML and JSON import commands.
+fn import_nodes_to_document(doc: &mut Document, nodes: Vec<Node>) -> Result<(), String> {
     for node in nodes {
-        // Create the node
-        let create_op = crate::data::Operation::Create {
+        // Create the base node
+        let create_op = Operation::Create {
             id: node.id,
             parent_id: node.parent_id,
             position: node.position,
@@ -545,22 +540,55 @@ pub fn import_opml(
         doc.append_op(&create_op)?;
         create_op.apply(&mut doc.state);
 
-        // If there's additional metadata, update the node
-        let needs_update = node.note.is_some() || node.is_checked || node.color.is_some();
-        if needs_update {
-            let update_op = update_op(
-                node.id,
-                NodeChanges {
-                    note: node.note,
-                    is_checked: if node.is_checked { Some(true) } else { None },
-                    color: node.color,
-                    ..Default::default()
-                },
-            );
-            doc.append_op(&update_op)?;
-            update_op.apply(&mut doc.state);
+        // Build changes for any additional metadata
+        let changes = NodeChanges {
+            note: node.note,
+            heading_level: node.heading_level,
+            is_checked: if node.is_checked { Some(true) } else { None },
+            color: node.color,
+            tags: if node.tags.is_empty() {
+                None
+            } else {
+                Some(node.tags)
+            },
+            date: node.date,
+            date_recurrence: node.date_recurrence,
+            collapsed: if node.collapsed { Some(true) } else { None },
+            mirror_source_id: node.mirror_source_id,
+            ..Default::default()
+        };
+
+        // Only create update operation if there's something to update
+        let has_changes = changes.note.is_some()
+            || changes.heading_level.is_some()
+            || changes.is_checked.is_some()
+            || changes.color.is_some()
+            || changes.tags.is_some()
+            || changes.date.is_some()
+            || changes.date_recurrence.is_some()
+            || changes.collapsed.is_some()
+            || changes.mirror_source_id.is_some();
+
+        if has_changes {
+            let update = update_op(node.id, changes);
+            doc.append_op(&update)?;
+            update.apply(&mut doc.state);
         }
     }
+    Ok(())
+}
+
+/// Import OPML content into the current document
+#[tauri::command]
+pub fn import_opml(
+    state: State<AppState>,
+    content: String,
+) -> Result<DocumentState, String> {
+    let mut current = state.current_document.lock().unwrap();
+    let doc = current.as_mut().ok_or("No document loaded")?;
+
+    let nodes = crate::import_export::parse_opml(&content)?;
+    import_nodes_to_document(doc, nodes)?;
 
     Ok(doc.state.clone())
 }
@@ -591,37 +619,7 @@ pub fn import_opml_as_document(
     let doc_dir = documents_dir().join(doc_uuid.to_string());
 
     let mut doc = Document::create(doc_dir)?;
-
-    // Add nodes to document
-    for node in &nodes {
-        // Create the node
-        let create_op = crate::data::Operation::Create {
-            id: node.id,
-            parent_id: node.parent_id,
-            position: node.position,
-            content: node.content.clone(),
-            node_type: node.node_type.clone(),
-            updated_at: node.updated_at,
-        };
-        doc.append_op(&create_op)?;
-        create_op.apply(&mut doc.state);
-
-        // If there's additional metadata, update the node
-        let needs_update = node.note.is_some() || node.is_checked || node.color.is_some();
-        if needs_update {
-            let update_op = update_op(
-                node.id,
-                NodeChanges {
-                    note: node.note.clone(),
-                    is_checked: if node.is_checked { Some(true) } else { None },
-                    color: node.color.clone(),
-                    ..Default::default()
-                },
-            );
-            doc.append_op(&update_op)?;
-            update_op.apply(&mut doc.state);
-        }
-    }
+    import_nodes_to_document(&mut doc, nodes)?;
 
     let node_count = doc.state.nodes.len();
 
@@ -759,54 +757,8 @@ pub fn import_json(
     let mut current = state.current_document.lock().unwrap();
     let doc = current.as_mut().ok_or("No document loaded")?;
 
-    // Parse JSON backup
     let nodes = crate::import_export::parse_json_backup(&content)?;
-
-    // Add nodes to document via operations
-    for node in nodes {
-        // Create the base node
-        let create_op = crate::data::Operation::Create {
-            id: node.id,
-            parent_id: node.parent_id,
-            position: node.position,
-            content: node.content.clone(),
-            node_type: node.node_type.clone(),
-            updated_at: node.updated_at,
-        };
-        doc.append_op(&create_op)?;
-        create_op.apply(&mut doc.state);
-
-        // If node has additional metadata, update it
-        let needs_update = node.note.is_some()
-            || node.heading_level.is_some()
-            || node.is_checked
-            || node.color.is_some()
-            || !node.tags.is_empty()
-            || node.date.is_some()
-            || node.date_recurrence.is_some()
-            || node.collapsed
-            || node.mirror_source_id.is_some();
-
-        if needs_update {
-            let update_op = update_op(
-                node.id,
-                NodeChanges {
-                    note: node.note,
-                    heading_level: node.heading_level,
-                    is_checked: if node.is_checked { Some(true) } else { None },
-                    color: node.color,
-                    tags: if node.tags.is_empty() { None } else { Some(node.tags) },
-                    date: node.date,
-                    date_recurrence: node.date_recurrence,
-                    collapsed: if node.collapsed { Some(true) } else { None },
-                    mirror_source_id: node.mirror_source_id,
-                    ..Default::default()
-                },
-            );
-            doc.append_op(&update_op)?;
-            update_op.apply(&mut doc.state);
-        }
-    }
+    import_nodes_to_document(doc, nodes)?;
 
     Ok(doc.state.clone())
 }
