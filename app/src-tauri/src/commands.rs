@@ -664,9 +664,9 @@ pub fn import_dynalist_backup(
     let mut archive = zip::ZipArchive::new(file)
         .map_err(|e| format!("Failed to read zip archive: {}", e))?;
 
-    // Create folder if specified
+    // Get or create folder if specified (reuses existing folder with same name)
     let folder_id = if let Some(ref name) = folder_name {
-        Some(crate::data::create_folder(name)?.id)
+        Some(crate::data::get_or_create_folder(name)?.id)
     } else {
         None
     };
@@ -748,6 +748,50 @@ pub fn import_dynalist_backup(
     }
 
     Ok(results)
+}
+
+/// Find and import the latest Dynalist OPML backup from Dropbox
+#[tauri::command]
+pub fn import_latest_dynalist_backup(
+    state: State<AppState>,
+    folder_name: Option<String>,
+) -> Result<Vec<ImportResult>, String> {
+    // Find Dropbox Dynalist backup directory
+    let home = dirs::home_dir().ok_or("Could not find home directory")?;
+    let backup_dir = home.join("Dropbox/Apps/Dynalist/backups");
+
+    if !backup_dir.exists() {
+        return Err(format!("Dynalist backup directory not found: {:?}", backup_dir));
+    }
+
+    // Find the latest OPML backup
+    let mut backups: Vec<_> = std::fs::read_dir(&backup_dir)
+        .map_err(|e| format!("Failed to read backup directory: {}", e))?
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            name.starts_with("dynalist-backup-opml-") && name.ends_with(".zip")
+        })
+        .collect();
+
+    if backups.is_empty() {
+        return Err("No Dynalist OPML backups found".to_string());
+    }
+
+    // Sort by modification time (newest first)
+    backups.sort_by(|a, b| {
+        let a_time = a.metadata().and_then(|m| m.modified()).ok();
+        let b_time = b.metadata().and_then(|m| m.modified()).ok();
+        b_time.cmp(&a_time)
+    });
+
+    let latest = &backups[0];
+    let zip_path = latest.path().to_string_lossy().to_string();
+
+    log::info!("Importing latest Dynalist backup: {}", zip_path);
+
+    // Use the existing import function
+    import_dynalist_backup(state, zip_path, folder_name)
 }
 
 /// Export current document to OPML format

@@ -552,6 +552,16 @@ export async function importDynalistBackup(
   });
 }
 
+// Find and import the latest Dynalist OPML backup from ~/Dropbox/Apps/Dynalist/backups
+export async function importLatestDynalistBackup(
+  folderName?: string
+): Promise<ImportOpmlResult[]> {
+  return invokeOrMock('import_latest_dynalist_backup', { folderName }, () => {
+    console.warn('Dynalist backup import not supported in browser-only mode');
+    return [];
+  });
+}
+
 // Export current document to OPML format
 export async function exportOpml(title: string): Promise<string> {
   return invokeOrMock('export_opml', { title }, () => generateMockOpml(title));

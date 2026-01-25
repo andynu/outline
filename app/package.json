@@ -11,7 +11,8 @@
     "tauri": "tauri",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
-    "test:headed": "playwright test --headed"
+    "test:headed": "playwright test --headed",
+    "import:dynalist": "node scripts/import-dynalist.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",

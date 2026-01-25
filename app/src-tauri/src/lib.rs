@@ -65,6 +65,7 @@ pub fn run() {
             commands::import_opml,
             commands::import_opml_as_document,
             commands::import_dynalist_backup,
+            commands::import_latest_dynalist_backup,
             commands::export_opml,
             commands::export_markdown,
             commands::export_selection_markdown,

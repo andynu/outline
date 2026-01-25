@@ -89,6 +89,19 @@ pub fn create_folder(name: &str) -> Result<Folder, String> {
     Ok(folder)
 }
 
+/// Get an existing folder by name, or create it if it doesn't exist
+pub fn get_or_create_folder(name: &str) -> Result<Folder, String> {
+    let state = load_folders()?;
+
+    // Check if folder with this name already exists
+    if let Some(existing) = state.folders.iter().find(|f| f.name == name) {
+        return Ok(existing.clone());
+    }
+
+    // Create new folder
+    create_folder(name)
+}
+
 /// Update a folder's properties
 pub fn update_folder(id: &str, name: Option<&str>, collapsed: Option<bool>) -> Result<Folder, String> {
     let mut state = load_folders()?;
