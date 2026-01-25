@@ -136,8 +136,7 @@ pub fn start_watcher(app_handle: AppHandle) -> Result<WatcherHandle, String> {
                     }
 
                     // Emit event if we have changes
-                    if !changed_ids.is_empty() || true {
-                        // Always emit to catch new/deleted docs
+                    if !changed_ids.is_empty() {
                         log::info!("Documents changed: {:?}", changed_ids);
                         let payload = DocumentsChangedPayload {
                             document_ids: changed_ids,
