@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import {
     listDocuments,
     updateNode,
@@ -13,6 +13,9 @@
     type FolderState,
   } from './api';
   import RenameModal from './RenameModal.svelte';
+
+  // Tauri event listener types
+  type UnlistenFn = () => void;
 
   interface Props {
     isOpen: boolean;
@@ -89,6 +92,22 @@
     return result;
   });
 
+  // Store unlisten function for cleanup
+  let unlistenDocumentsChanged: UnlistenFn | null = null;
+  let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // Debounced refresh to avoid rapid reloads
+  function debouncedRefresh() {
+    if (debounceTimeout) {
+      clearTimeout(debounceTimeout);
+    }
+    debounceTimeout = setTimeout(() => {
+      console.log('[Sidebar] Refreshing documents list due to filesystem change');
+      loadAll();
+      debounceTimeout = null;
+    }, 500);
+  }
+
   onMount(() => {
     loadAll();
 
@@ -97,7 +116,33 @@
       contextMenuTarget = null;
     }
     document.addEventListener('click', handleGlobalClick);
-    return () => document.removeEventListener('click', handleGlobalClick);
+
+    // Listen for documents-changed events from Tauri
+    (async () => {
+      try {
+        // Check if we're in Tauri environment
+        if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+          const { listen } = await import('@tauri-apps/api/event');
+          unlistenDocumentsChanged = await listen('documents-changed', (_event) => {
+            console.log('[Sidebar] Received documents-changed event');
+            debouncedRefresh();
+          });
+          console.log('[Sidebar] Documents change listener registered');
+        }
+      } catch (e) {
+        console.error('[Sidebar] Failed to set up documents-changed listener:', e);
+      }
+    })();
+
+    return () => {
+      document.removeEventListener('click', handleGlobalClick);
+      if (unlistenDocumentsChanged) {
+        unlistenDocumentsChanged();
+      }
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
+    };
   });
 
   async function loadAll() {

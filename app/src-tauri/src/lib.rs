@@ -2,8 +2,11 @@ mod commands;
 mod data;
 mod import_export;
 mod search;
+mod watcher;
 
 use commands::AppState;
+use tauri::Manager;
+use watcher::WatcherState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -15,6 +18,7 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .manage(AppState::new())
+        .manage(WatcherState::new())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -23,6 +27,20 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // Start the documents watcher
+            let app_handle = app.handle().clone();
+            match watcher::start_watcher(app_handle) {
+                Ok(handle) => {
+                    let watcher_state: tauri::State<WatcherState> = app.state();
+                    watcher_state.set_handle(handle);
+                    log::info!("Documents watcher initialized");
+                }
+                Err(e) => {
+                    log::error!("Failed to start documents watcher: {}", e);
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -67,6 +85,10 @@ pub fn run() {
             commands::set_inbox_setting,
             commands::clear_inbox_setting,
             commands::import_inbox_items,
+            // Watcher commands
+            commands::start_documents_watcher,
+            commands::stop_documents_watcher,
+            commands::is_documents_watcher_running,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
