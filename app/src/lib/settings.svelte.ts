@@ -16,6 +16,7 @@ export interface Settings {
   autoSaveInterval: number;  // seconds, 0 = disabled
   confirmDelete: boolean;
   startCollapsed: boolean;
+  compactNotes: boolean;  // Show only first line of notes, click to expand
 
   // Data
   dataDirectory: string;  // Read-only display of data location
@@ -32,6 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
   autoSaveInterval: 30,
   confirmDelete: true,
   startCollapsed: false,
+  compactNotes: true,  // Default to compact (show first line only)
   dataDirectory: '~/.outline-data',
   searchEngine: 'duckduckgo',
   searchEngineUrl: '',

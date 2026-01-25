@@ -19,6 +19,7 @@
   let localAutoSave = $state(30);
   let localConfirmDelete = $state(true);
   let localStartCollapsed = $state(false);
+  let localCompactNotes = $state(true);
   let localSearchEngine = $state('duckduckgo');
   let localSearchEngineUrl = $state('');
 
@@ -45,6 +46,7 @@
       localAutoSave = s.autoSaveInterval;
       localConfirmDelete = s.confirmDelete;
       localStartCollapsed = s.startCollapsed;
+      localCompactNotes = s.compactNotes;
       localSearchEngine = s.searchEngine;
       localSearchEngineUrl = s.searchEngineUrl;
 
@@ -172,6 +174,11 @@
     settings.update({ startCollapsed: value });
   }
 
+  function handleCompactNotesChange(value: boolean) {
+    localCompactNotes = value;
+    settings.update({ compactNotes: value });
+  }
+
   function handleSearchEngineChange(engine: string) {
     localSearchEngine = engine;
     settings.update({ searchEngine: engine });
@@ -192,6 +199,7 @@
     localAutoSave = s.autoSaveInterval;
     localConfirmDelete = s.confirmDelete;
     localStartCollapsed = s.startCollapsed;
+    localCompactNotes = s.compactNotes;
     localSearchEngine = s.searchEngine;
     localSearchEngineUrl = s.searchEngineUrl;
   }
@@ -335,6 +343,22 @@
                 class="toggle-input"
                 checked={localStartCollapsed}
                 onchange={(e) => handleStartCollapsedChange(e.currentTarget.checked)}
+              />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row">
+            <label class="setting-label setting-toggle">
+              <span class="label-content">
+                <span class="label-text">Compact notes</span>
+                <span class="label-hint">Show only first line of notes, click to expand</span>
+              </span>
+              <input
+                type="checkbox"
+                class="toggle-input"
+                checked={localCompactNotes}
+                onchange={(e) => handleCompactNotesChange(e.currentTarget.checked)}
               />
               <span class="toggle-slider"></span>
             </label>

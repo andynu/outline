@@ -73,6 +73,7 @@
   // Note editing state
   let isEditingNote = $state(false);
   let noteInputElement: HTMLTextAreaElement | undefined = $state();
+  let isNoteExpanded = $state(false);  // For compact notes toggle
 
   // Reactive checks
   let isFocused = $derived(outline.focusedId === item.node.id);
@@ -585,6 +586,18 @@
   // URL pattern for linkifying notes
   const NOTE_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.)[^\s<>[\]{}|\\^`"']+/g;
 
+  /** Get first line of note text */
+  function getFirstLine(text: string): string {
+    if (!text) return '';
+    const firstNewline = text.indexOf('\n');
+    return firstNewline === -1 ? text : text.substring(0, firstNewline);
+  }
+
+  /** Check if note has multiple lines */
+  function hasMultipleLines(text: string): boolean {
+    return text?.includes('\n') ?? false;
+  }
+
   /** Convert URLs in text to clickable links, escaping HTML */
   function linkifyNote(text: string): string {
     if (!text) return '';
@@ -1086,12 +1099,15 @@
   </div>
 
   {#if item.node.note || isEditingNote}
+    {@const noteText = item.node.note || ''}
+    {@const isMultiline = hasMultipleLines(noteText)}
+    {@const showCompact = settings.settings.compactNotes && isMultiline && !isNoteExpanded && !isEditingNote}
     <div class="note-row">
       {#if isEditingNote && isFocused}
         <textarea
           class="note-input"
           bind:this={noteInputElement}
-          value={item.node.note || ''}
+          value={noteText}
           oninput={handleNoteInput}
           onkeydown={handleNoteKeydown}
           onblur={handleNoteBlur}
@@ -1102,9 +1118,26 @@
         <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
         <div
           class="note-content"
+          class:compact={showCompact}
           onclick={handleNoteClick}
         >
-          {@html linkifyNote(item.node.note || '')}
+          {#if showCompact}
+            {@html linkifyNote(getFirstLine(noteText))}
+            <button
+              class="note-expand-btn"
+              onclick={(e) => { e.stopPropagation(); isNoteExpanded = true; }}
+              title="Show full note"
+            >…</button>
+          {:else}
+            {@html linkifyNote(noteText)}
+            {#if settings.settings.compactNotes && isMultiline && isNoteExpanded}
+              <button
+                class="note-collapse-btn"
+                onclick={(e) => { e.stopPropagation(); isNoteExpanded = false; }}
+                title="Collapse note"
+              >▲</button>
+            {/if}
+          {/if}
         </div>
       {/if}
     </div>
@@ -1392,6 +1425,37 @@
   .outline-item.checked .note-content {
     text-decoration: line-through;
     opacity: 0.6;
+  }
+
+  /* Compact note display */
+  .note-content.compact {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  .note-expand-btn,
+  .note-collapse-btn {
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    font-size: 0.85em;
+    padding: 0 4px;
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+
+  .note-expand-btn:hover,
+  .note-collapse-btn:hover {
+    color: var(--text-secondary);
+    opacity: 1;
+  }
+
+  .note-collapse-btn {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.7em;
   }
 
   .editor-wrapper {
