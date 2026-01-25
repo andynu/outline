@@ -647,6 +647,109 @@ pub fn import_opml_as_document(
     })
 }
 
+/// Import a Dynalist backup zip file, creating documents in an optional folder
+#[tauri::command]
+pub fn import_dynalist_backup(
+    state: State<AppState>,
+    zip_path: String,
+    folder_name: Option<String>,
+) -> Result<Vec<ImportResult>, String> {
+    use std::io::Read;
+
+    ensure_dirs()?;
+
+    // Open the zip file
+    let file = std::fs::File::open(&zip_path)
+        .map_err(|e| format!("Failed to open zip file: {}", e))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| format!("Failed to read zip archive: {}", e))?;
+
+    // Create folder if specified
+    let folder_id = if let Some(ref name) = folder_name {
+        Some(crate::data::create_folder(name)?.id)
+    } else {
+        None
+    };
+
+    let mut results = Vec::new();
+    let search_index = state.search_index.lock().ok();
+
+    // Process each file in the archive
+    for i in 0..archive.len() {
+        let mut zip_file = archive.by_index(i)
+            .map_err(|e| format!("Failed to read zip entry: {}", e))?;
+
+        let name = zip_file.name().to_string();
+
+        // Only process .opml files
+        if !name.to_lowercase().ends_with(".opml") {
+            continue;
+        }
+
+        // Read file content
+        let mut content = String::new();
+        zip_file.read_to_string(&mut content)
+            .map_err(|e| format!("Failed to read {}: {}", name, e))?;
+
+        // Parse OPML and get title
+        let nodes = match crate::import_export::parse_opml(&content) {
+            Ok(nodes) => nodes,
+            Err(e) => {
+                log::warn!("Failed to parse {}: {}", name, e);
+                continue;
+            }
+        };
+
+        let title = crate::import_export::get_opml_title(&content)
+            .unwrap_or_else(|| {
+                // Use filename without extension as fallback title
+                name.trim_end_matches(".opml")
+                    .trim_end_matches(".OPML")
+                    .to_string()
+            });
+
+        // Create new document
+        let doc_uuid = Uuid::now_v7();
+        let doc_dir = documents_dir().join(doc_uuid.to_string());
+
+        let mut doc = match Document::create(doc_dir) {
+            Ok(d) => d,
+            Err(e) => {
+                log::warn!("Failed to create document for {}: {}", name, e);
+                continue;
+            }
+        };
+
+        if let Err(e) = import_nodes_to_document(&mut doc, nodes.clone()) {
+            log::warn!("Failed to import nodes for {}: {}", name, e);
+            continue;
+        }
+
+        let node_count = doc.state.nodes.len();
+
+        // Index for search
+        if let Some(ref index_guard) = search_index {
+            if let Some(ref index) = **index_guard {
+                let _ = index.index_document(&doc_uuid, &doc.state.nodes);
+                let _ = index.update_document_links(&doc_uuid, &doc.state.nodes);
+            }
+        }
+
+        // Move to folder if specified
+        if let Some(ref fid) = folder_id {
+            let _ = crate::data::move_document_to_folder(&doc_uuid.to_string(), Some(fid), None);
+        }
+
+        results.push(ImportResult {
+            doc_id: doc_uuid.to_string(),
+            title,
+            node_count,
+        });
+    }
+
+    Ok(results)
+}
+
 /// Export current document to OPML format
 #[tauri::command]
 pub fn export_opml(state: State<AppState>, title: String) -> Result<String, String> {

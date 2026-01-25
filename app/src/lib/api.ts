@@ -541,6 +541,17 @@ export async function importOpmlAsDocument(content: string): Promise<ImportOpmlR
   });
 }
 
+// Import all OPML files from a Dynalist backup zip into a folder
+export async function importDynalistBackup(
+  zipPath: string,
+  folderName?: string
+): Promise<ImportOpmlResult[]> {
+  return invokeOrMock('import_dynalist_backup', { zipPath, folderName }, () => {
+    console.warn('Dynalist backup import not supported in browser-only mode');
+    return [];
+  });
+}
+
 // Export current document to OPML format
 export async function exportOpml(title: string): Promise<string> {
   return invokeOrMock('export_opml', { title }, () => generateMockOpml(title));
