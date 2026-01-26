@@ -345,8 +345,8 @@
         showQuickMove = true;
       }
     }
-    // Ctrl+I: Show inbox
-    else if (event.ctrlKey && !event.shiftKey && event.key === 'i') {
+    // Ctrl+Shift+I: Show inbox
+    else if (event.ctrlKey && event.shiftKey && event.key === 'I') {
       event.preventDefault();
       showInbox = true;
     }
@@ -826,7 +826,7 @@
       <button
         class="toolbar-btn"
         onclick={() => showInbox = true}
-        title="Inbox (Ctrl+I)"
+        title="Inbox (Ctrl+Shift+I)"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
