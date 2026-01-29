@@ -195,7 +195,8 @@ test.describe('Settings panel', () => {
     const modal = page.locator('.modal[aria-labelledby="settings-title"]');
     await expect(modal).toBeVisible();
 
-    const browseBtn = modal.locator('.btn-browse');
+    // Use more specific locator - the Browse button with 'Browse...' text (not Import Now)
+    const browseBtn = modal.locator('.btn-browse:has-text("Browse...")');
     await expect(browseBtn).toBeVisible();
     await expect(browseBtn).toHaveText('Browse...');
   });

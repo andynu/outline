@@ -83,7 +83,7 @@
 <div
   class="context-menu"
   bind:this={menuElement}
-  style="left: {position.x}px; top: {position.y}px"
+  style="left: {adjustedPosition().x}px; top: {adjustedPosition().y}px"
   role="menu"
 >
   {#each items as item}

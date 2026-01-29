@@ -63,14 +63,13 @@ test.describe('Paste markdown lists', () => {
       await navigator.clipboard.writeText(text);
     }, markdownList);
     await page.keyboard.press('Control+v');
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(500);  // Allow async node creation to complete
 
     // Verify checkbox items were created
     const checkboxes = page.locator('.checkbox-btn');
-    const checkboxCount = await checkboxes.count();
 
-    // Should have at least 2 checkboxes
-    expect(checkboxCount).toBeGreaterThanOrEqual(2);
+    // Should have at least 2 checkboxes - wait for them to appear
+    await expect(checkboxes).toHaveCount(2, { timeout: 2000 });
 
     // Verify one is checked
     const checkedCheckboxes = page.locator('.checkbox-icon.checked');

@@ -10,6 +10,7 @@ import { DOMSerializer } from '@tiptap/pm/model';
 import type { Editor } from '@tiptap/core';
 import type { EditorView } from '@tiptap/pm/view';
 import { outline } from './outline.svelte';
+import { exportSelectionMarkdown } from './api';
 
 /**
  * Context passed to keyboard handlers
@@ -427,6 +428,21 @@ function handleCtrlShiftG(ctx: KeyboardContext): HandlerResult {
   return true;
 }
 
+// === Copy as Markdown ===
+
+function handleCtrlShiftC(ctx: KeyboardContext): HandlerResult {
+  ctx.event.preventDefault();
+  // Copy selected nodes (or focused node if no selection) as markdown
+  const selectedNodes = outline.getSelectedNodes();
+  const nodeIds = selectedNodes.length > 0
+    ? selectedNodes.map(n => n.id)
+    : [ctx.nodeId];
+  exportSelectionMarkdown(nodeIds, true).then(markdown => {
+    navigator.clipboard.writeText(markdown);
+  });
+  return true;
+}
+
 // === Zoom Handlers ===
 
 function handleCtrlBracketRight(ctx: KeyboardContext): HandlerResult {
@@ -486,6 +502,16 @@ const keyboardShortcuts: KeyboardShortcut[] = [
   { key: 'L', mod: true, shift: false, handler: handleAltJ, description: 'Next sibling' },
   { key: '-', mod: true, handler: handleAltH, description: 'Go to parent' },
 
+  // Alt+HJKL navigation (traditional vim-style)
+  { key: 'h', alt: true, handler: handleAltH, description: 'Go to parent' },
+  { key: 'H', alt: true, handler: handleAltH, description: 'Go to parent' },
+  { key: 'l', alt: true, handler: handleAltL, description: 'Go to first child' },
+  { key: 'L', alt: true, handler: handleAltL, description: 'Go to first child' },
+  { key: 'j', alt: true, handler: handleAltJ, description: 'Next sibling' },
+  { key: 'J', alt: true, handler: handleAltJ, description: 'Next sibling' },
+  { key: 'k', alt: true, handler: handleAltK, description: 'Previous sibling' },
+  { key: 'K', alt: true, handler: handleAltK, description: 'Previous sibling' },
+
   // Indent/dedent alternatives
   { key: ',', mod: true, handler: handleCtrlComma, description: 'Dedent' },
   { key: '.', mod: true, handler: handleCtrlPeriod, description: 'Toggle collapse' },
@@ -507,6 +533,10 @@ const keyboardShortcuts: KeyboardShortcut[] = [
   // Web search
   { key: 'g', mod: true, shift: true, handler: handleCtrlShiftG, description: 'Web search' },
   { key: 'G', mod: true, shift: true, handler: handleCtrlShiftG, description: 'Web search' },
+
+  // Copy as markdown
+  { key: 'c', mod: true, shift: true, handler: handleCtrlShiftC, description: 'Copy as markdown' },
+  { key: 'C', mod: true, shift: true, handler: handleCtrlShiftC, description: 'Copy as markdown' },
 
   // Zoom
   { key: ']', mod: true, handler: handleCtrlBracketRight, description: 'Zoom into subtree' },

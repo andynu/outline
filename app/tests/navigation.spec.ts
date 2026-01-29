@@ -196,13 +196,14 @@ test.describe('Navigation', () => {
     // Verify we can see the zoom breadcrumbs
     await expect(page.locator('.zoom-breadcrumbs')).toBeVisible();
 
-    // At this point, focusedId points to the zoomed node which is NOT visible
-    // (only its children are visible). Press ArrowDown should select first child.
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(100);
-
-    // Verify the first child is now focused
+    // After zooming, focus automatically moves to the first child
+    // (improved UX compared to leaving focus on invisible zoomed node)
     const focusedItem = page.locator('.outline-item.focused .editor-wrapper');
     await expect(focusedItem).toContainText('Child item 1');
+
+    // Arrow Down moves to next child
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(100);
+    await expect(focusedItem).toContainText('Child item 2');
   });
 });

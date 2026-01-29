@@ -318,26 +318,34 @@ test.describe('Bulk operations on multi-selection', () => {
       const items = page.locator('.outline-item');
       const editors = page.locator('.editor-wrapper');
 
-      // First, convert items to checkboxes
+      // First, convert items to checkboxes via context menu
       await editors.first().click({ modifiers: ['Control'] });
       await page.waitForTimeout(50);
       await editors.nth(1).click({ modifiers: ['Control'] });
       await page.waitForTimeout(50);
 
-      // Press Ctrl+Enter to make them checkboxes
-      await page.keyboard.press('Control+Enter');
+      // Right-click to open context menu and select "Convert to checkbox"
+      await items.first().click({ button: 'right' });
+      await page.waitForTimeout(100);
+      const contextMenu = page.locator('.context-menu');
+      await contextMenu.locator('text=Convert to checkbox').click();
       await page.waitForTimeout(200);
 
       // Verify they're now checkboxes
-      await expect(items.first().locator('.checkbox-btn')).toBeVisible();
-      await expect(items.nth(1).locator('.checkbox-btn')).toBeVisible();
+      await expect(items.first().locator('.checkbox-btn')).toBeVisible({ timeout: 2000 });
+      await expect(items.nth(1).locator('.checkbox-btn')).toBeVisible({ timeout: 2000 });
+
+      // Need to re-select items for bulk menu since context menu was used
+      await editors.first().click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+      await editors.nth(1).click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
 
       // Right-click to open context menu
       await items.first().click({ button: 'right' });
       await page.waitForTimeout(100);
 
       // Click "Convert to bullet"
-      const contextMenu = page.locator('.context-menu');
       const convertBtn = contextMenu.locator('text=Convert to bullet');
 
       if (await convertBtn.isEnabled()) {

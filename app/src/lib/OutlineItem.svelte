@@ -21,7 +21,7 @@
   import ContextMenu from './ContextMenu.svelte';
   import { processStaticContentElement, handleStaticContentClick } from './renderStaticContent';
   import { zoom } from './zoom.svelte';
-  import { openUrl } from './api';
+  import { openUrl, exportSelectionMarkdown, exportSelectionPlainText } from './api';
   import { stripHtml } from './utils';
   import { parseMarkdownList, looksLikeMarkdownList } from './markdownPaste';
   import { settings } from './settings.svelte';
@@ -74,6 +74,7 @@
   let isEditingNote = $state(false);
   let noteInputElement: HTMLTextAreaElement | undefined = $state();
   let isNoteExpanded = $state(false);  // For compact notes toggle
+  let localNoteValue = $state(item.node.note || '');  // Local state for controlled textarea
 
   // Reactive checks
   let isFocused = $derived(outline.focusedId === item.node.id);
@@ -90,6 +91,15 @@
       if (currentContent !== item.node.content) {
         editor.commands.setContent(item.node.content || '');
       }
+    }
+  });
+
+  // Sync localNoteValue when item.node.note changes externally (e.g., from sync or undo)
+  // Only sync when not actively editing the note
+  $effect(() => {
+    const storeNote = item.node.note || '';
+    if (!isEditingNote && localNoteValue !== storeNote) {
+      localNoteValue = storeNote;
     }
   });
 
@@ -557,6 +567,7 @@
 
   function handleNoteInput(e: Event) {
     const target = e.target as HTMLTextAreaElement;
+    localNoteValue = target.value;  // Update local state immediately
     outline.updateNote(item.node.id, target.value);
   }
 
@@ -872,7 +883,128 @@
   const hasChildren = $derived(outline.hasChildren(item.node.id));
   const isCollapsed = $derived(outline.isCollapsed(item.node.id));
 
-  const contextMenuItems = $derived([
+  // Bulk selection state
+  const hasMultiSelection = $derived(outline.selectedIds.size > 1);
+  const selectionCount = $derived(outline.selectedIds.size);
+
+  // Bulk action functions
+  async function copyAsMarkdown() {
+    const selectedNodes = outline.getSelectedNodes();
+    const nodeIds = selectedNodes.map(n => n.id);
+    const markdown = await exportSelectionMarkdown(nodeIds, true);
+    await navigator.clipboard.writeText(markdown);
+  }
+
+  async function copyAsPlainText() {
+    const selectedNodes = outline.getSelectedNodes();
+    const nodeIds = selectedNodes.map(n => n.id);
+    const plainText = await exportSelectionPlainText(nodeIds, true);
+    await navigator.clipboard.writeText(plainText);
+  }
+
+  async function bulkComplete() {
+    await outline.toggleSelectedCheckboxes();
+    outline.clearSelection();
+  }
+
+  async function bulkDelete() {
+    await outline.deleteSelectedNodes();
+  }
+
+  async function bulkConvertToCheckbox() {
+    const selectedNodes = outline.getSelectedNodes();
+    for (const node of selectedNodes) {
+      if (node.node_type !== 'checkbox') {
+        await outline.toggleNodeType(node.id);
+      }
+    }
+    outline.clearSelection();
+  }
+
+  async function bulkConvertToBullet() {
+    const selectedNodes = outline.getSelectedNodes();
+    for (const node of selectedNodes) {
+      if (node.node_type === 'checkbox') {
+        await outline.toggleNodeType(node.id);
+      }
+    }
+    outline.clearSelection();
+  }
+
+  async function moveToTop() {
+    // Move selected items to top of their current parent
+    const selectedNodes = outline.getSelectedNodes();
+    for (let i = selectedNodes.length - 1; i >= 0; i--) {
+      const node = selectedNodes[i];
+      await outline.moveNodeTo(node.id, node.parent_id ?? null, 0);
+    }
+    outline.clearSelection();
+  }
+
+  async function moveToBottom() {
+    // Move selected items to bottom of their current parent
+    const selectedNodes = outline.getSelectedNodes();
+    const visibleNodes = outline.getVisibleNodes();
+    const lastPosition = visibleNodes.length;
+    for (const node of selectedNodes) {
+      await outline.moveNodeTo(node.id, node.parent_id ?? null, lastPosition);
+    }
+    outline.clearSelection();
+  }
+
+  // Bulk context menu items
+  const bulkContextMenuItems = $derived([
+    {
+      label: `Complete all (${selectionCount})`,
+      action: bulkComplete,
+      shortcut: 'Ctrl+Enter',
+    },
+    { separator: true as const },
+    {
+      label: 'Delete selected',
+      action: bulkDelete,
+      shortcut: 'Ctrl+Shift+Backspace',
+    },
+    { separator: true as const },
+    {
+      label: 'Move to...',
+      action: () => {}, // Placeholder - would open a move dialog
+      disabled: true,
+    },
+    {
+      label: 'Move to top',
+      action: moveToTop,
+    },
+    {
+      label: 'Move to bottom',
+      action: moveToBottom,
+    },
+    { separator: true as const },
+    {
+      label: 'Copy as Markdown',
+      action: copyAsMarkdown,
+    },
+    {
+      label: 'Copy as Plain Text',
+      action: copyAsPlainText,
+    },
+    {
+      label: 'Export to file...',
+      action: () => outline.exportSelection(),
+      shortcut: 'Ctrl+Shift+E',
+    },
+    { separator: true as const },
+    {
+      label: 'Convert to checkbox',
+      action: bulkConvertToCheckbox,
+    },
+    {
+      label: 'Convert to bullet',
+      action: bulkConvertToBullet,
+    },
+  ]);
+
+  const contextMenuItems = $derived(hasMultiSelection ? bulkContextMenuItems : [
     {
       label: item.node.is_checked ? 'Mark Incomplete' : 'Mark Complete',
       action: () => outline.toggleCheckbox(item.node.id),
@@ -1098,16 +1230,15 @@
     {/if}
   </div>
 
-  {#if item.node.note || isEditingNote}
-    {@const noteText = item.node.note || ''}
-    {@const isMultiline = hasMultipleLines(noteText)}
+  {#if localNoteValue || isEditingNote}
+    {@const isMultiline = hasMultipleLines(localNoteValue)}
     {@const showCompact = settings.settings.compactNotes && isMultiline && !isNoteExpanded && !isEditingNote}
     <div class="note-row">
       {#if isEditingNote && isFocused}
         <textarea
           class="note-input"
           bind:this={noteInputElement}
-          value={noteText}
+          bind:value={localNoteValue}
           oninput={handleNoteInput}
           onkeydown={handleNoteKeydown}
           onblur={handleNoteBlur}
@@ -1122,14 +1253,14 @@
           onclick={handleNoteClick}
         >
           {#if showCompact}
-            {@html linkifyNote(getFirstLine(noteText))}
+            {@html linkifyNote(getFirstLine(localNoteValue))}
             <button
               class="note-expand-btn"
               onclick={(e) => { e.stopPropagation(); isNoteExpanded = true; }}
               title="Show full note"
             >…</button>
           {:else}
-            {@html linkifyNote(noteText)}
+            {@html linkifyNote(localNoteValue)}
             {#if settings.settings.compactNotes && isMultiline && isNoteExpanded}
               <button
                 class="note-collapse-btn"

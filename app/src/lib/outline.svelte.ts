@@ -1006,10 +1006,11 @@ export const outline = {
 
         // Create the node
         const result = await api.createNode(parentId, position, item.content);
+        let latestState = result.state;
 
         // Update node type if checkbox
         if (item.nodeType === 'checkbox') {
-          await api.updateNode(result.id, {
+          latestState = await api.updateNode(result.id, {
             node_type: 'checkbox',
             is_checked: item.isChecked,
           });
@@ -1031,8 +1032,8 @@ export const outline = {
         // Update position tracking
         positionByParent.set(parentId, position + 1);
 
-        // Update state from the result
-        updateFromState(result.state);
+        // Update state from the latest state (includes checkbox conversion)
+        updateFromState(latestState);
       }
 
       // Focus the first created item
