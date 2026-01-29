@@ -28,20 +28,18 @@ pub fn run() {
                 )?;
             }
 
-            // Documents watcher disabled for now - was causing constant refreshes
-            // TODO: Debug why watcher fires events constantly
-            // let app_handle = app.handle().clone();
-            // match watcher::start_watcher(app_handle) {
-            //     Ok(handle) => {
-            //         let watcher_state: tauri::State<WatcherState> = app.state();
-            //         watcher_state.set_handle(handle);
-            //         log::info!("Documents watcher initialized");
-            //     }
-            //     Err(e) => {
-            //         log::error!("Failed to start documents watcher: {}", e);
-            //     }
-            // }
-            let _ = app.state::<WatcherState>(); // Keep state registered
+            // Start the documents watcher
+            let app_handle = app.handle().clone();
+            match watcher::start_watcher(app_handle) {
+                Ok(handle) => {
+                    let watcher_state: tauri::State<WatcherState> = app.state();
+                    watcher_state.set_handle(handle);
+                    log::info!("Documents watcher initialized");
+                }
+                Err(e) => {
+                    log::error!("Failed to start documents watcher: {}", e);
+                }
+            }
 
             Ok(())
         })

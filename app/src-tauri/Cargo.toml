@@ -35,8 +35,7 @@ rrule = "0.13"
 quick-xml = "0.37"
 regex = "1.10"
 urlencoding = "2.1"
-notify = "7.0"
-notify-debouncer-mini = "0.5"
+notify-debouncer-full = "0.5"
 zip = "2.2"
 
 [dev-dependencies]

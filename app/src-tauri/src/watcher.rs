@@ -3,7 +3,11 @@
 //! Watches the documents directory for changes and emits Tauri events
 //! when documents are added, removed, or modified.
 
-use notify_debouncer_mini::{new_debouncer, DebouncedEventKind, DebounceEventResult};
+use notify_debouncer_full::{
+    new_debouncer, DebounceEventResult,
+    notify::event::EventKind,
+    notify::RecursiveMode,
+};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Sender};
 use std::sync::Mutex;
@@ -92,7 +96,8 @@ pub fn start_watcher(app_handle: AppHandle) -> Result<WatcherHandle, String> {
         let (event_tx, event_rx) = mpsc::channel::<DebounceEventResult>();
 
         // Create debounced watcher with 500ms debounce
-        let mut debouncer = match new_debouncer(Duration::from_millis(500), event_tx) {
+        // Using notify-debouncer-full to preserve EventKind information
+        let mut debouncer = match new_debouncer(Duration::from_millis(500), None, event_tx) {
             Ok(d) => d,
             Err(e) => {
                 log::error!("Failed to create debouncer: {}", e);
@@ -101,9 +106,9 @@ pub fn start_watcher(app_handle: AppHandle) -> Result<WatcherHandle, String> {
         };
 
         // Watch documents directory recursively
-        if let Err(e) = debouncer.watcher().watch(
+        if let Err(e) = debouncer.watch(
             &docs_dir_clone,
-            notify::RecursiveMode::Recursive,
+            RecursiveMode::Recursive,
         ) {
             log::error!("Failed to watch directory: {}", e);
             return;
@@ -121,14 +126,28 @@ pub fn start_watcher(app_handle: AppHandle) -> Result<WatcherHandle, String> {
             // Check for events (with timeout to allow checking stop signal)
             match event_rx.recv_timeout(Duration::from_millis(100)) {
                 Ok(Ok(events)) => {
-                    // Collect changed document IDs
+                    // Collect changed document IDs, filtering out Access events
                     let mut changed_ids: Vec<String> = Vec::new();
 
-                    for event in events {
-                        if event.kind == DebouncedEventKind::Any {
-                            // Extract document ID from path
-                            if let Some(doc_id) = extract_document_id(&event.path, &docs_dir_clone) {
+                    for debounced_event in events {
+                        let event = &debounced_event.event;
+
+                        // Skip Access events - we only care about actual modifications
+                        // Access events fire when files are read (e.g., by Dropbox sync scanning)
+                        if matches!(event.kind, EventKind::Access(_)) {
+                            continue;
+                        }
+
+                        // Only process Create, Modify, and Remove events
+                        if !matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)) {
+                            continue;
+                        }
+
+                        // Extract document ID from each path in the event
+                        for path in &event.paths {
+                            if let Some(doc_id) = extract_document_id(path, &docs_dir_clone) {
                                 if !changed_ids.contains(&doc_id) {
+                                    log::debug!("Document change detected: {} ({:?})", doc_id, event.kind);
                                     changed_ids.push(doc_id);
                                 }
                             }
