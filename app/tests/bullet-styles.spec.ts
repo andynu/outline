@@ -15,13 +15,14 @@ test.describe('Bullet styles', () => {
 
     // Create a new item with no children
     await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
     await page.keyboard.type('Leaf item test');
     await page.waitForTimeout(100);
 
-    // The new item should show a filled bullet (same as expanded parents)
-    const newItem = page.locator('.outline-item').filter({ hasText: 'Leaf item test' });
+    // The new item should be focused (use .focused class like other tests)
+    const newItem = page.locator('.outline-item.focused');
     await expect(newItem).toBeVisible();
-    const bullet = newItem.locator('.bullet');
+    const bullet = newItem.locator('> .item-row .bullet');
 
     // Check that it's a filled bullet
     await expect(bullet).toHaveText('●');
