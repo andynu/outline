@@ -1,8 +1,7 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef, useDeferredValue, useTransition } from 'react';
 import { useOutlineStore } from './store/outlineStore';
 import { useZoomStore, reapplyZoom } from './store/zoomStore';
 import { OutlineItem } from './components/OutlineItem';
-import { VirtualOutlineList } from './components/VirtualOutlineList';
 import { Sidebar, SidebarRef } from './components/Sidebar';
 import { MenuDropdown, type MenuEntry } from './components/ui/MenuDropdown';
 import { KeyboardShortcutsModal } from './components/ui/KeyboardShortcutsModal';
@@ -883,7 +882,9 @@ function App() {
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
-  const tree = useMemo(() => getTree(), [getTree, nodes, hideCompleted, filterQuery, zoomedNodeId]);
+  const rawTree = useMemo(() => getTree(), [getTree, nodes, hideCompleted, filterQuery, zoomedNodeId]);
+  // Defer tree updates to keep UI responsive during large changes (expand/collapse)
+  const tree = useDeferredValue(rawTree);
   const visibleCount = useMemo(() => {
     function count(items: TreeNode[]): number {
       return items.reduce((sum, item) => sum + 1 + count(item.children), 0);

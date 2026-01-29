@@ -31,6 +31,7 @@ interface OutlineItemProps {
   onNavigateToNode?: (nodeId: string) => void;
   isInFocusedSubtree?: boolean;
   onOpenBulkQuickMove?: () => void;
+  flat?: boolean;  // When true, don't render children recursively (for virtualization)
 }
 
 // Memoized to prevent unnecessary re-renders
@@ -38,7 +39,8 @@ export const OutlineItem = memo(function OutlineItem({
   item,
   onNavigateToNode,
   isInFocusedSubtree = false,
-  onOpenBulkQuickMove
+  onOpenBulkQuickMove,
+  flat = false
 }: OutlineItemProps) {
   const { node, depth, hasChildren, children } = item;
 
@@ -1525,8 +1527,8 @@ export const OutlineItem = memo(function OutlineItem({
         </div>
       )}
 
-      {/* Recursive children */}
-      {hasChildren && !node.collapsed && (
+      {/* Recursive children (skip when flat mode for virtualization) */}
+      {!flat && hasChildren && !node.collapsed && (
         <div className="children-wrapper">
           <div className="indent-guide"></div>
           <div className="children">
