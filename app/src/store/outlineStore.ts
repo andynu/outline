@@ -20,6 +20,7 @@ interface OutlineState {
   // Core state
   nodes: Node[];
   focusedId: string | null;
+  pendingCursorPos: number | null;  // Cursor position to set when editor gains focus (null = end)
   selectedIds: Set<string>;  // Multi-selection (empty = single-selection mode)
   loading: boolean;
   error: string | null;
@@ -40,6 +41,8 @@ interface OutlineState {
   // Actions - State setters
   setNodes: (nodes: Node[]) => void;
   setFocusedId: (id: string | null) => void;
+  setPendingCursorPos: (pos: number | null) => void;
+  setFocusWithCursor: (id: string | null, cursorPos: number | null) => void;
   updateFromState: (state: DocumentState) => void;
   toggleHideCompleted: () => void;
   setHideCompleted: (hide: boolean) => void;
@@ -84,7 +87,7 @@ interface OutlineState {
   mergeWithPreviousSibling: (nodeId: string) => Promise<{ cursorPos: number; newFocusId: string } | null>;
   updateContent: (nodeId: string, content: string) => Promise<void>;
   updateNote: (nodeId: string, note: string) => void;  // Debounced
-  deleteNode: (nodeId: string) => Promise<string | null>;
+  deleteNode: (nodeId: string, focusDirection?: 'previous' | 'next') => Promise<string | null>;
   deleteAllCompleted: () => Promise<number>;
   toggleCollapse: (nodeId: string) => Promise<void>;
   collapseNode: (nodeId: string) => Promise<void>;
@@ -338,6 +341,7 @@ function getVisibleNodesFromTree(tree: TreeNode[]): Node[] {
 export const useOutlineStore = create<OutlineState>((set, get) => ({
   nodes: [],
   focusedId: null,
+  pendingCursorPos: null,
   selectedIds: new Set<string>(),
   loading: false,
   error: null,
@@ -363,6 +367,10 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   setFocusedId: (id) => set({ focusedId: id }),
+
+  setPendingCursorPos: (pos) => set({ pendingCursorPos: pos }),
+
+  setFocusWithCursor: (id, cursorPos) => set({ focusedId: id, pendingCursorPos: cursorPos }),
 
   updateFromState: (state: DocumentState) => {
     const { nodesById, childrenByParent } = rebuildIndexes(state.nodes);
@@ -976,8 +984,8 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       const state = await api.loadDocument();
       updateFromState(state);
 
-      // Focus the previous sibling (where content was merged into)
-      setFocusedId(prevSibling.id);
+      // Focus the previous sibling with cursor at merge point
+      set({ focusedId: prevSibling.id, pendingCursorPos: plainTextLength });
 
       return { cursorPos: plainTextLength, newFocusId: prevSibling.id };
     } catch (e) {
@@ -1045,7 +1053,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     pendingNoteUpdates.set(nodeId, timer);
   },
 
-  deleteNode: async (nodeId: string) => {
+  deleteNode: async (nodeId: string, focusDirection: 'previous' | 'next' = 'previous') => {
     const { getVisibleNodes, updateFromState, _pushUndo, getNode } = get();
     const visible = getVisibleNodes();
     const idx = visible.findIndex(n => n.id === nodeId);
@@ -1070,10 +1078,19 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         timestamp: Date.now(),
       });
 
-      // Focus previous or next
-      const newFocusId = visible[idx - 1]?.id || visible[idx + 1]?.id;
+      // Focus based on direction preference
+      let newFocusId: string | undefined;
+      let cursorPos: number | null = null;
+      if (focusDirection === 'next') {
+        newFocusId = visible[idx + 1]?.id || visible[idx - 1]?.id;
+        // When focusing next, cursor should be at start (0)
+        cursorPos = visible[idx + 1]?.id ? 0 : null;
+      } else {
+        newFocusId = visible[idx - 1]?.id || visible[idx + 1]?.id;
+        // When focusing previous, cursor should be at end (null means end)
+      }
       if (newFocusId) {
-        set({ focusedId: newFocusId });
+        set({ focusedId: newFocusId, pendingCursorPos: cursorPos });
       }
       return newFocusId || null;
     } catch (e) {

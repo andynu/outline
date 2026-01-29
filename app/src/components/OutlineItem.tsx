@@ -44,7 +44,9 @@ export const OutlineItem = memo(function OutlineItem({
 
   // Store selectors - use individual selectors for better performance
   const focusedId = useOutlineStore(state => state.focusedId);
+  const pendingCursorPos = useOutlineStore(state => state.pendingCursorPos);
   const setFocusedId = useOutlineStore(state => state.setFocusedId);
+  const setPendingCursorPos = useOutlineStore(state => state.setPendingCursorPos);
   const addSiblingAfter = useOutlineStore(state => state.addSiblingAfter);
   const updateContent = useOutlineStore(state => state.updateContent);
   const deleteNode = useOutlineStore(state => state.deleteNode);
@@ -484,9 +486,9 @@ export const OutlineItem = memo(function OutlineItem({
               const isEmpty = view.state.doc.textContent.length === 0;
 
               if (isEmpty) {
-                // Empty node - delete it
+                // Empty node - delete it and focus next item
                 event.preventDefault();
-                store.deleteNode(nodeId);
+                store.deleteNode(nodeId, 'next');
                 return true;
               }
 
@@ -785,9 +787,18 @@ export const OutlineItem = memo(function OutlineItem({
       editorRef.current = editor;
       setEditorReady(true);
 
-      // Focus the editor
+      // Focus the editor at the pending cursor position or end
       setTimeout(() => {
-        editor.commands.focus('end');
+        const cursorPos = useOutlineStore.getState().pendingCursorPos;
+        if (cursorPos !== null) {
+          // Position is in plain text chars, need to convert to ProseMirror position
+          // ProseMirror adds 1 for the document start
+          editor.commands.focus();
+          editor.commands.setTextSelection(cursorPos + 1);
+          useOutlineStore.getState().setPendingCursorPos(null);
+        } else {
+          editor.commands.focus('end');
+        }
       }, 0);
     } else if (!isFocused && editorRef.current) {
       // Destroy editor when losing focus

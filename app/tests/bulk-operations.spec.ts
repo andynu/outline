@@ -335,17 +335,23 @@ test.describe('Bulk operations on multi-selection', () => {
       await expect(items.first().locator('.checkbox-btn')).toBeVisible({ timeout: 2000 });
       await expect(items.nth(1).locator('.checkbox-btn')).toBeVisible({ timeout: 2000 });
 
-      // Need to re-select items for bulk menu since context menu was used
+      // Press Escape to clear selection, then re-select for bulk menu
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(50);
       await editors.first().click({ modifiers: ['Control'] });
       await page.waitForTimeout(50);
       await editors.nth(1).click({ modifiers: ['Control'] });
       await page.waitForTimeout(50);
 
+      // Verify both items are selected before opening context menu
+      await expect(items.first()).toHaveClass(/selected/);
+      await expect(items.nth(1)).toHaveClass(/selected/);
+
       // Right-click to open context menu
       await items.first().click({ button: 'right' });
       await page.waitForTimeout(100);
 
-      // Click "Convert to bullet"
+      // Click "Convert to bullet" (lowercase - bulk menu)
       const convertBtn = contextMenu.locator('text=Convert to bullet');
 
       if (await convertBtn.isEnabled()) {
