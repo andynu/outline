@@ -32,6 +32,7 @@ interface OutlineItemProps {
   isInFocusedSubtree?: boolean;
   onOpenBulkQuickMove?: () => void;
   flat?: boolean;  // When true, don't render children recursively (for virtualization)
+  childrenSlot?: React.ReactNode;  // Pre-rendered children when flat=true
 }
 
 // Memoized to prevent unnecessary re-renders
@@ -40,7 +41,8 @@ export const OutlineItem = memo(function OutlineItem({
   onNavigateToNode,
   isInFocusedSubtree = false,
   onOpenBulkQuickMove,
-  flat = false
+  flat = false,
+  childrenSlot
 }: OutlineItemProps) {
   const { node, depth, hasChildren, children } = item;
 
@@ -1528,21 +1530,25 @@ export const OutlineItem = memo(function OutlineItem({
       )}
 
       {/* Recursive children (skip when flat mode for virtualization) */}
-      {!flat && hasChildren && !node.collapsed && (
-        <div className="children-wrapper">
-          <div className="indent-guide"></div>
-          <div className="children">
-            {children.map(child => (
-              <OutlineItem
-                key={child.node.id}
-                item={child}
-                onNavigateToNode={onNavigateToNode}
-                isInFocusedSubtree={isFocused || isInFocusedSubtree}
-                onOpenBulkQuickMove={onOpenBulkQuickMove}
-              />
-            ))}
+      {flat ? (
+        childrenSlot
+      ) : (
+        hasChildren && !node.collapsed && (
+          <div className="children-wrapper">
+            <div className="indent-guide"></div>
+            <div className="children">
+              {children.map(child => (
+                <OutlineItem
+                  key={child.node.id}
+                  item={child}
+                  onNavigateToNode={onNavigateToNode}
+                  isInFocusedSubtree={isFocused || isInFocusedSubtree}
+                  onOpenBulkQuickMove={onOpenBulkQuickMove}
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        )
       )}
 
       {/* Context menu - show bulk menu when multiple items selected, otherwise single item menu */}

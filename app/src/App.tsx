@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useCallback, useRef, useDeferredValue, us
 import { useOutlineStore } from './store/outlineStore';
 import { useZoomStore, reapplyZoom } from './store/zoomStore';
 import { OutlineItem } from './components/OutlineItem';
+import { OutlineItemStatic } from './components/OutlineItemStatic';
 import { Sidebar, SidebarRef } from './components/Sidebar';
 import { MenuDropdown, type MenuEntry } from './components/ui/MenuDropdown';
 import { KeyboardShortcutsModal } from './components/ui/KeyboardShortcutsModal';
@@ -23,6 +24,84 @@ import React from 'react';
 
 // Note: Tree building is now handled by the store's getTree() method
 // which properly handles hideCompleted, filterQuery, and zoomedNodeId
+
+/**
+ * Smart renderer that uses OutlineItemStatic for unfocused items
+ * and full OutlineItem only for the focused item (where TipTap editor is needed).
+ * This dramatically reduces hook count: ~5 hooks per unfocused item vs ~40+ for OutlineItem.
+ *
+ * Each TreeItemRenderer subscribes to just its own focus state to avoid prop drilling
+ * and unnecessary re-renders when focusedId changes.
+ */
+interface TreeItemRendererProps {
+  item: TreeNode;
+  onNavigateToNode?: (nodeId: string) => void;
+  onOpenBulkQuickMove?: () => void;
+  isInFocusedSubtree?: boolean;
+}
+
+const TreeItemRenderer = React.memo(function TreeItemRenderer({
+  item,
+  onNavigateToNode,
+  onOpenBulkQuickMove,
+  isInFocusedSubtree = false,
+}: TreeItemRendererProps) {
+  // Subscribe to just whether this specific item is focused (boolean selector for efficient updates)
+  const isFocused = useOutlineStore(state => state.focusedId === item.node.id);
+  // For focused items, read fresh content from store to avoid stale data from useDeferredValue
+  // Use content string as selector return to avoid object reference changes causing re-renders
+  const freshContent = useOutlineStore(state =>
+    isFocused ? state.nodes.find(n => n.id === item.node.id)?.content : null
+  );
+  const { hasChildren, children } = item;
+  // Use fresh content for focused item, or fall back to tree data
+  const node = freshContent !== null ? { ...item.node, content: freshContent } : item.node;
+
+  // Build children slot for recursive rendering
+  const childrenSlot = hasChildren && !node.collapsed ? (
+    <div className="children-wrapper">
+      <div className="indent-guide"></div>
+      <div className="children">
+        {children.map(child => (
+          <TreeItemRenderer
+            key={child.node.id}
+            item={child}
+            onNavigateToNode={onNavigateToNode}
+            onOpenBulkQuickMove={onOpenBulkQuickMove}
+            isInFocusedSubtree={isFocused || isInFocusedSubtree}
+          />
+        ))}
+      </div>
+    </div>
+  ) : null;
+
+  // Focused item gets full OutlineItem with TipTap editor
+  if (isFocused) {
+    // Create item with fresh node data to avoid stale content from useDeferredValue
+    const freshItem = freshContent !== null ? { ...item, node } : item;
+    return (
+      <OutlineItem
+        item={freshItem}
+        onNavigateToNode={onNavigateToNode}
+        onOpenBulkQuickMove={onOpenBulkQuickMove}
+        isInFocusedSubtree={isInFocusedSubtree}
+        flat={true}
+        childrenSlot={childrenSlot}
+      />
+    );
+  }
+
+  // Unfocused items use lightweight OutlineItemStatic
+  return (
+    <OutlineItemStatic
+      item={item}
+      onNavigateToNode={onNavigateToNode}
+      isInFocusedSubtree={isInFocusedSubtree}
+      childrenSlot={childrenSlot}
+      onOpenBulkQuickMove={onOpenBulkQuickMove}
+    />
+  );
+});
 
 // Calculate document statistics
 function calculateDocumentStats(nodes: Node[]) {
@@ -1137,7 +1216,7 @@ function App() {
             <>
               <div className="outline-container">
                 {tree.map(item => (
-                  <OutlineItem
+                  <TreeItemRenderer
                     key={item.node.id}
                     item={item}
                     onOpenBulkQuickMove={() => {
