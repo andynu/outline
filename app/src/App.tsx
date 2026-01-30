@@ -53,11 +53,11 @@ const TreeItemRenderer = React.memo(function TreeItemRenderer({
   // For focused items, read fresh content from store to avoid stale data from useDeferredValue
   // Use content string as selector return to avoid object reference changes causing re-renders
   const freshContent = useOutlineStore(state =>
-    isFocused ? state.nodes.find(n => n.id === item.node.id)?.content : null
+    isFocused ? state.nodes.find(n => n.id === item.node.id)?.content ?? null : null
   );
   const { hasChildren, children } = item;
   // Use fresh content for focused item, or fall back to tree data
-  const node = freshContent !== null ? { ...item.node, content: freshContent } : item.node;
+  const node = freshContent != null ? { ...item.node, content: freshContent } : item.node;
 
   // Build children slot for recursive rendering
   const childrenSlot = hasChildren && !node.collapsed ? (
@@ -79,11 +79,9 @@ const TreeItemRenderer = React.memo(function TreeItemRenderer({
 
   // Focused item gets full OutlineItem with TipTap editor
   if (isFocused) {
-    // Create item with fresh node data to avoid stale content from useDeferredValue
-    const freshItem = freshContent !== null ? { ...item, node } : item;
     return (
       <OutlineItem
-        item={freshItem}
+        item={{ ...item, node }}
         onNavigateToNode={onNavigateToNode}
         onOpenBulkQuickMove={onOpenBulkQuickMove}
         isInFocusedSubtree={isInFocusedSubtree}

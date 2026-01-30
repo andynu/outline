@@ -139,19 +139,11 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
 
-  const handleContextMenu = (e: ReactMouseEvent) => {
+  const openContextMenu = (e: ReactMouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setContextMenuPosition({ x: e.clientX, y: e.clientY });
     setShowContextMenu(true);
-    // Don't set focus here - it would switch to OutlineItem and lose our context menu state
-  };
-
-  const handleMenuButtonClick = (e: ReactMouseEvent) => {
-    e.stopPropagation();
-    setContextMenuPosition({ x: e.clientX, y: e.clientY });
-    setShowContextMenu(true);
-    // Don't set focus here - it would switch to OutlineItem and lose our context menu state
   };
 
   // Get selected nodes info for bulk menu
@@ -231,12 +223,12 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
   return (
     <div ref={itemRef} className={itemClasses} style={{ marginLeft: depth * 24 }}
       onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
-      onContextMenu={handleContextMenu}>
+      onContextMenu={openContextMenu}>
       <div className="item-row" onClick={handleRowClick}>
         {/* Three-dot menu button - positioned in left margin, shows on hover */}
         <button
           className="hover-menu-btn"
-          onClick={handleMenuButtonClick}
+          onClick={openContextMenu}
           tabIndex={-1}
           aria-label="Open menu"
           title="Menu"

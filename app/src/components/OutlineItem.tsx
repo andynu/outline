@@ -1545,26 +1545,23 @@ export const OutlineItem = memo(function OutlineItem({
         </div>
       )}
 
-      {/* Recursive children (skip when flat mode for virtualization) */}
-      {flat ? (
-        childrenSlot
-      ) : (
-        hasChildren && !node.collapsed && (
-          <div className="children-wrapper">
-            <div className="indent-guide"></div>
-            <div className="children">
-              {children.map(child => (
-                <OutlineItem
-                  key={child.node.id}
-                  item={child}
-                  onNavigateToNode={onNavigateToNode}
-                  isInFocusedSubtree={isFocused || isInFocusedSubtree}
-                  onOpenBulkQuickMove={onOpenBulkQuickMove}
-                />
-              ))}
-            </div>
+      {/* Recursive children (flat mode uses pre-rendered childrenSlot) */}
+      {flat && childrenSlot}
+      {!flat && hasChildren && !node.collapsed && (
+        <div className="children-wrapper">
+          <div className="indent-guide"></div>
+          <div className="children">
+            {children.map(child => (
+              <OutlineItem
+                key={child.node.id}
+                item={child}
+                onNavigateToNode={onNavigateToNode}
+                isInFocusedSubtree={isFocused || isInFocusedSubtree}
+                onOpenBulkQuickMove={onOpenBulkQuickMove}
+              />
+            ))}
           </div>
-        )
+        </div>
       )}
 
       {/* Context menu - show bulk menu when multiple items selected, otherwise single item menu */}
