@@ -35,7 +35,23 @@ interface OutlineItemProps {
   childrenSlot?: React.ReactNode;  // Pre-rendered children when flat=true
 }
 
-// Memoized to prevent unnecessary re-renders
+/**
+ * Full-featured outline item with TipTap rich-text editor.
+ * Used only for the currently focused item to minimize overhead.
+ *
+ * Features:
+ * - TipTap editor with extensions (WikiLink, Hashtag, DueDate, Mention)
+ * - Suggestion popups for autocomplete
+ * - Full keyboard navigation and editing
+ * - Context menus (single and bulk operations)
+ * - Drag and drop support
+ * - Notes editing
+ *
+ * For unfocused items, use OutlineItemStatic instead (6 hooks vs ~40 here).
+ *
+ * @see OutlineItemStatic - Lightweight static renderer for unfocused items
+ * @see TreeItemRenderer in App.tsx - Routes between OutlineItem and OutlineItemStatic
+ */
 export const OutlineItem = memo(function OutlineItem({
   item,
   onNavigateToNode,

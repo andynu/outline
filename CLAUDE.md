@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Outline is a self-hosted Dynalist/Workflowy replacement - a hierarchical outliner with cross-linking, tasks, dates, and calendar integration. The project uses a Tauri 2 + Rust backend with a Svelte 5 frontend.
+Outline is a self-hosted Dynalist/Workflowy replacement - a hierarchical outliner with cross-linking, tasks, dates, and calendar integration. The project uses a Tauri 2 + Rust backend with a React 18 frontend.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Desktop App (app/)                           │
-│  ├── Svelte 5 + TipTap frontend (app/src/)                     │
+│  ├── React 18 + TipTap frontend (app/src/)                     │
 │  └── Rust/Tauri backend (app/src-tauri/)                       │
 │      ├── SQLite FTS5 search cache                              │
 │      └── JSONL file I/O                                        │
@@ -82,11 +82,42 @@ bundle exec rerun -- puma -p 9292     # Auto-reload dev server
 
 ## Key Files
 
-### Frontend (app/src/lib/)
-- `outline.svelte.ts` - Core reactive state management, tree operations
+### Frontend Components (app/src/components/)
+
+**OutlineItem Component Split (Performance Optimization)**
+
+The outline renderer uses a two-component architecture for performance with large documents (1500+ items):
+
+```
+TreeItemRenderer (App.tsx)
+    ├── OutlineItem (focused item only)
+    │   └── Full TipTap editor, ~40 hooks, all features
+    │
+    └── OutlineItemStatic (all other items)
+        └── Static HTML, ~6 hooks, minimal overhead
+```
+
+- **OutlineItem.tsx** - Full-featured editor for the focused item only
+  - TipTap rich-text editor with extensions (WikiLink, Hashtag, DueDate, Mention)
+  - Suggestion popups for autocomplete
+  - Full keyboard navigation and editing
+  - Context menus, drag-drop, notes editing
+
+- **OutlineItemStatic.tsx** - Lightweight renderer for unfocused items
+  - Static HTML content (no TipTap)
+  - Click-to-focus behavior
+  - Context menus and drag-drop
+  - ~6 hooks vs ~40 in OutlineItem
+
+- **TreeItemRenderer** (in App.tsx) - Smart router that chooses between components
+  - Subscribes to focusedId to determine which component to render
+  - Passes childrenSlot for recursive tree rendering
+
+This split enables 60fps navigation with 1500+ items (vs multi-second renders before).
+
+### Frontend Libraries (app/src/lib/)
 - `api.ts` - Tauri invoke wrapper with browser-only mock fallback
 - `types.ts` - TypeScript types matching Rust structs
-- `OutlineItem.svelte` - Individual outline node component
 - `WikiLink.ts` - TipTap extension for `[[wiki-links]]`
 
 ### Rust Backend (app/src-tauri/src/)

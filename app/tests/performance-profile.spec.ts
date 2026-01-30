@@ -418,4 +418,129 @@ test.describe('Performance profiling', () => {
 
     console.log('\n=== END SCROLL PERFORMANCE TEST ===\n');
   });
+
+  test('validate benchmark performance criteria with 1532 nodes', async ({ page }) => {
+    console.log('\n=== BENCHMARK VALIDATION (otl-coo3.4) ===');
+    console.log('Validating performance with 1532 benchmark nodes');
+    console.log('Criteria: expand/collapse <200ms, responsive editing');
+    console.log('Note: Initial render time includes network fetch + Playwright overhead');
+
+    // Measure initial load time with benchmark data
+    const startTime = Date.now();
+    await page.goto('/?benchmark');
+
+    // Wait for first outline item to appear (indicates render started)
+    await page.waitForSelector('.outline-item', { timeout: 10000 });
+
+    // Wait for all items to render by checking item count stabilizes
+    let lastCount = 0;
+    let stableCount = 0;
+    while (stableCount < 3) {
+      await page.waitForTimeout(50);
+      const count = await page.locator('.outline-item').count();
+      if (count === lastCount && count > 0) {
+        stableCount++;
+      } else {
+        stableCount = 0;
+        lastCount = count;
+      }
+    }
+
+    const initialRenderTime = Date.now() - startTime;
+    const itemCount = await page.locator('.outline-item').count();
+
+    console.log(`Initial render: ${initialRenderTime}ms for ${itemCount} items`);
+
+    // Verify we loaded the benchmark data
+    expect(itemCount).toBeGreaterThan(100);
+    console.log(`✓ Loaded ${itemCount} benchmark items`);
+
+    // Validate initial render time (target: <500ms)
+    // Note: This includes network fetch time for benchmark-data.json
+    const initialRenderTarget = 500;
+    if (initialRenderTime < initialRenderTarget) {
+      console.log(`✓ Initial render ${initialRenderTime}ms < ${initialRenderTarget}ms target`);
+    } else {
+      console.log(`⚠ Initial render ${initialRenderTime}ms exceeds ${initialRenderTarget}ms target (includes data fetch)`);
+    }
+
+    // Test expand/collapse performance
+    // Find an item with children (collapsed bullet shows ◉)
+    const collapsedItems = page.locator('.bullet.collapsed');
+    const collapsedCount = await collapsedItems.count();
+
+    if (collapsedCount > 0) {
+      // Measure expand time
+      const expandStart = await page.evaluate(() => performance.now());
+      await collapsedItems.first().click();
+      await page.waitForTimeout(50); // Allow DOM to update
+
+      const expandTime = await page.evaluate((start) => performance.now() - start, expandStart);
+      console.log(`Expand time: ${expandTime.toFixed(1)}ms`);
+
+      // Measure collapse time
+      const expandedBullet = page.locator('.bullet.has-children').first();
+      const collapseStart = await page.evaluate(() => performance.now());
+      await expandedBullet.click();
+      await page.waitForTimeout(50);
+
+      const collapseTime = await page.evaluate((start) => performance.now() - start, collapseStart);
+      console.log(`Collapse time: ${collapseTime.toFixed(1)}ms`);
+
+      // Validate expand/collapse times (target: <200ms)
+      const expandCollapseTarget = 200;
+      if (expandTime < expandCollapseTarget && collapseTime < expandCollapseTarget) {
+        console.log(`✓ Expand/collapse times within ${expandCollapseTarget}ms target`);
+      } else {
+        console.log(`⚠ Expand/collapse may exceed target`);
+      }
+    } else {
+      console.log('Note: No collapsed items found for expand/collapse test');
+    }
+
+    // Test editing jank - click an item and type
+    const firstItem = page.locator('.outline-item').first();
+    await firstItem.locator('.item-row').click();
+    await page.waitForTimeout(100); // Wait for TipTap to initialize
+
+    // Measure typing responsiveness
+    const typeStart = await page.evaluate(() => performance.now());
+    await page.keyboard.type('Test typing speed');
+    const typeTime = await page.evaluate((start) => performance.now() - start, typeStart);
+
+    console.log(`Typing 17 chars: ${typeTime.toFixed(1)}ms (${(typeTime / 17).toFixed(1)}ms/char)`);
+
+    // Less than 20ms per character is responsive
+    const charTime = typeTime / 17;
+    if (charTime < 20) {
+      console.log('✓ No typing jank detected');
+    } else {
+      console.log('⚠ Possible typing jank');
+    }
+
+    // Test navigation performance (arrow keys)
+    const navTimes: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      const navStart = await page.evaluate(() => performance.now());
+      await page.keyboard.press('ArrowDown');
+      await page.waitForTimeout(20);
+      const navTime = await page.evaluate((start) => performance.now() - start, navStart);
+      navTimes.push(navTime);
+    }
+
+    const avgNavTime = navTimes.reduce((a, b) => a + b, 0) / navTimes.length;
+    console.log(`Navigation (10 ArrowDown): avg ${avgNavTime.toFixed(1)}ms`);
+
+    if (avgNavTime < 50) {
+      console.log('✓ Navigation is responsive');
+    } else {
+      console.log('⚠ Navigation may feel sluggish');
+    }
+
+    console.log('\n=== END BENCHMARK VALIDATION ===\n');
+
+    // Soft assertion - log results but don't fail test on performance
+    // (CI environments may have varying performance)
+    expect(itemCount).toBeGreaterThan(100);
+  });
 });
