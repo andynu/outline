@@ -448,9 +448,11 @@ body {
   color: var(--text-primary);
 }
 
-.context-menu .menu-item:hover:not(.disabled) {
+.context-menu .menu-item:hover:not(.disabled),
+.context-menu .menu-item:focus:not(.disabled) {
   background: var(--accent-primary-lighter);
   color: var(--accent-primary);
+  outline: none;
 }
 
 .context-menu .menu-item.disabled {
@@ -464,7 +466,8 @@ body {
   margin-left: 20px;
 }
 
-.context-menu .menu-item:hover:not(.disabled) .shortcut {
+.context-menu .menu-item:hover:not(.disabled) .shortcut,
+.context-menu .menu-item:focus:not(.disabled) .shortcut {
   color: var(--accent-primary-light);
 }
 
