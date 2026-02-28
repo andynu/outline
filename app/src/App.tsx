@@ -14,6 +14,8 @@ import { InboxPanel } from './components/ui/InboxPanel';
 import { QuickNavigator } from './components/ui/QuickNavigator';
 import { QuickMove } from './components/ui/QuickMove';
 import { QuickCaptureModal } from './components/ui/QuickCaptureModal';
+import { ToastContainer } from './components/ui/ToastContainer';
+import { showToast } from './store/toastStore';
 import { FilterBar } from './components/ui/FilterBar';
 import { ZoomBreadcrumbs } from './components/ui/ZoomBreadcrumbs';
 import { loadSessionState, saveSessionState } from './lib/sessionState';
@@ -402,6 +404,7 @@ function App() {
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (e) {
       console.error('Save failed:', e);
+      showToast('Save failed. Changes are preserved locally.');
       setSaveStatus('idle');
     }
   }, []);
@@ -421,6 +424,7 @@ function App() {
       sidebarRef.current?.refresh();
     } catch (e) {
       console.error('Failed to create document:', e);
+      showToast('Failed to create document');
     }
   }, [load]);
 
@@ -513,6 +517,7 @@ function App() {
       await api.saveToFileWithDialog(content, `${title}.opml`, 'opml');
     } catch (e) {
       console.error('Export OPML failed:', e);
+      showToast('Export failed');
     }
   }, [nodes]);
 
@@ -523,6 +528,7 @@ function App() {
       await api.saveToFileWithDialog(content, `${title}.md`, 'md');
     } catch (e) {
       console.error('Export Markdown failed:', e);
+      showToast('Export failed');
     }
   }, [nodes]);
 
@@ -533,6 +539,7 @@ function App() {
       await api.saveToFileWithDialog(content, `${title}.json`, 'json');
     } catch (e) {
       console.error('Export JSON failed:', e);
+      showToast('Export failed');
     }
   }, [nodes]);
 
@@ -548,6 +555,7 @@ function App() {
       }
     } catch (e) {
       console.error('Import OPML failed:', e);
+      showToast('Import failed');
     }
   }, [load]);
 
@@ -1330,6 +1338,8 @@ function App() {
         onClose={() => setShowQuickCapture(false)}
         currentDocumentId={currentDocumentId}
       />
+
+      <ToastContainer />
     </div>
   );
 }

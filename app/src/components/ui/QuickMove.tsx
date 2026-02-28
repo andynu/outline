@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as api from '../../lib/api';
 import type { SearchResult } from '../../lib/api';
 import { useOutlineStore } from '../../store/outlineStore';
+import { showToast } from '../../store/toastStore';
 
 interface QuickMoveProps {
   isOpen: boolean;
@@ -137,6 +138,7 @@ export function QuickMove({ isOpen, onClose, bulkMode = false }: QuickMoveProps)
       handleClose();
     } catch (e) {
       console.error('Failed to move node(s):', e);
+      showToast('Failed to move item');
     } finally {
       setMoving(false);
     }

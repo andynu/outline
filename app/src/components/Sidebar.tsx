@@ -12,6 +12,7 @@ import {
   type FolderState,
 } from '../lib/api';
 import { RenameModal } from './ui/RenameModal';
+import { showToast } from '../store/toastStore';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -192,6 +193,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
         await loadAll();
       } catch (e) {
         console.error('Failed to delete folder:', e);
+        showToast('Failed to delete folder');
       }
     }
   }, [contextMenuTarget, loadAll]);
@@ -205,6 +207,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
         await loadAll();
       } catch (e) {
         console.error('Failed to move document:', e);
+        showToast('Failed to move document');
       }
     }
   }, [contextMenuTarget, loadAll]);
@@ -217,6 +220,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
       await loadAll();
     } catch (e) {
       console.error('Failed to rename document:', e);
+      showToast('Failed to rename document');
     }
   }, [renameDoc, loadAll]);
 
@@ -228,6 +232,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
       await loadAll();
     } catch (e) {
       console.error('Failed to rename folder:', e);
+      showToast('Failed to rename folder');
     }
   }, [renameFolder, loadAll]);
 
@@ -268,6 +273,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
       await loadAll();
     } catch (e) {
       console.error('Failed to create folder:', e);
+      showToast('Failed to create folder');
     }
   }, [newFolderName, loadAll]);
 
@@ -336,6 +342,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
         await loadAll();
       } catch (err) {
         console.error('Failed to move document:', err);
+        showToast('Failed to move document');
       }
     }
 

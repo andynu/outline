@@ -12,3 +12,4 @@ export { SettingsModal } from './SettingsModal';
 export { RenameModal } from './RenameModal';
 export { MenuDropdown, type MenuEntry } from './MenuDropdown';
 export { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
+export { ToastContainer } from './ToastContainer';
