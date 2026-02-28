@@ -95,10 +95,13 @@ export function HashtagSuggestion({ query, position, onSelect, onClose, existing
     <div
       className="suggestion-popup hashtag-suggestion"
       style={{ left: position.x, top: position.y }}
+      role="listbox"
     >
       {suggestions.length === 0 && query.length > 0 ? (
         <div
           className="suggestion-item selected"
+          role="option"
+          aria-selected
           onClick={() => onSelect(query)}
         >
           <span className="new-tag-label">Create tag:</span>
@@ -112,6 +115,8 @@ export function HashtagSuggestion({ query, position, onSelect, onClose, existing
             <div
               key={item.tag}
               className={`suggestion-item ${index === selectedIndex ? 'selected' : ''}`}
+              role="option"
+              aria-selected={index === selectedIndex}
               onClick={() => onSelect(item.tag)}
               onMouseEnter={() => setSelectedIndex(index)}
             >
@@ -122,6 +127,8 @@ export function HashtagSuggestion({ query, position, onSelect, onClose, existing
           {showCreateNew && (
             <div
               className={`suggestion-item create-new ${selectedIndex === suggestions.length ? 'selected' : ''}`}
+              role="option"
+              aria-selected={selectedIndex === suggestions.length}
               onClick={() => onSelect(query)}
               onMouseEnter={() => setSelectedIndex(suggestions.length)}
             >

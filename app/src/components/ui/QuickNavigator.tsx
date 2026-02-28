@@ -200,7 +200,7 @@ export function QuickNavigator({ isOpen, mode, onClose, onNavigate }: QuickNavig
           {loading && <span className="loading-indicator">...</span>}
         </div>
 
-        <div className="results">
+        <div className="results" role="listbox">
           {mode === 'files' ? (
             fileResults.length === 0 ? (
               <div className="no-results">No documents found</div>
@@ -210,6 +210,8 @@ export function QuickNavigator({ isOpen, mode, onClose, onNavigate }: QuickNavig
                   key={doc.id}
                   className={`result ${index === selectedIndex ? 'selected' : ''}`}
                   data-nav-index={index}
+                  role="option"
+                  aria-selected={index === selectedIndex}
                   onClick={() => selectFile(doc)}
                 >
                   <div className="result-title">{doc.title}</div>
@@ -230,6 +232,8 @@ export function QuickNavigator({ isOpen, mode, onClose, onNavigate }: QuickNavig
                   key={result.node_id}
                   className={`result ${index === selectedIndex ? 'selected' : ''}`}
                   data-nav-index={index}
+                  role="option"
+                  aria-selected={index === selectedIndex}
                   onClick={() => selectItem(result)}
                 >
                   <div className="result-content">

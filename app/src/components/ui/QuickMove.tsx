@@ -231,7 +231,7 @@ export function QuickMove({ isOpen, onClose, bulkMode = false }: QuickMoveProps)
           {moving && <span className="loading-indicator">Moving...</span>}
         </div>
 
-        <div className="results">
+        <div className="results" role="listbox">
           {results.length === 0 && query.trim().length > 0 && !loading ? (
             <div className="no-results">No items found</div>
           ) : results.length === 0 && query.trim().length === 0 ? (
@@ -242,6 +242,8 @@ export function QuickMove({ isOpen, onClose, bulkMode = false }: QuickMoveProps)
                 key={result.node_id}
                 className={`result ${index === selectedIndex ? 'selected' : ''}`}
                 data-move-index={index}
+                role="option"
+                aria-selected={index === selectedIndex}
                 onClick={() => moveToNode(result.node_id)}
               >
                 <div className="result-content">

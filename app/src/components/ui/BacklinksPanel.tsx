@@ -66,7 +66,10 @@ export function BacklinksPanel({ nodeId, onNavigate }: BacklinksPanelProps) {
             <div
               key={link.source_node_id}
               className="backlink-item"
+              role="button"
+              tabIndex={0}
               onClick={() => handleClick(link)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(link); } }}
             >
               {truncate(stripHtml(link.content))}
             </div>

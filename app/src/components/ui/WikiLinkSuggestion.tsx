@@ -86,6 +86,7 @@ export function WikiLinkSuggestion({ query, position, onSelect, onClose }: WikiL
     <div
       className="suggestion-popup wiki-link-suggestion"
       style={{ left: position.x, top: position.y }}
+      role="listbox"
     >
       {loading && results.length === 0 ? (
         <div className="loading">Searching...</div>
@@ -98,6 +99,8 @@ export function WikiLinkSuggestion({ query, position, onSelect, onClose }: WikiL
           <div
             key={result.node_id}
             className={`suggestion-item ${index === selectedIndex ? 'selected' : ''}`}
+            role="option"
+            aria-selected={index === selectedIndex}
             onClick={() => selectResult(result)}
             onMouseEnter={() => setSelectedIndex(index)}
           >

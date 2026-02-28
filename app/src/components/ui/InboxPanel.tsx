@@ -140,7 +140,7 @@ export function InboxPanel({ isOpen, onClose, onProcess }: InboxPanelProps) {
           <span className="badge">{items.length}</span>
         </div>
 
-        <div className="items-container">
+        <div className="items-container" role="listbox">
           {loading ? (
             <div className="loading">Loading...</div>
           ) : items.length === 0 ? (
@@ -158,6 +158,8 @@ export function InboxPanel({ isOpen, onClose, onProcess }: InboxPanelProps) {
                     <div
                       key={item.id}
                       className={`inbox-item ${flatIdx === selectedIndex ? 'selected' : ''}`}
+                      role="option"
+                      aria-selected={flatIdx === selectedIndex}
                       onClick={() => setSelectedIndex(flatIdx)}
                       onDoubleClick={() => onProcess(item)}
                     >

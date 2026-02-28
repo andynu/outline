@@ -138,7 +138,7 @@ export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose,
           {loading && <span className="loading-indicator">...</span>}
         </div>
 
-        <div className="results">
+        <div className="results" role="listbox">
           {results.length === 0 && query.trim().length > 0 && !loading ? (
             <div className="no-results">No results found</div>
           ) : (
@@ -147,6 +147,8 @@ export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose,
                 key={result.node_id}
                 className={`result ${index === selectedIndex ? 'selected' : ''}`}
                 data-search-index={index}
+                role="option"
+                aria-selected={index === selectedIndex}
                 onClick={() => selectResult(result)}
               >
                 <div className="result-content">

@@ -146,6 +146,7 @@ export function DueDateSuggestion({ query, position, onSelect, onClose }: DueDat
       ref={popupRef}
       className="suggestion-popup due-date-suggestion"
       style={{ left: position.x, top: position.y }}
+      role="listbox"
     >
       {suggestions.length === 0 ? (
         <div className="hint">Type a date: today, +3d, jan 15...</div>
@@ -154,6 +155,8 @@ export function DueDateSuggestion({ query, position, onSelect, onClose }: DueDat
           <div
             key={item.date + item.label}
             className={`suggestion-item ${index === selectedIndex ? 'selected' : ''}`}
+            role="option"
+            aria-selected={index === selectedIndex}
             onClick={() => onSelect(item.date)}
             onMouseEnter={() => setSelectedIndex(index)}
           >
