@@ -437,6 +437,16 @@ export async function listDocuments(): Promise<DocumentInfo[]> {
   ];
 }
 
+// Delete a document by ID
+export async function deleteDocument(docId: string): Promise<void> {
+  await initTauri();
+  if (tauriInvoke) {
+    await tauriInvoke('delete_document', { docId });
+    return;
+  }
+  // Browser-only mode: no-op
+}
+
 // Create a new document with a unique ID
 export async function createDocument(): Promise<string> {
   await initTauri();

@@ -426,6 +426,23 @@ function App() {
     }
   }, [load]);
 
+  // Handle document deletion - switch to another document or create new
+  const handleDeleteDocument = useCallback(async (deletedDocId: string) => {
+    try {
+      const docs = await api.listDocuments();
+      const remaining = docs.filter((d) => d.id !== deletedDocId);
+      if (remaining.length > 0) {
+        setCurrentDocumentId(remaining[0].id);
+        await load(remaining[0].id);
+      } else {
+        await handleNewDocument();
+      }
+    } catch (e) {
+      console.error('Failed to switch after delete:', e);
+      await handleNewDocument();
+    }
+  }, [load, handleNewDocument]);
+
   // Handle search navigation
   const handleSearchNavigate = useCallback((nodeId: string, documentId: string) => {
     if (documentId !== currentDocumentId) {
@@ -1208,6 +1225,7 @@ function App() {
           onToggle={toggleSidebar}
           onSelectDocument={handleSelectDocument}
           onNewDocument={handleNewDocument}
+          onDeleteDocument={handleDeleteDocument}
         />
 
         {/* Main Content Area */}

@@ -211,6 +211,38 @@ pub fn compact_document(state: State<AppState>) -> Result<(), String> {
     doc.compact()
 }
 
+/// Delete a document by ID (removes directory, search index entries, and folder assignments)
+#[tauri::command]
+pub fn delete_document(state: State<AppState>, doc_id: String) -> Result<(), String> {
+    let doc_uuid = parse_uuid(&doc_id)?;
+    let doc_dir = documents_dir().join(&doc_id);
+
+    // Remove the document directory
+    if doc_dir.exists() {
+        std::fs::remove_dir_all(&doc_dir)
+            .map_err(|e| format!("Failed to delete document directory: {}", e))?;
+    }
+
+    // Clear search index entries
+    if let Ok(index) = SearchIndex::open() {
+        let _ = index.index_document(&doc_uuid, &[]);
+        let _ = index.update_document_links(&doc_uuid, &[]);
+    }
+
+    // Remove from any folder assignments
+    let _ = move_doc_to_folder_impl(&doc_id, None, None);
+
+    // If this was the currently loaded document, clear it
+    let mut current = state.current_document.lock().unwrap();
+    if let Some(ref doc) = *current {
+        if doc.id == doc_uuid {
+            *current = None;
+        }
+    }
+
+    Ok(())
+}
+
 /// Check if document has external changes (from sync)
 #[tauri::command]
 pub fn check_for_changes(state: State<AppState>) -> Result<bool, String> {

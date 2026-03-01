@@ -56,6 +56,7 @@ pub fn run() {
             commands::reload_if_changed,
             commands::search,
             commands::list_documents,
+            commands::delete_document,
             commands::get_backlinks,
             commands::get_next_occurrence,
             commands::generate_ical_feed,

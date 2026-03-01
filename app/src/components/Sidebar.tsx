@@ -6,6 +6,7 @@ import {
   createFolder,
   updateFolder,
   deleteFolder,
+  deleteDocument,
   moveDocumentToFolder,
   type DocumentInfo,
   type Folder,
@@ -13,6 +14,7 @@ import {
 } from '../lib/api';
 import { RenameModal } from './ui/RenameModal';
 import { showToast } from '../store/toastStore';
+import { useSettingsStore } from '../store/settingsStore';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -20,6 +22,7 @@ interface SidebarProps {
   onToggle: () => void;
   onSelectDocument: (docId: string) => void;
   onNewDocument: () => void;
+  onDeleteDocument: (docId: string) => void;
 }
 
 export interface SidebarRef {
@@ -39,9 +42,10 @@ interface DropTarget {
 }
 
 export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
-  { isOpen, currentDocumentId, onToggle, onSelectDocument, onNewDocument },
+  { isOpen, currentDocumentId, onToggle, onSelectDocument, onNewDocument, onDeleteDocument },
   ref
 ) {
+  const confirmDelete = useSettingsStore((s) => s.confirmDelete);
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [folderState, setFolderState] = useState<FolderState>({ folders: [], document_folders: {}, document_order: {} });
   const [loading, setLoading] = useState(true);
@@ -197,6 +201,26 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
       }
     }
   }, [contextMenuTarget, loadAll]);
+
+  const handleDeleteDocumentClick = useCallback(async () => {
+    if (contextMenuTarget?.type === 'document') {
+      const doc = contextMenuTarget.doc;
+      setContextMenuTarget(null);
+      if (confirmDelete && !window.confirm(`Delete "${doc.title || 'Untitled'}"? This cannot be undone.`)) {
+        return;
+      }
+      try {
+        await deleteDocument(doc.id);
+        if (doc.id === currentDocumentId) {
+          onDeleteDocument(doc.id);
+        }
+        await loadAll();
+      } catch (e) {
+        console.error('Failed to delete document:', e);
+        showToast('Failed to delete document');
+      }
+    }
+  }, [contextMenuTarget, confirmDelete, currentDocumentId, onDeleteDocument, loadAll]);
 
   const handleMoveToRootClick = useCallback(async () => {
     if (contextMenuTarget?.type === 'document') {
@@ -575,6 +599,14 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
               })}
             </>
           )}
+          <div className="context-menu-divider"></div>
+          <button className="context-menu-item context-menu-item-danger" onClick={handleDeleteDocumentClick}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+            Delete Document
+          </button>
         </div>
       )}
 
