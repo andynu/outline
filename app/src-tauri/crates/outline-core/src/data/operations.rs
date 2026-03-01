@@ -124,6 +124,7 @@ impl Operation {
                     date: None,
                     date_recurrence: None,
                     defer_date: None,
+                    short_id: None,
                     collapsed: false,
                     mirror_source_id: None,
                     created_at: *updated_at,

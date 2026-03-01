@@ -64,6 +64,10 @@ pub struct Node {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub defer_date: Option<String>,
 
+    /// Short ID for CLI use (4-char base36 code, unique within document)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub short_id: Option<String>,
+
     /// Whether children are hidden
     #[serde(default)]
     pub collapsed: bool,
@@ -97,6 +101,7 @@ impl Node {
             date: None,
             date_recurrence: None,
             defer_date: None,
+            short_id: None,
             collapsed: false,
             mirror_source_id: None,
             created_at: now,

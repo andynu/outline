@@ -187,6 +187,7 @@ fn parse_outline_element(
         date,
         date_recurrence,
         defer_date: None,
+        short_id: None,
         collapsed: false,
         mirror_source_id: None,
         created_at: now,
