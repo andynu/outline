@@ -56,6 +56,7 @@ pub fn run() {
             commands::reload_if_changed,
             commands::search,
             commands::list_documents,
+            commands::get_all_dated_nodes,
             commands::delete_document,
             commands::get_backlinks,
             commands::get_next_occurrence,

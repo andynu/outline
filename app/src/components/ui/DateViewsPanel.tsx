@@ -1,14 +1,15 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { useOutlineStore } from '../../store/outlineStore';
 import { getDateStatus, formatDateRelative, type DateStatus } from '../../lib/dateUtils';
 import { DateBadge } from './DateBadge';
+import { getAllDatedNodes } from '../../lib/api';
+import type { DatedNodeInfo } from '../../lib/types';
 
 type ViewType = 'today' | 'upcoming' | 'overdue' | 'all';
 
 interface DateViewsPanelProps {
   isOpen: boolean;
   onClose: () => void;
-  onNavigate: (nodeId: string) => void;
+  onNavigate: (nodeId: string, documentId: string) => void;
 }
 
 function stripHtml(html: string): string {
@@ -23,29 +24,45 @@ function stripHtml(html: string): string {
 }
 
 export function DateViewsPanel({ isOpen, onClose, onNavigate }: DateViewsPanelProps) {
-  const nodes = useOutlineStore(state => state.nodes);
   const [activeView, setActiveView] = useState<ViewType>('today');
+  const [allDatedNodes, setAllDatedNodes] = useState<DatedNodeInfo[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Get all nodes with dates
-  const nodesWithDates = useMemo(() => {
-    return nodes.filter(n => n.date);
-  }, [nodes]);
+  // Load dated nodes from all documents when panel opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+    setLoading(true);
+
+    getAllDatedNodes().then(nodes => {
+      if (!cancelled) {
+        setAllDatedNodes(nodes);
+        setLoading(false);
+      }
+    }).catch(err => {
+      console.error('Failed to load dated nodes:', err);
+      if (!cancelled) {
+        setLoading(false);
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   // Calculate counts for each view
   const viewCounts = useMemo(() => {
     return {
-      today: nodesWithDates.filter(n => n.date && getDateStatus(n.date, n.is_checked) === 'today').length,
-      upcoming: nodesWithDates.filter(n => n.date && ['today', 'urgent', 'soon'].includes(getDateStatus(n.date, n.is_checked))).length,
-      overdue: nodesWithDates.filter(n => n.date && getDateStatus(n.date, n.is_checked) === 'overdue').length,
-      all: nodesWithDates.length,
+      today: allDatedNodes.filter(n => getDateStatus(n.date, n.is_checked) === 'today').length,
+      upcoming: allDatedNodes.filter(n => ['today', 'urgent', 'soon'].includes(getDateStatus(n.date, n.is_checked))).length,
+      overdue: allDatedNodes.filter(n => getDateStatus(n.date, n.is_checked) === 'overdue').length,
+      all: allDatedNodes.length,
     };
-  }, [nodesWithDates]);
+  }, [allDatedNodes]);
 
   // Filter nodes by view type
   const filteredNodes = useMemo(() => {
-    return nodesWithDates.filter(node => {
-      if (!node.date) return false;
-
+    return allDatedNodes.filter(node => {
       const status = getDateStatus(node.date, node.is_checked);
 
       switch (activeView) {
@@ -60,14 +77,14 @@ export function DateViewsPanel({ isOpen, onClose, onNavigate }: DateViewsPanelPr
         default:
           return false;
       }
-    }).sort((a, b) => {
-      // Sort by date ascending
-      if (a.date && b.date) {
-        return a.date.localeCompare(b.date);
-      }
-      return 0;
-    });
-  }, [nodesWithDates, activeView]);
+    }).sort((a, b) => a.date.localeCompare(b.date));
+  }, [allDatedNodes, activeView]);
+
+  // Group nodes by document for display
+  const hasMultipleDocuments = useMemo(() => {
+    const docIds = new Set(allDatedNodes.map(n => n.document_id));
+    return docIds.size > 1;
+  }, [allDatedNodes]);
 
   // Handle keyboard events
   useEffect(() => {
@@ -90,8 +107,8 @@ export function DateViewsPanel({ isOpen, onClose, onNavigate }: DateViewsPanelPr
     }
   }, [onClose]);
 
-  const handleNodeClick = useCallback((nodeId: string) => {
-    onNavigate(nodeId);
+  const handleNodeClick = useCallback((nodeId: string, documentId: string) => {
+    onNavigate(nodeId, documentId);
     onClose();
   }, [onNavigate, onClose]);
 
@@ -147,7 +164,9 @@ export function DateViewsPanel({ isOpen, onClose, onNavigate }: DateViewsPanelPr
         </div>
 
         <div className="results">
-          {filteredNodes.length === 0 ? (
+          {loading ? (
+            <div className="empty-state">Loading...</div>
+          ) : filteredNodes.length === 0 ? (
             <div className="empty-state">
               {activeView === 'today' && 'No tasks due today'}
               {activeView === 'upcoming' && 'No upcoming tasks'}
@@ -157,9 +176,9 @@ export function DateViewsPanel({ isOpen, onClose, onNavigate }: DateViewsPanelPr
           ) : (
             filteredNodes.map(node => (
               <button
-                key={node.id}
+                key={`${node.document_id}-${node.id}`}
                 className={`result-item ${node.is_checked ? 'checked' : ''}`}
-                onClick={() => handleNodeClick(node.id)}
+                onClick={() => handleNodeClick(node.id, node.document_id)}
               >
                 <div className="result-content">
                   {node.node_type === 'checkbox' && (
@@ -170,13 +189,14 @@ export function DateViewsPanel({ isOpen, onClose, onNavigate }: DateViewsPanelPr
                   <span className={`content-text ${node.is_checked ? 'strikethrough' : ''}`}>
                     {stripHtml(node.content) || 'Untitled'}
                   </span>
+                  {hasMultipleDocuments && (
+                    <span className="document-label">{node.document_title}</span>
+                  )}
                 </div>
-                {node.date && (
-                  <DateBadge
-                    date={node.date}
-                    isChecked={node.is_checked}
-                  />
-                )}
+                <DateBadge
+                  date={node.date}
+                  isChecked={node.is_checked}
+                />
               </button>
             ))
           )}

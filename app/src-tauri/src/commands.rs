@@ -406,6 +406,62 @@ fn strip_html_for_title(html: &str) -> String {
         .to_string()
 }
 
+/// A dated node with its document context
+#[derive(Clone, serde::Serialize)]
+pub struct DatedNodeInfo {
+    pub id: String,
+    pub content: String,
+    pub date: String,
+    pub node_type: NodeType,
+    pub is_checked: bool,
+    pub date_recurrence: Option<String>,
+    pub document_id: String,
+    pub document_title: String,
+}
+
+/// Get all nodes with dates across all documents
+#[tauri::command]
+pub fn get_all_dated_nodes() -> Result<Vec<DatedNodeInfo>, String> {
+    use crate::data::list_documents as list_doc_ids;
+    ensure_dirs()?;
+
+    let doc_ids = list_doc_ids()?;
+    let mut results = Vec::new();
+
+    for doc_id in doc_ids {
+        let doc_dir = documents_dir().join(doc_id.to_string());
+        if let Ok(doc) = Document::load(doc_dir) {
+            // Get document title from first root node
+            let title = doc
+                .state
+                .nodes
+                .iter()
+                .filter(|n| n.parent_id.is_none())
+                .min_by_key(|n| n.position)
+                .map(|n| strip_html_for_title(&n.content))
+                .unwrap_or_else(|| "Untitled".to_string());
+
+            // Collect dated nodes
+            for node in &doc.state.nodes {
+                if let Some(ref date) = node.date {
+                    results.push(DatedNodeInfo {
+                        id: node.id.to_string(),
+                        content: node.content.clone(),
+                        date: date.clone(),
+                        node_type: node.node_type.clone(),
+                        is_checked: node.is_checked,
+                        date_recurrence: node.date_recurrence.clone(),
+                        document_id: doc_id.to_string(),
+                        document_title: title.clone(),
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(results)
+}
+
 /// Get backlinks for a node (items that link to this node)
 #[tauri::command]
 pub fn get_backlinks(

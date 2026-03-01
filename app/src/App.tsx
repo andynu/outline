@@ -454,11 +454,18 @@ function App() {
     setShowSearchModal(false);
   }, [currentDocumentId, load]);
 
-  // Handle date views navigation (same document only)
-  const handleDateViewNavigate = useCallback((nodeId: string) => {
-    useOutlineStore.getState().setFocusedId(nodeId);
+  // Handle date views navigation (cross-document)
+  const handleDateViewNavigate = useCallback((nodeId: string, documentId: string) => {
+    if (documentId !== currentDocumentId) {
+      setCurrentDocumentId(documentId);
+      load(documentId).then(() => {
+        useOutlineStore.getState().setFocusedId(nodeId);
+      });
+    } else {
+      useOutlineStore.getState().setFocusedId(nodeId);
+    }
     setShowDateViews(false);
-  }, []);
+  }, [currentDocumentId, load]);
 
   // Handle tags panel navigation (same document only)
   const handleTagsNavigate = useCallback((nodeId: string) => {

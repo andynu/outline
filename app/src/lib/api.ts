@@ -1,4 +1,4 @@
-import type { DocumentState, Node, NodeChanges, NodeType, Operation } from './types';
+import type { DatedNodeInfo, DocumentState, Node, NodeChanges, NodeType, Operation } from './types';
 
 // Check if we're running in Tauri
 let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null | undefined = undefined;
@@ -435,6 +435,27 @@ export async function listDocuments(): Promise<DocumentInfo[]> {
       node_count: mockState.nodes.length,
     },
   ];
+}
+
+// Get all nodes with dates across all documents
+export async function getAllDatedNodes(): Promise<DatedNodeInfo[]> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('get_all_dated_nodes') as Promise<DatedNodeInfo[]>;
+  }
+  // Browser-only mode: return dated nodes from current mock state
+  return mockState.nodes
+    .filter(n => n.date)
+    .map(n => ({
+      id: n.id,
+      content: n.content,
+      date: n.date!,
+      node_type: n.node_type,
+      is_checked: n.is_checked,
+      date_recurrence: n.date_recurrence,
+      document_id: 'mock-doc',
+      document_title: 'Mock Document',
+    }));
 }
 
 // Delete a document by ID

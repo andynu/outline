@@ -71,6 +71,18 @@ export type Operation =
       updated_at: string;
     };
 
+// A dated node with document context (from cross-document aggregation)
+export interface DatedNodeInfo {
+  id: string;
+  content: string;
+  date: string;
+  node_type: NodeType;
+  is_checked: boolean;
+  date_recurrence?: string;
+  document_id: string;
+  document_title: string;
+}
+
 // UI state for tree view
 export interface TreeNode {
   node: Node;
