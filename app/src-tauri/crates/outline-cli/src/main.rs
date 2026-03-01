@@ -319,20 +319,21 @@ fn run(cli: Cli, out: &OutputMode) -> Result<(), String> {
         },
         Commands::Node { command } => match command {
             NodeCommand::Create { parent_id, content, position, r#type, note } => {
-                let doc_id = require_doc_id(&cli.doc)?;
-                cmd_node_create(out, &doc_id, &parent_id, &content, position, &r#type, note.as_deref())
+                let (doc_id, parent_uuid) = resolve_node_ref(&parent_id, &cli.doc)?;
+                cmd_node_create(out, &doc_id, parent_uuid, &content, position, &r#type, note.as_deref())
             }
             NodeCommand::Update { id, content, note, check, uncheck, r#type, color, date } => {
-                let doc_id = require_doc_id(&cli.doc)?;
-                cmd_node_update(out, &doc_id, &id, content, note, check, uncheck, r#type, color, date)
+                let (doc_id, node_uuid) = resolve_node_ref(&id, &cli.doc)?;
+                cmd_node_update(out, &doc_id, node_uuid, content, note, check, uncheck, r#type, color, date)
             }
             NodeCommand::Move { id, parent, position } => {
-                let doc_id = require_doc_id(&cli.doc)?;
-                cmd_node_move(out, &doc_id, &id, &parent, position)
+                let (doc_id, node_uuid) = resolve_node_ref(&id, &cli.doc)?;
+                let (_, parent_uuid) = resolve_node_ref(&parent, &Some(doc_id.clone()))?;
+                cmd_node_move(out, &doc_id, node_uuid, parent_uuid, position)
             }
             NodeCommand::Delete { id, force } => {
-                let doc_id = require_doc_id(&cli.doc)?;
-                cmd_node_delete(out, &doc_id, &id, force)
+                let (doc_id, node_uuid) = resolve_node_ref(&id, &cli.doc)?;
+                cmd_node_delete(out, &doc_id, node_uuid, force)
             }
         },
         Commands::Search { query, doc, limit } => cmd_search(out, &query, doc.as_deref(), limit),
@@ -352,19 +353,22 @@ fn run(cli: Cli, out: &OutputMode) -> Result<(), String> {
         },
         Commands::Export { command } => match command {
             ExportCommand::Opml { doc } => {
-                let doc_id = doc.or(cli.doc.clone());
-                let doc_id = require_doc_id(&doc_id)?;
-                cmd_export_opml(out, &doc_id)
+                let doc_ref = doc.or(cli.doc.clone());
+                let doc_ref = require_doc_id(&doc_ref)?;
+                let doc_uuid = resolve_doc_ref(&doc_ref)?;
+                cmd_export_opml(out, &doc_uuid.to_string())
             }
             ExportCommand::Markdown { doc } => {
-                let doc_id = doc.or(cli.doc.clone());
-                let doc_id = require_doc_id(&doc_id)?;
-                cmd_export_markdown(out, &doc_id)
+                let doc_ref = doc.or(cli.doc.clone());
+                let doc_ref = require_doc_id(&doc_ref)?;
+                let doc_uuid = resolve_doc_ref(&doc_ref)?;
+                cmd_export_markdown(out, &doc_uuid.to_string())
             }
             ExportCommand::Json { doc } => {
-                let doc_id = doc.or(cli.doc.clone());
-                let doc_id = require_doc_id(&doc_id)?;
-                cmd_export_json(out, &doc_id)
+                let doc_ref = doc.or(cli.doc.clone());
+                let doc_ref = require_doc_id(&doc_ref)?;
+                let doc_uuid = resolve_doc_ref(&doc_ref)?;
+                cmd_export_json(out, &doc_uuid.to_string())
             }
         },
         Commands::Import { command } => match command {
@@ -372,9 +376,10 @@ fn run(cli: Cli, out: &OutputMode) -> Result<(), String> {
             ImportCommand::Json { file } => cmd_import_json(out, &file),
         },
         Commands::Compact { doc_id } => {
-            let doc_id = doc_id.or(cli.doc.clone());
-            let doc_id = require_doc_id(&doc_id)?;
-            cmd_compact(out, &doc_id)
+            let doc_ref = doc_id.or(cli.doc.clone());
+            let doc_ref = require_doc_id(&doc_ref)?;
+            let doc_uuid = resolve_doc_ref(&doc_ref)?;
+            cmd_compact(out, &doc_uuid.to_string())
         }
         Commands::Capture { .. } => {
             Err("capture command not yet implemented (requires multi-inbox config)".to_string())
@@ -389,10 +394,45 @@ fn require_doc_id(doc_id: &Option<String>) -> Result<String, String> {
     doc_id.clone().ok_or_else(|| "No document specified. Use --doc <id> or set an active document.".to_string())
 }
 
+/// Resolve a document reference that could be a UUID or a prefix
+fn resolve_doc_ref(input: &str) -> Result<uuid::Uuid, String> {
+    // Try as UUID first
+    if let Ok(uuid) = uuid::Uuid::parse_str(input) {
+        return Ok(uuid);
+    }
+
+    // Try as prefix
+    let map = outline_core::data::short_ids::load_prefix_map();
+    if let Some(doc_id_str) = map.prefixes.get(input) {
+        return uuid::Uuid::parse_str(doc_id_str)
+            .map_err(|e| format!("Invalid UUID in prefix map: {}", e));
+    }
+
+    Err(format!("'{}' is not a valid document UUID or prefix. Run 'outline doc list' to see available documents.", input))
+}
+
+/// Resolve a node reference that could be a short ID (prefix-code) or a UUID.
+/// Returns (document_uuid_string, node_uuid).
+fn resolve_node_ref(input: &str, doc_id: &Option<String>) -> Result<(String, uuid::Uuid), String> {
+    // Try as UUID first
+    if let Ok(uuid) = uuid::Uuid::parse_str(input) {
+        let doc = require_doc_id(doc_id)?;
+        return Ok((doc, uuid));
+    }
+
+    // Try as short ID (prefix-code format)
+    let active_doc = doc_id.as_ref()
+        .and_then(|d| uuid::Uuid::parse_str(d).ok().or_else(|| resolve_doc_ref(d).ok()));
+
+    let (doc_uuid, node_uuid) = outline_core::data::short_ids::resolve_short_id(input, active_doc.as_ref())?;
+    Ok((doc_uuid.to_string(), node_uuid))
+}
+
 // -- Document commands --
 
 fn cmd_doc_list(out: &OutputMode) -> Result<(), String> {
     use outline_core::data::{documents_dir, Document};
+    use outline_core::data::short_ids;
 
     outline_core::data::ensure_dirs()?;
     let docs_dir = documents_dir();
@@ -403,6 +443,8 @@ fn cmd_doc_list(out: &OutputMode) -> Result<(), String> {
         .map(|f| (f.id.as_str(), f.name.as_str()))
         .collect();
 
+    // Load/update prefix map for short IDs
+    let mut prefix_map = short_ids::load_prefix_map();
     let mut docs: Vec<serde_json::Value> = Vec::new();
 
     if docs_dir.exists() {
@@ -411,7 +453,7 @@ fn cmd_doc_list(out: &OutputMode) -> Result<(), String> {
             let path = entry.path();
             if path.is_dir() {
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if uuid::Uuid::parse_str(name).is_ok() {
+                    if let Ok(doc_uuid) = uuid::Uuid::parse_str(name) {
                         match Document::load(path.clone()) {
                             Ok(doc) => {
                                 let title = doc.state.nodes.iter()
@@ -419,11 +461,14 @@ fn cmd_doc_list(out: &OutputMode) -> Result<(), String> {
                                     .map(|n| strip_html(&n.content))
                                     .unwrap_or_else(|| "(empty)".to_string());
 
+                                let prefix = short_ids::get_or_create_prefix(&doc_uuid, &title, &mut prefix_map);
+
                                 let folder = folder_state.document_folders.get(name)
                                     .and_then(|fid| folder_names.get(fid.as_str()).copied());
 
                                 let mut entry = serde_json::json!({
                                     "id": name,
+                                    "prefix": prefix,
                                     "title": title,
                                     "node_count": doc.state.nodes.len(),
                                 });
@@ -442,16 +487,19 @@ fn cmd_doc_list(out: &OutputMode) -> Result<(), String> {
         }
     }
 
+    // Save updated prefix map
+    let _ = short_ids::save_prefix_map(&prefix_map);
+
     if out.is_json() {
         out.print_json(&serde_json::json!(docs));
     } else if docs.is_empty() {
         println!("No documents found.");
     } else {
-        println!("{:<40} {:<6} {:<14} {}", "ID", "Nodes", "Folder", "Title");
-        println!("{}", "-".repeat(80));
+        println!("{:<10} {:<6} {:<14} {}", "Prefix", "Nodes", "Folder", "Title");
+        println!("{}", "-".repeat(60));
         for doc in &docs {
-            println!("{:<40} {:<6} {:<14} {}",
-                doc["id"].as_str().unwrap_or(""),
+            println!("{:<10} {:<6} {:<14} {}",
+                doc["prefix"].as_str().unwrap_or(""),
                 doc["node_count"].as_u64().unwrap_or(0),
                 doc["folder"].as_str().unwrap_or(""),
                 doc["title"].as_str().unwrap_or(""),
@@ -464,32 +512,37 @@ fn cmd_doc_list(out: &OutputMode) -> Result<(), String> {
 
 fn cmd_doc_show(out: &OutputMode, id: &str, flat: bool, max_depth: Option<usize>) -> Result<(), String> {
     use outline_core::data::{documents_dir, Document};
+    use outline_core::data::short_ids;
 
-    let doc_dir = documents_dir().join(id);
+    let doc_id = resolve_doc_ref(id)?;
+    let doc_dir = documents_dir().join(doc_id.to_string());
     if !doc_dir.exists() {
         return Err(format!("Document not found: {}", id));
     }
 
-    let doc = Document::load(doc_dir)?;
+    let mut doc = Document::load(doc_dir)?;
+    let prefix = short_ids::ensure_short_ids(&mut doc)?;
 
     if out.is_json() {
         out.print_json(&serde_json::json!({
-            "id": id,
+            "id": doc_id.to_string(),
+            "prefix": prefix,
             "nodes": doc.state.nodes,
         }));
     } else if flat {
         for node in &doc.state.nodes {
             let content = strip_html(&node.content);
-            println!("{} {}", node.id, content);
+            let sid = node.short_id.as_deref().unwrap_or("????");
+            println!("{}-{} {}", prefix, sid, content);
         }
     } else {
-        print_tree(&doc.state.nodes, None, 0, max_depth);
+        print_tree(&doc.state.nodes, None, 0, max_depth, &prefix);
     }
 
     Ok(())
 }
 
-fn print_tree(nodes: &[outline_core::data::Node], parent_id: Option<uuid::Uuid>, depth: usize, max_depth: Option<usize>) {
+fn print_tree(nodes: &[outline_core::data::Node], parent_id: Option<uuid::Uuid>, depth: usize, max_depth: Option<usize>, prefix: &str) {
     if let Some(max) = max_depth {
         if depth > max {
             return;
@@ -510,24 +563,26 @@ fn print_tree(nodes: &[outline_core::data::Node], parent_id: Option<uuid::Uuid>,
             outline_core::data::NodeType::Heading => "#",
             outline_core::data::NodeType::Bullet => "•",
         };
+        let sid = node.short_id.as_deref().unwrap_or("????");
 
-        println!("{}{} {}", indent, marker, content);
+        println!("{}{}-{} {} {}", indent, prefix, sid, marker, content);
 
         if let Some(ref note) = node.note {
             let note_indent = "  ".repeat(depth + 1);
             for line in note.lines() {
-                println!("{}  {}", note_indent, line);
+                println!("{}          {}", note_indent, line);
             }
         }
 
-        print_tree(nodes, Some(node.id), depth + 1, max_depth);
+        print_tree(nodes, Some(node.id), depth + 1, max_depth, prefix);
     }
 }
 
 fn cmd_doc_delete(_out: &OutputMode, id: &str) -> Result<(), String> {
     use outline_core::data::documents_dir;
 
-    let doc_dir = documents_dir().join(id);
+    let doc_uuid = resolve_doc_ref(id)?;
+    let doc_dir = documents_dir().join(doc_uuid.to_string());
     if !doc_dir.exists() {
         return Err(format!("Document not found: {}", id));
     }
@@ -535,20 +590,17 @@ fn cmd_doc_delete(_out: &OutputMode, id: &str) -> Result<(), String> {
     std::fs::remove_dir_all(&doc_dir)
         .map_err(|e| format!("Failed to delete document: {}", e))?;
 
-    eprintln!("Deleted document {}", id);
+    eprintln!("Deleted document {}", doc_uuid);
     Ok(())
 }
 
 // -- Node commands --
 
-fn cmd_node_create(out: &OutputMode, doc_id: &str, parent_id: &str, content: &str, position: Option<i32>, node_type: &str, note: Option<&str>) -> Result<(), String> {
+fn cmd_node_create(out: &OutputMode, doc_id: &str, parent_uuid: uuid::Uuid, content: &str, position: Option<i32>, node_type: &str, note: Option<&str>) -> Result<(), String> {
     use outline_core::data::{documents_dir, Document, NodeType, NodeChanges, create_op_with_id, update_op};
 
     let doc_dir = documents_dir().join(doc_id);
     let mut doc = Document::load(doc_dir)?;
-
-    let parent_uuid = uuid::Uuid::parse_str(parent_id)
-        .map_err(|e| format!("Invalid parent ID: {}", e))?;
 
     let pos = position.unwrap_or_else(|| {
         doc.state.nodes.iter()
@@ -591,14 +643,11 @@ fn cmd_node_create(out: &OutputMode, doc_id: &str, parent_id: &str, content: &st
 }
 
 #[allow(clippy::too_many_arguments)]
-fn cmd_node_update(out: &OutputMode, doc_id: &str, id: &str, content: Option<String>, note: Option<String>, check: bool, uncheck: bool, node_type: Option<String>, color: Option<String>, date: Option<String>) -> Result<(), String> {
+fn cmd_node_update(out: &OutputMode, doc_id: &str, node_uuid: uuid::Uuid, content: Option<String>, note: Option<String>, check: bool, uncheck: bool, node_type: Option<String>, color: Option<String>, date: Option<String>) -> Result<(), String> {
     use outline_core::data::{documents_dir, Document, NodeType, NodeChanges, update_op};
 
     let doc_dir = documents_dir().join(doc_id);
     let mut doc = Document::load(doc_dir)?;
-
-    let node_uuid = uuid::Uuid::parse_str(id)
-        .map_err(|e| format!("Invalid node ID: {}", e))?;
 
     let mut changes = NodeChanges::default();
     changes.content = content;
@@ -621,50 +670,42 @@ fn cmd_node_update(out: &OutputMode, doc_id: &str, id: &str, content: Option<Str
         let node = doc.state.nodes.iter().find(|n| n.id == node_uuid);
         out.print_json(&serde_json::json!({ "node": node }));
     } else {
-        eprintln!("Updated node {}", id);
+        eprintln!("Updated node {}", node_uuid);
     }
 
     Ok(())
 }
 
-fn cmd_node_move(out: &OutputMode, doc_id: &str, id: &str, parent: &str, position: i32) -> Result<(), String> {
+fn cmd_node_move(out: &OutputMode, doc_id: &str, node_uuid: uuid::Uuid, parent_uuid: uuid::Uuid, position: i32) -> Result<(), String> {
     use outline_core::data::{documents_dir, Document, move_op};
 
     let doc_dir = documents_dir().join(doc_id);
     let mut doc = Document::load(doc_dir)?;
-
-    let node_uuid = uuid::Uuid::parse_str(id)
-        .map_err(|e| format!("Invalid node ID: {}", e))?;
-    let parent_uuid = uuid::Uuid::parse_str(parent)
-        .map_err(|e| format!("Invalid parent ID: {}", e))?;
 
     let op = move_op(node_uuid, Some(parent_uuid), position);
     doc.append_op(&op)?;
     op.apply(&mut doc.state);
 
     if out.is_json() {
-        out.print_json(&serde_json::json!({ "moved": id, "parent": parent, "position": position }));
+        out.print_json(&serde_json::json!({ "moved": node_uuid.to_string(), "parent": parent_uuid.to_string(), "position": position }));
     } else {
-        eprintln!("Moved node {} to parent {} at position {}", id, parent, position);
+        eprintln!("Moved node {} to parent {} at position {}", node_uuid, parent_uuid, position);
     }
 
     Ok(())
 }
 
-fn cmd_node_delete(out: &OutputMode, doc_id: &str, id: &str, force: bool) -> Result<(), String> {
+fn cmd_node_delete(out: &OutputMode, doc_id: &str, node_uuid: uuid::Uuid, force: bool) -> Result<(), String> {
     use outline_core::data::{documents_dir, Document, delete_op};
 
     let doc_dir = documents_dir().join(doc_id);
     let mut doc = Document::load(doc_dir)?;
 
-    let node_uuid = uuid::Uuid::parse_str(id)
-        .map_err(|e| format!("Invalid node ID: {}", e))?;
-
     // Count descendants
     let descendant_count = count_descendants(&doc.state.nodes, node_uuid);
 
     if !force && descendant_count > 0 {
-        eprintln!("Node {} has {} descendants. Use --force to delete.", id, descendant_count);
+        eprintln!("Node {} has {} descendants. Use --force to delete.", node_uuid, descendant_count);
         return Err(format!("Delete aborted: {} descendants would be removed", descendant_count));
     }
 
@@ -673,9 +714,9 @@ fn cmd_node_delete(out: &OutputMode, doc_id: &str, id: &str, force: bool) -> Res
     op.apply(&mut doc.state);
 
     if out.is_json() {
-        out.print_json(&serde_json::json!({ "deleted": id, "descendants_removed": descendant_count }));
+        out.print_json(&serde_json::json!({ "deleted": node_uuid.to_string(), "descendants_removed": descendant_count }));
     } else {
-        eprintln!("Deleted node {} ({} descendants)", id, descendant_count);
+        eprintln!("Deleted node {} ({} descendants)", node_uuid, descendant_count);
     }
 
     Ok(())
@@ -703,9 +744,8 @@ fn cmd_search(out: &OutputMode, query: &str, doc_id: Option<&str>, limit: usize)
     let index = SearchIndex::open().map_err(|e| format!("Failed to open search index: {}", e))?;
 
     let doc_uuid = doc_id
-        .map(|id| uuid::Uuid::parse_str(id))
-        .transpose()
-        .map_err(|e| format!("Invalid document ID: {}", e))?;
+        .map(|id| resolve_doc_ref(id))
+        .transpose()?;
 
     let results = index.search(query, doc_uuid.as_ref(), limit)
         .map_err(|e| format!("Search failed: {}", e))?;
