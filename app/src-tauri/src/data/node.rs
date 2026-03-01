@@ -60,6 +60,10 @@ pub struct Node {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub date_recurrence: Option<String>,
 
+    /// Defer/start date — item is hidden from views until this date arrives
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub defer_date: Option<String>,
+
     /// Whether children are hidden
     #[serde(default)]
     pub collapsed: bool,
@@ -92,6 +96,7 @@ impl Node {
             tags: Vec::new(),
             date: None,
             date_recurrence: None,
+            defer_date: None,
             collapsed: false,
             mirror_source_id: None,
             created_at: now,

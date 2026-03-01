@@ -74,6 +74,9 @@ pub struct NodeChanges {
     pub date_recurrence: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub defer_date: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub collapsed: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -120,6 +123,7 @@ impl Operation {
                     tags: Vec::new(),
                     date: None,
                     date_recurrence: None,
+                    defer_date: None,
                     collapsed: false,
                     mirror_source_id: None,
                     created_at: *updated_at,
@@ -165,6 +169,10 @@ impl Operation {
                         if let Some(ref date_recurrence) = changes.date_recurrence {
                             // Empty string means clear the recurrence
                             node.date_recurrence = if date_recurrence.is_empty() { None } else { Some(date_recurrence.clone()) };
+                        }
+                        if let Some(ref defer_date) = changes.defer_date {
+                            // Empty string means clear the defer date
+                            node.defer_date = if defer_date.is_empty() { None } else { Some(defer_date.clone()) };
                         }
                         if let Some(collapsed) = changes.collapsed {
                             node.collapsed = collapsed;

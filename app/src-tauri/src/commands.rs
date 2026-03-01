@@ -415,6 +415,7 @@ pub struct DatedNodeInfo {
     pub node_type: NodeType,
     pub is_checked: bool,
     pub date_recurrence: Option<String>,
+    pub defer_date: Option<String>,
     pub document_id: String,
     pub document_title: String,
 }
@@ -451,6 +452,7 @@ pub fn get_all_dated_nodes() -> Result<Vec<DatedNodeInfo>, String> {
                         node_type: node.node_type.clone(),
                         is_checked: node.is_checked,
                         date_recurrence: node.date_recurrence.clone(),
+                        defer_date: node.defer_date.clone(),
                         document_id: doc_id.to_string(),
                         document_title: title.clone(),
                     });
@@ -729,6 +731,7 @@ fn import_nodes_to_document(doc: &mut Document, nodes: Vec<Node>) -> Result<(), 
             },
             date: node.date,
             date_recurrence: node.date_recurrence,
+            defer_date: node.defer_date,
             collapsed: if node.collapsed { Some(true) } else { None },
             mirror_source_id: node.mirror_source_id,
             ..Default::default()
@@ -742,6 +745,7 @@ fn import_nodes_to_document(doc: &mut Document, nodes: Vec<Node>) -> Result<(), 
             || changes.tags.is_some()
             || changes.date.is_some()
             || changes.date_recurrence.is_some()
+            || changes.defer_date.is_some()
             || changes.collapsed.is_some()
             || changes.mirror_source_id.is_some();
 
