@@ -15,6 +15,7 @@ import {
 import { RenameModal } from './ui/RenameModal';
 import { showToast } from '../store/toastStore';
 import { useSettingsStore } from '../store/settingsStore';
+import { useSavedSearchStore, type SavedSearch } from '../store/savedSearchStore';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ interface SidebarProps {
   onSelectDocument: (docId: string) => void;
   onNewDocument: () => void;
   onDeleteDocument: (docId: string) => void;
+  onApplySavedSearch?: (query: string) => void;
 }
 
 export interface SidebarRef {
@@ -42,10 +44,15 @@ interface DropTarget {
 }
 
 export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
-  { isOpen, currentDocumentId, onToggle, onSelectDocument, onNewDocument, onDeleteDocument },
+  { isOpen, currentDocumentId, onToggle, onSelectDocument, onNewDocument, onDeleteDocument, onApplySavedSearch },
   ref
 ) {
   const confirmDelete = useSettingsStore((s) => s.confirmDelete);
+  const savedSearches = useSavedSearchStore((s) => s.savedSearches);
+  const removeSavedSearch = useSavedSearchStore((s) => s.removeSavedSearch);
+
+  // Saved search context menu state
+  const [savedSearchContextMenu, setSavedSearchContextMenu] = useState<{ search: SavedSearch; x: number; y: number } | null>(null);
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [folderState, setFolderState] = useState<FolderState>({ folders: [], document_folders: {}, document_order: {} });
   const [loading, setLoading] = useState(true);
@@ -94,10 +101,11 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
     loadAll();
   }, [loadAll]);
 
-  // Close context menu on click elsewhere
+  // Close context menus on click elsewhere
   useEffect(() => {
     function handleGlobalClick() {
       setContextMenuTarget(null);
+      setSavedSearchContextMenu(null);
     }
     document.addEventListener('click', handleGlobalClick);
     return () => document.removeEventListener('click', handleGlobalClick);
@@ -504,6 +512,33 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
           )}
         </div>
 
+        {savedSearches.length > 0 && (
+          <div className="saved-searches-section">
+            <div className="saved-searches-header">Saved Searches</div>
+            <div className="saved-searches-list">
+              {savedSearches.map((search) => (
+                <button
+                  key={search.id}
+                  className="saved-search-item"
+                  onClick={() => onApplySavedSearch?.(search.query)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSavedSearchContextMenu({ search, x: e.clientX, y: e.clientY });
+                  }}
+                  title={search.query}
+                >
+                  <svg className="saved-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.35-4.35" />
+                  </svg>
+                  <span className="saved-search-name">{search.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="sidebar-footer">
           {showNewFolderInput ? (
             <div className="new-folder-input-container">
@@ -647,6 +682,25 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
         onRename={handleRenameFolder}
         onClose={() => setRenameFolder(null)}
       />
+
+      {/* Saved search context menu */}
+      {savedSearchContextMenu && (
+        <div className="context-menu" style={{ left: savedSearchContextMenu.x, top: savedSearchContextMenu.y }}>
+          <button
+            className="context-menu-item context-menu-item-danger"
+            onClick={() => {
+              removeSavedSearch(savedSearchContextMenu.search.id);
+              setSavedSearchContextMenu(null);
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+            Delete
+          </button>
+        </div>
+      )}
     </>
   );
 });

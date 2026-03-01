@@ -809,6 +809,8 @@ export const OutlineItem = memo(function OutlineItem({
 
       // Focus the editor at the pending cursor position or end
       setTimeout(() => {
+        // Guard against strict mode double-mount: skip if editor was destroyed
+        if (editor.isDestroyed) return;
         const cursorPos = useOutlineStore.getState().pendingCursorPos;
         if (cursorPos !== null) {
           // Position is in plain text chars, need to convert to ProseMirror position

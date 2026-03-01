@@ -1251,6 +1251,7 @@ function App() {
           onSelectDocument={handleSelectDocument}
           onNewDocument={handleNewDocument}
           onDeleteDocument={handleDeleteDocument}
+          onApplySavedSearch={setFilterQuery}
         />
 
         {/* Main Content Area */}
@@ -1335,6 +1336,7 @@ function App() {
         initialQuery={searchInitialQuery}
         onClose={() => { setShowSearchModal(false); setSearchInitialQuery(''); }}
         onNavigate={handleSearchNavigate}
+        onFilter={(query) => { setFilterQuery(query); setShowSearchModal(false); setSearchInitialQuery(''); }}
       />
 
       <KeyboardShortcutsModal

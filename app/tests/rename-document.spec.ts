@@ -21,7 +21,7 @@ test.describe('Rename document', () => {
     const contextMenu = page.locator('.context-menu');
     await expect(contextMenu).toBeVisible();
 
-    const renameBtn = contextMenu.locator('.context-menu-item');
+    const renameBtn = contextMenu.locator('.context-menu-item').first();
     await expect(renameBtn).toContainText('Rename');
   });
 
@@ -36,7 +36,7 @@ test.describe('Rename document', () => {
     await docItem.click({ button: 'right' });
 
     // Click Rename
-    const renameBtn = page.locator('.context-menu .context-menu-item');
+    const renameBtn = page.locator('.context-menu .context-menu-item').first();
     await renameBtn.click();
 
     // Modal should appear

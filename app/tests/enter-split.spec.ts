@@ -178,7 +178,7 @@ test.describe('Enter key split behavior', () => {
     // If we found it, test the split
     if (targetIdx >= 0) {
       await editors.nth(targetIdx).click();
-      await page.waitForTimeout(100);
+      await page.waitForTimeout(200);
 
       // First verify it has children by checking the children wrapper
       const parentItem = page.locator('.outline-item.focused');

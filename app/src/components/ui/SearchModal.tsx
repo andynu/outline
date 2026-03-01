@@ -2,12 +2,15 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as api from '../../lib/api';
 import type { SearchResult } from '../../lib/api';
 
+type SearchMode = 'navigate' | 'filter';
+
 interface SearchModalProps {
   isOpen: boolean;
   documentScope?: string; // If set, search only within this document
   initialQuery?: string; // Pre-fill search query
   onClose: () => void;
   onNavigate: (nodeId: string, documentId: string) => void;
+  onFilter: (query: string) => void;
 }
 
 function stripHtml(html: string): string {
@@ -16,11 +19,12 @@ function stripHtml(html: string): string {
   return div.textContent || '';
 }
 
-export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose, onNavigate }: SearchModalProps) {
+export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose, onNavigate, onFilter }: SearchModalProps) {
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<SearchMode>('navigate');
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Update query when initialQuery changes (e.g., hashtag click)
@@ -71,6 +75,14 @@ export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose,
     handleClose();
   }, [onNavigate]);
 
+  const applyFilter = useCallback(() => {
+    const trimmed = query.trim();
+    if (trimmed) {
+      onFilter(trimmed);
+      handleClose();
+    }
+  }, [query, onFilter]);
+
   const handleClose = useCallback(() => {
     setQuery('');
     setResults([]);
@@ -83,18 +95,31 @@ export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose,
     if (!isOpen) return;
 
     const handleKeydown = (event: KeyboardEvent) => {
+      // Tab toggles mode
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        setMode(prev => prev === 'navigate' ? 'filter' : 'navigate');
+        return;
+      }
+
       switch (event.key) {
         case 'ArrowDown':
-          event.preventDefault();
-          setSelectedIndex(prev => Math.min(prev + 1, results.length - 1));
+          if (mode === 'navigate') {
+            event.preventDefault();
+            setSelectedIndex(prev => Math.min(prev + 1, results.length - 1));
+          }
           break;
         case 'ArrowUp':
-          event.preventDefault();
-          setSelectedIndex(prev => Math.max(prev - 1, 0));
+          if (mode === 'navigate') {
+            event.preventDefault();
+            setSelectedIndex(prev => Math.max(prev - 1, 0));
+          }
           break;
         case 'Enter':
           event.preventDefault();
-          if (results[selectedIndex]) {
+          if (mode === 'filter') {
+            applyFilter();
+          } else if (results[selectedIndex]) {
             selectResult(results[selectedIndex]);
           }
           break;
@@ -107,7 +132,7 @@ export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose,
 
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
-  }, [isOpen, results, selectedIndex, selectResult, handleClose]);
+  }, [isOpen, mode, results, selectedIndex, selectResult, handleClose, applyFilter]);
 
   const handleBackdropClick = useCallback((event: React.MouseEvent) => {
     if (event.target === event.currentTarget) {
@@ -136,36 +161,73 @@ export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose,
             onChange={(e) => setQuery(e.target.value)}
           />
           {loading && <span className="loading-indicator">...</span>}
+          <div className="search-mode-toggle">
+            <button
+              className={`search-mode-btn ${mode === 'navigate' ? 'active' : ''}`}
+              onClick={() => setMode('navigate')}
+              title="Navigate to result"
+            >
+              Navigate
+            </button>
+            <button
+              className={`search-mode-btn ${mode === 'filter' ? 'active' : ''}`}
+              onClick={() => setMode('filter')}
+              title="Filter outline by query"
+            >
+              Filter
+            </button>
+          </div>
         </div>
 
-        <div className="results" role="listbox">
-          {results.length === 0 && query.trim().length > 0 && !loading ? (
-            <div className="no-results">No results found</div>
-          ) : (
-            results.map((result, index) => (
-              <div
-                key={result.node_id}
-                className={`result ${index === selectedIndex ? 'selected' : ''}`}
-                data-search-index={index}
-                role="option"
-                aria-selected={index === selectedIndex}
-                onClick={() => selectResult(result)}
-              >
-                <div className="result-content">
-                  {stripHtml(result.snippet)}
+        {mode === 'navigate' ? (
+          <div className="results" role="listbox">
+            {results.length === 0 && query.trim().length > 0 && !loading ? (
+              <div className="no-results">No results found</div>
+            ) : (
+              results.map((result, index) => (
+                <div
+                  key={result.node_id}
+                  className={`result ${index === selectedIndex ? 'selected' : ''}`}
+                  data-search-index={index}
+                  role="option"
+                  aria-selected={index === selectedIndex}
+                  onClick={() => selectResult(result)}
+                >
+                  <div className="result-content">
+                    {stripHtml(result.snippet)}
+                  </div>
+                  {result.note && (
+                    <div className="result-note">{result.note}</div>
+                  )}
                 </div>
-                {result.note && (
-                  <div className="result-note">{result.note}</div>
-                )}
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="search-filter-preview">
+            {query.trim() ? (
+              <div className="filter-preview-message">
+                Press <kbd>Enter</kbd> to filter outline to items matching "{query.trim()}"
               </div>
-            ))
-          )}
-        </div>
+            ) : (
+              <div className="filter-preview-message muted">
+                Type a query to filter the outline
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="modal-footer">
           <span className="hint">
-            <kbd>↑↓</kbd> Navigate
-            <kbd>Enter</kbd> Select
+            <kbd>Tab</kbd> Toggle mode
+            {mode === 'navigate' ? (
+              <>
+                <kbd>↑↓</kbd> Navigate
+                <kbd>Enter</kbd> Select
+              </>
+            ) : (
+              <><kbd>Enter</kbd> Apply filter</>
+            )}
             <kbd>Esc</kbd> Close
           </span>
         </div>
