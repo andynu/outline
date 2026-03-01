@@ -1,80 +1,179 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import * as api from '../../lib/api';
-import type { BacklinkResult } from '../../lib/api';
+import type { BacklinkResult, UnlinkedReference } from '../../lib/api';
 
 interface BacklinksPanelProps {
   nodeId: string | null;
-  onNavigate: (nodeId: string) => void;
+  nodeContent: string;
+  onNavigate: (nodeId: string, documentId: string) => void;
 }
 
 function stripHtml(html: string): string {
-  const div = document.createElement('div');
-  div.textContent = html;
-  return div.textContent || '';
+  return html
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .trim();
 }
 
-function truncate(text: string, maxLength: number = 60): string {
+function truncate(text: string, maxLength: number = 80): string {
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength) + '...';
 }
 
-export function BacklinksPanel({ nodeId, onNavigate }: BacklinksPanelProps) {
+export function BacklinksPanel({ nodeId, nodeContent, onNavigate }: BacklinksPanelProps) {
   const [backlinks, setBacklinks] = useState<BacklinkResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState(true);
+  const [unlinked, setUnlinked] = useState<UnlinkedReference[]>([]);
+  const [backlinkExpanded, setBacklinkExpanded] = useState(true);
+  const [unlinkedExpanded, setUnlinkedExpanded] = useState(false);
+  const [linking, setLinking] = useState<string | null>(null); // source_node_id being linked
 
-  // Load backlinks when nodeId changes
+  const searchText = stripHtml(nodeContent);
+
+  // Load backlinks and unlinked references when nodeId changes
   useEffect(() => {
-    if (nodeId) {
-      setLoading(true);
-      setBacklinks([]); // Clear old backlinks immediately
-      api.getBacklinks(nodeId)
-        .then(results => setBacklinks(results))
-        .catch(e => {
-          console.error('Failed to load backlinks:', e);
-          setBacklinks([]);
-        })
-        .finally(() => setLoading(false));
-    } else {
+    if (!nodeId) {
       setBacklinks([]);
+      setUnlinked([]);
+      return;
     }
-  }, [nodeId]);
 
-  const handleClick = useCallback((result: BacklinkResult) => {
-    onNavigate(result.source_node_id);
+    setBacklinks([]);
+    setUnlinked([]);
+
+    api.getBacklinks(nodeId)
+      .then(results => setBacklinks(results))
+      .catch(e => {
+        console.error('Failed to load backlinks:', e);
+        setBacklinks([]);
+      });
+
+    // Only search for unlinked references if text is meaningful
+    if (searchText.length >= 3) {
+      api.getUnlinkedReferences(nodeId, searchText)
+        .then(results => setUnlinked(results))
+        .catch(e => {
+          console.error('Failed to load unlinked references:', e);
+          setUnlinked([]);
+        });
+    }
+  }, [nodeId, searchText]);
+
+  const handleBacklinkClick = useCallback((result: BacklinkResult) => {
+    onNavigate(result.source_node_id, result.source_document_id);
   }, [onNavigate]);
 
-  if (backlinks.length === 0) {
+  const handleUnlinkedClick = useCallback((result: UnlinkedReference) => {
+    onNavigate(result.source_node_id, result.source_document_id);
+  }, [onNavigate]);
+
+  const handleLink = useCallback(async (ref: UnlinkedReference, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!nodeId) return;
+
+    setLinking(ref.source_node_id);
+    try {
+      await api.convertMentionToLink(
+        ref.source_node_id,
+        ref.source_document_id,
+        nodeId,
+        searchText
+      );
+      // Remove from unlinked list and add to backlinks
+      setUnlinked(prev => prev.filter(u => u.source_node_id !== ref.source_node_id));
+      setBacklinks(prev => [...prev, {
+        source_node_id: ref.source_node_id,
+        source_document_id: ref.source_document_id,
+        content: ref.content,
+      }]);
+    } catch (e) {
+      console.error('Failed to convert mention to link:', e);
+    } finally {
+      setLinking(null);
+    }
+  }, [nodeId, searchText]);
+
+  if (backlinks.length === 0 && unlinked.length === 0) {
     return null;
   }
 
   return (
     <div className="backlinks-panel">
-      <button
-        className="panel-header"
-        onClick={() => setExpanded(prev => !prev)}
-      >
-        <span className="expand-icon">{expanded ? '▼' : '▶'}</span>
-        <span className="panel-title">
-          {loading ? 'Backlinks...' : `${backlinks.length} backlink${backlinks.length !== 1 ? 's' : ''}`}
-        </span>
-      </button>
+      {/* Formal backlinks section */}
+      {backlinks.length > 0 && (
+        <>
+          <button
+            className="panel-header"
+            onClick={() => setBacklinkExpanded(prev => !prev)}
+          >
+            <span className="expand-icon">{backlinkExpanded ? '▼' : '▶'}</span>
+            <span className="panel-title">
+              {backlinks.length} backlink{backlinks.length !== 1 ? 's' : ''}
+            </span>
+          </button>
 
-      {expanded && !loading && (
-        <div className="backlinks-list">
-          {backlinks.map(link => (
-            <div
-              key={link.source_node_id}
-              className="backlink-item"
-              role="button"
-              tabIndex={0}
-              onClick={() => handleClick(link)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(link); } }}
-            >
-              {truncate(stripHtml(link.content))}
+          {backlinkExpanded && (
+            <div className="backlinks-list">
+              {backlinks.map(link => (
+                <div
+                  key={link.source_node_id}
+                  className="backlink-item"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleBacklinkClick(link)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleBacklinkClick(link); } }}
+                >
+                  {truncate(stripHtml(link.content))}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
+      )}
+
+      {/* Unlinked references section */}
+      {unlinked.length > 0 && (
+        <>
+          <button
+            className="panel-header unlinked-header"
+            onClick={() => setUnlinkedExpanded(prev => !prev)}
+          >
+            <span className="expand-icon">{unlinkedExpanded ? '▼' : '▶'}</span>
+            <span className="panel-title">
+              {unlinked.length} unlinked reference{unlinked.length !== 1 ? 's' : ''}
+            </span>
+          </button>
+
+          {unlinkedExpanded && (
+            <div className="backlinks-list unlinked-list">
+              {unlinked.map(ref_ => (
+                <div
+                  key={ref_.source_node_id}
+                  className="backlink-item unlinked-item"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleUnlinkedClick(ref_)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleUnlinkedClick(ref_); } }}
+                >
+                  <span className="unlinked-content">
+                    {truncate(stripHtml(ref_.content))}
+                  </span>
+                  <button
+                    className="link-btn"
+                    onClick={(e) => handleLink(ref_, e)}
+                    disabled={linking === ref_.source_node_id}
+                    title="Convert to wiki link"
+                  >
+                    {linking === ref_.source_node_id ? '...' : 'Link'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

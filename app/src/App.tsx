@@ -18,6 +18,7 @@ import { ToastContainer } from './components/ui/ToastContainer';
 import { showToast } from './store/toastStore';
 import { FilterBar } from './components/ui/FilterBar';
 import { ZoomBreadcrumbs } from './components/ui/ZoomBreadcrumbs';
+import { BacklinksPanel } from './components/ui/BacklinksPanel';
 import { loadSessionState, saveSessionState } from './lib/sessionState';
 import type { InboxItem } from './lib/api';
 import type { Node, TreeNode } from './lib/types';
@@ -200,6 +201,11 @@ function App() {
   const zoomToParent = useOutlineStore(state => state.zoomToParent);
   const zoomTo = useOutlineStore(state => state.zoomTo);
   const focusedId = useOutlineStore(state => state.focusedId);
+  const focusedNodeContent = useOutlineStore(state => {
+    if (!state.focusedId) return '';
+    const node = state.nodes.find(n => n.id === state.focusedId);
+    return node?.content ?? '';
+  });
   const setFocusedId = useOutlineStore(state => state.setFocusedId);
   const getTree = useOutlineStore(state => state.getTree);
   // Vim-style navigation
@@ -472,6 +478,18 @@ function App() {
     useOutlineStore.getState().setFocusedId(nodeId);
     setShowTagsPanel(false);
   }, []);
+
+  // Handle backlinks panel navigation (cross-document)
+  const handleBacklinksNavigate = useCallback((nodeId: string, documentId: string) => {
+    if (documentId !== currentDocumentId) {
+      setCurrentDocumentId(documentId);
+      load(documentId).then(() => {
+        useOutlineStore.getState().setFocusedId(nodeId);
+      });
+    } else {
+      useOutlineStore.getState().setFocusedId(nodeId);
+    }
+  }, [currentDocumentId, load]);
 
   // Handle tag search from tags panel - use filter instead of search
   const handleTagSearch = useCallback((tag: string) => {
@@ -1257,6 +1275,11 @@ function App() {
                   />
                 ))}
               </div>
+              <BacklinksPanel
+                nodeId={focusedId}
+                nodeContent={focusedNodeContent}
+                onNavigate={handleBacklinksNavigate}
+              />
             </>
           )}
         </main>

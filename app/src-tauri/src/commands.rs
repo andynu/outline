@@ -15,7 +15,7 @@ use crate::data::{
     move_document_to_folder as move_doc_to_folder_impl,
     reorder_folders as reorder_folders_impl,
 };
-use crate::search::{BacklinkResult, SearchIndex, SearchResult};
+use crate::search::{BacklinkResult, SearchIndex, SearchResult, UnlinkedReference};
 use crate::watcher::WatcherState;
 
 /// Parse a UUID string, returning a descriptive error
@@ -478,6 +478,93 @@ pub fn get_backlinks(
     index
         .get_backlinks(&node_uuid)
         .map_err(|e| format!("Failed to get backlinks: {}", e))
+}
+
+/// Get unlinked references for a node (mentions of its text without formal wiki links)
+#[tauri::command]
+pub fn get_unlinked_references(
+    state: State<AppState>,
+    node_id: String,
+    search_text: String,
+) -> Result<Vec<UnlinkedReference>, String> {
+    let node_uuid = parse_uuid(&node_id)?;
+
+    // Skip very short text (too many false positives)
+    let text = search_text.trim();
+    if text.len() < 3 {
+        return Ok(Vec::new());
+    }
+
+    let search_index = state.search_index.lock().unwrap();
+    let index = search_index
+        .as_ref()
+        .ok_or("Search index not initialized")?;
+
+    index
+        .get_unlinked_references(&node_uuid, text)
+        .map_err(|e| format!("Failed to get unlinked references: {}", e))
+}
+
+/// Convert a plain text mention to a wiki link in the source node
+#[tauri::command]
+pub fn convert_mention_to_link(
+    state: State<AppState>,
+    source_node_id: String,
+    source_document_id: String,
+    target_node_id: String,
+    mention_text: String,
+) -> Result<(), String> {
+    let source_uuid = parse_uuid(&source_node_id)?;
+    let source_doc_uuid = parse_uuid(&source_document_id)?;
+    let target_uuid = parse_uuid(&target_node_id)?;
+
+    // Load the source document
+    let doc_dir = documents_dir().join(source_doc_uuid.to_string());
+    let mut doc = Document::load(doc_dir)?;
+
+    // Find the source node
+    let node = doc.state.nodes.iter()
+        .find(|n| n.id == source_uuid)
+        .ok_or("Source node not found")?;
+
+    // Build the wiki link HTML
+    let wiki_link_html = format!(
+        r#"<span data-wiki-link="" class="wiki-link" data-node-id="{}">{}</span>"#,
+        target_uuid, mention_text
+    );
+
+    // Replace the first case-insensitive match in the content
+    let content = &node.content;
+    let new_content = if let Some(pos) = content.to_lowercase().find(&mention_text.to_lowercase()) {
+        let mut result = String::with_capacity(content.len() + wiki_link_html.len());
+        result.push_str(&content[..pos]);
+        result.push_str(&wiki_link_html);
+        result.push_str(&content[pos + mention_text.len()..]);
+        result
+    } else {
+        return Err("Mention text not found in source node".to_string());
+    };
+
+    // Create an update operation
+    let op = update_op(source_uuid, NodeChanges {
+        content: Some(new_content),
+        ..Default::default()
+    });
+
+    doc.append_op(&op)?;
+    op.apply(&mut doc.state);
+
+    // Re-index the modified node for search and links
+    if let Ok(search_index) = state.search_index.lock() {
+        if let Some(ref index) = *search_index {
+            if let Some(updated_node) = doc.state.nodes.iter().find(|n| n.id == source_uuid) {
+                let _ = index.update_node(&source_doc_uuid, updated_node);
+                let _ = index.update_links(&source_doc_uuid, updated_node);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Generate iCalendar feed for all dated items in a document

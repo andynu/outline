@@ -499,6 +499,46 @@ export async function getBacklinks(nodeId: string): Promise<BacklinkResult[]> {
   return [];
 }
 
+// Unlinked reference result
+export interface UnlinkedReference {
+  source_node_id: string;
+  source_document_id: string;
+  content: string;
+}
+
+// Get unlinked references for a node (mentions of its text without formal wiki links)
+export async function getUnlinkedReferences(
+  nodeId: string,
+  searchText: string
+): Promise<UnlinkedReference[]> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('get_unlinked_references', { nodeId, searchText }) as Promise<UnlinkedReference[]>;
+  }
+  // Browser-only mode: return empty array
+  return [];
+}
+
+// Convert a plain text mention to a wiki link
+export async function convertMentionToLink(
+  sourceNodeId: string,
+  sourceDocumentId: string,
+  targetNodeId: string,
+  mentionText: string
+): Promise<void> {
+  await initTauri();
+  if (tauriInvoke) {
+    await tauriInvoke('convert_mention_to_link', {
+      sourceNodeId,
+      sourceDocumentId,
+      targetNodeId,
+      mentionText,
+    });
+    return;
+  }
+  // Browser-only mode: no-op
+}
+
 // Calculate the next occurrence for a recurring task
 export async function getNextOccurrence(
   rruleStr: string,

@@ -425,11 +425,65 @@ impl SearchIndex {
 
         Ok(results)
     }
+    /// Find unlinked references: nodes that mention search_text but don't have
+    /// a formal wiki link to the target node
+    pub fn get_unlinked_references(
+        &self,
+        target_node_id: &Uuid,
+        search_text: &str,
+    ) -> SqliteResult<Vec<UnlinkedReference>> {
+        let conn = self.conn.lock().unwrap();
+        let target_id_str = target_node_id.to_string();
+        let search_lower = search_text.to_lowercase();
+
+        // Find nodes containing the text (case-insensitive) that:
+        // 1. Are not the target node itself
+        // 2. Don't already have a formal wiki link to the target node
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT n.id, n.document_id, n.content
+            FROM nodes n
+            WHERE LOWER(n.content) LIKE '%' || ? || '%'
+            AND n.id != ?
+            AND NOT EXISTS (
+                SELECT 1 FROM links l
+                WHERE l.source_node_id = n.id
+                AND l.target_node_id = ?
+            )
+            LIMIT 50
+            "#,
+        )?;
+
+        let rows = stmt.query_map(params![search_lower, target_id_str, target_id_str], |row| {
+            Ok(UnlinkedReference {
+                source_node_id: row.get(0)?,
+                source_document_id: row.get(1)?,
+                content: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+            })
+        })?;
+
+        let mut results = Vec::new();
+        for result in rows {
+            if let Ok(r) = result {
+                results.push(r);
+            }
+        }
+
+        Ok(results)
+    }
 }
 
 /// Backlink result returned to the frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BacklinkResult {
+    pub source_node_id: String,
+    pub source_document_id: String,
+    pub content: String,
+}
+
+/// Unlinked reference result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnlinkedReference {
     pub source_node_id: String,
     pub source_document_id: String,
     pub content: String,

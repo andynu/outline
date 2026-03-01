@@ -656,6 +656,43 @@ body {
   color: var(--accent-primary);
 }
 
+.backlinks-panel .unlinked-header {
+  border-top: 1px solid var(--border-primary);
+}
+
+.backlinks-panel .unlinked-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.backlinks-panel .unlinked-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.backlinks-panel .link-btn {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  font-size: 11px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--accent-primary);
+}
+
+.backlinks-panel .link-btn:hover {
+  background: var(--accent-primary-lighter);
+}
+
+.backlinks-panel .link-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* Date Badge */
 .date-badge {
   display: inline-flex;

@@ -59,6 +59,8 @@ pub fn run() {
             commands::get_all_dated_nodes,
             commands::delete_document,
             commands::get_backlinks,
+            commands::get_unlinked_references,
+            commands::convert_mention_to_link,
             commands::get_next_occurrence,
             commands::generate_ical_feed,
             commands::get_inbox,
