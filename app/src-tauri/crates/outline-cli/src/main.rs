@@ -397,6 +397,12 @@ fn cmd_doc_list(out: &OutputMode) -> Result<(), String> {
     outline_core::data::ensure_dirs()?;
     let docs_dir = documents_dir();
 
+    // Load folder state for document-to-folder mapping
+    let folder_state = outline_core::data::load_folders().unwrap_or_default();
+    let folder_names: std::collections::HashMap<&str, &str> = folder_state.folders.iter()
+        .map(|f| (f.id.as_str(), f.name.as_str()))
+        .collect();
+
     let mut docs: Vec<serde_json::Value> = Vec::new();
 
     if docs_dir.exists() {
@@ -408,17 +414,23 @@ fn cmd_doc_list(out: &OutputMode) -> Result<(), String> {
                     if uuid::Uuid::parse_str(name).is_ok() {
                         match Document::load(path.clone()) {
                             Ok(doc) => {
-                                // Find the document title (first root node or first node)
                                 let title = doc.state.nodes.iter()
                                     .find(|n| n.parent_id.is_none())
                                     .map(|n| strip_html(&n.content))
                                     .unwrap_or_else(|| "(empty)".to_string());
 
-                                docs.push(serde_json::json!({
+                                let folder = folder_state.document_folders.get(name)
+                                    .and_then(|fid| folder_names.get(fid.as_str()).copied());
+
+                                let mut entry = serde_json::json!({
                                     "id": name,
                                     "title": title,
                                     "node_count": doc.state.nodes.len(),
-                                }));
+                                });
+                                if let Some(fname) = folder {
+                                    entry["folder"] = serde_json::json!(fname);
+                                }
+                                docs.push(entry);
                             }
                             Err(e) => {
                                 eprintln!("Warning: failed to load document {}: {}", name, e);
@@ -432,20 +444,18 @@ fn cmd_doc_list(out: &OutputMode) -> Result<(), String> {
 
     if out.is_json() {
         out.print_json(&serde_json::json!(docs));
+    } else if docs.is_empty() {
+        println!("No documents found.");
     } else {
-        if docs.is_empty() {
-            println!("No documents found.");
-        } else {
-            // Print as a simple table
-            println!("{:<40} {:<6} {}", "ID", "Nodes", "Title");
-            println!("{}", "-".repeat(70));
-            for doc in &docs {
-                println!("{:<40} {:<6} {}",
-                    doc["id"].as_str().unwrap_or(""),
-                    doc["node_count"].as_u64().unwrap_or(0),
-                    doc["title"].as_str().unwrap_or(""),
-                );
-            }
+        println!("{:<40} {:<6} {:<14} {}", "ID", "Nodes", "Folder", "Title");
+        println!("{}", "-".repeat(80));
+        for doc in &docs {
+            println!("{:<40} {:<6} {:<14} {}",
+                doc["id"].as_str().unwrap_or(""),
+                doc["node_count"].as_u64().unwrap_or(0),
+                doc["folder"].as_str().unwrap_or(""),
+                doc["title"].as_str().unwrap_or(""),
+            );
         }
     }
 
