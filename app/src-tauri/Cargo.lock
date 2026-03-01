@@ -107,10 +107,8 @@ dependencies = [
  "hostname",
  "log",
  "notify-debouncer-full",
- "quick-xml 0.37.5",
- "regex",
+ "outline-core",
  "rrule",
- "rusqlite",
  "serde",
  "serde_json",
  "tauri",
@@ -120,7 +118,6 @@ dependencies = [
  "tauri-plugin-shell",
  "tauri-plugin-window-state",
  "tempfile",
- "urlencoding",
  "uuid",
  "zip",
 ]
@@ -2837,6 +2834,32 @@ checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "outline-cli"
+version = "0.1.0"
+dependencies = [
+ "outline-core",
+]
+
+[[package]]
+name = "outline-core"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "dirs 5.0.1",
+ "hostname",
+ "log",
+ "quick-xml 0.37.5",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "urlencoding",
+ "uuid",
+ "zip",
 ]
 
 [[package]]

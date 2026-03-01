@@ -2,7 +2,7 @@ use std::sync::Mutex;
 use tauri::State;
 use uuid::Uuid;
 
-use crate::data::{
+use outline_core::data::{
     create_op, create_op_with_id, data_dir, default_data_dir, delete_op, documents_dir, ensure_dirs,
     move_op, save_config, set_data_dir, update_op, Document, DocumentState, InboxConfig, InboxItem,
     get_inbox_config, set_inbox_config as set_inbox_config_impl, clear_inbox_config as clear_inbox_config_impl,
@@ -15,7 +15,7 @@ use crate::data::{
     move_document_to_folder as move_doc_to_folder_impl,
     reorder_folders as reorder_folders_impl,
 };
-use crate::search::{BacklinkResult, SearchIndex, SearchResult, UnlinkedReference};
+use outline_core::search::{BacklinkResult, SearchIndex, SearchResult, UnlinkedReference};
 use crate::watcher::WatcherState;
 
 /// Parse a UUID string, returning a descriptive error
@@ -347,7 +347,7 @@ pub struct DocumentInfo {
 /// List all available documents
 #[tauri::command]
 pub fn list_documents() -> Result<Vec<DocumentInfo>, String> {
-    use crate::data::list_documents as list_doc_ids;
+    use outline_core::data::list_documents as list_doc_ids;
     ensure_dirs()?;
 
     let doc_ids = list_doc_ids()?;
@@ -423,7 +423,7 @@ pub struct DatedNodeInfo {
 /// Get all nodes with dates across all documents
 #[tauri::command]
 pub fn get_all_dated_nodes() -> Result<Vec<DatedNodeInfo>, String> {
-    use crate::data::list_documents as list_doc_ids;
+    use outline_core::data::list_documents as list_doc_ids;
     ensure_dirs()?;
 
     let doc_ids = list_doc_ids()?;
@@ -767,7 +767,7 @@ pub fn import_opml(
     let mut current = state.current_document.lock().unwrap();
     let doc = current.as_mut().ok_or("No document loaded")?;
 
-    let nodes = crate::import_export::parse_opml(&content)?;
+    let nodes = outline_core::import_export::parse_opml(&content)?;
     import_nodes_to_document(doc, nodes)?;
 
     Ok(doc.state.clone())
@@ -790,8 +790,8 @@ pub fn import_opml_as_document(
     ensure_dirs()?;
 
     // Parse OPML and extract title
-    let nodes = crate::import_export::parse_opml(&content)?;
-    let title = crate::import_export::get_opml_title(&content)
+    let nodes = outline_core::import_export::parse_opml(&content)?;
+    let title = outline_core::import_export::get_opml_title(&content)
         .unwrap_or_else(|| "Imported Document".to_string());
 
     // Create a new document with a new UUID
@@ -845,7 +845,7 @@ pub fn import_dynalist_backup(
 
     // Get or create folder if specified (reuses existing folder with same name)
     let folder_id = if let Some(ref name) = folder_name {
-        Some(crate::data::get_or_create_folder(name)?.id)
+        Some(outline_core::data::get_or_create_folder(name)?.id)
     } else {
         None
     };
@@ -871,7 +871,7 @@ pub fn import_dynalist_backup(
             .map_err(|e| format!("Failed to read {}: {}", name, e))?;
 
         // Parse OPML and get title
-        let nodes = match crate::import_export::parse_opml(&content) {
+        let nodes = match outline_core::import_export::parse_opml(&content) {
             Ok(nodes) => nodes,
             Err(e) => {
                 log::warn!("Failed to parse {}: {}", name, e);
@@ -879,7 +879,7 @@ pub fn import_dynalist_backup(
             }
         };
 
-        let title = crate::import_export::get_opml_title(&content)
+        let title = outline_core::import_export::get_opml_title(&content)
             .unwrap_or_else(|| {
                 // Use filename without extension as fallback title
                 name.trim_end_matches(".opml")
@@ -916,7 +916,7 @@ pub fn import_dynalist_backup(
 
         // Move to folder if specified
         if let Some(ref fid) = folder_id {
-            let _ = crate::data::move_document_to_folder(&doc_uuid.to_string(), Some(fid), None);
+            let _ = outline_core::data::move_document_to_folder(&doc_uuid.to_string(), Some(fid), None);
         }
 
         results.push(ImportResult {
@@ -979,7 +979,7 @@ pub fn export_opml(state: State<AppState>, title: String) -> Result<String, Stri
     let current = state.current_document.lock().unwrap();
     let doc = current.as_ref().ok_or("No document loaded")?;
 
-    crate::import_export::generate_opml(&doc.state.nodes, &title)
+    outline_core::import_export::generate_opml(&doc.state.nodes, &title)
 }
 
 /// Export current document to Markdown format
@@ -988,7 +988,7 @@ pub fn export_markdown(state: State<AppState>) -> Result<String, String> {
     let current = state.current_document.lock().unwrap();
     let doc = current.as_ref().ok_or("No document loaded")?;
 
-    Ok(crate::import_export::generate_markdown(&doc.state.nodes))
+    Ok(outline_core::import_export::generate_markdown(&doc.state.nodes))
 }
 
 /// Export selected nodes and their children to markdown
@@ -1012,7 +1012,7 @@ pub fn export_selection_markdown(
     }
 
     // Collect all nodes to export: selected nodes + their descendants
-    let mut nodes_to_export: Vec<&crate::data::Node> = Vec::new();
+    let mut nodes_to_export: Vec<&outline_core::data::Node> = Vec::new();
     let mut ids_to_export: std::collections::HashSet<uuid::Uuid> = std::collections::HashSet::new();
 
     // First, add all selected nodes
@@ -1048,11 +1048,11 @@ pub fn export_selection_markdown(
     }
 
     // Generate markdown - need to create owned nodes for the generate function
-    let owned_nodes: Vec<crate::data::Node> = nodes_to_export.iter().map(|n| (*n).clone()).collect();
+    let owned_nodes: Vec<outline_core::data::Node> = nodes_to_export.iter().map(|n| (*n).clone()).collect();
 
     // For selected nodes that are at root level in our export, we need to handle parent_id
     // Create a modified version where selected nodes become roots
-    let mut export_nodes: Vec<crate::data::Node> = Vec::new();
+    let mut export_nodes: Vec<outline_core::data::Node> = Vec::new();
     for mut node in owned_nodes {
         // If this node's parent is not in our export set, make it a root
         if let Some(parent_id) = node.parent_id {
@@ -1063,7 +1063,7 @@ pub fn export_selection_markdown(
         export_nodes.push(node);
     }
 
-    Ok(crate::import_export::generate_markdown(&export_nodes))
+    Ok(outline_core::import_export::generate_markdown(&export_nodes))
 }
 
 /// Export current document to JSON backup format
@@ -1072,7 +1072,7 @@ pub fn export_json(state: State<AppState>) -> Result<String, String> {
     let current = state.current_document.lock().unwrap();
     let doc = current.as_ref().ok_or("No document loaded")?;
 
-    crate::import_export::generate_json_backup(&doc.state.nodes)
+    outline_core::import_export::generate_json_backup(&doc.state.nodes)
 }
 
 /// Import JSON backup into the current document
@@ -1084,7 +1084,7 @@ pub fn import_json(
     let mut current = state.current_document.lock().unwrap();
     let doc = current.as_mut().ok_or("No document loaded")?;
 
-    let nodes = crate::import_export::parse_json_backup(&content)?;
+    let nodes = outline_core::import_export::parse_json_backup(&content)?;
     import_nodes_to_document(doc, nodes)?;
 
     Ok(doc.state.clone())
@@ -1138,7 +1138,7 @@ pub fn set_data_directory(path: Option<String>) -> Result<DataDirectoryInfo, Str
     }
 
     // Save to config file (preserve existing inbox setting)
-    let mut config = crate::data::load_config();
+    let mut config = outline_core::data::load_config();
     config.data_directory = path;
     save_config(&config)?;
 

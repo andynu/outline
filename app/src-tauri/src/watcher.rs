@@ -15,7 +15,7 @@ use std::thread;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
-use crate::data::documents_dir;
+use outline_core::data::documents_dir;
 
 /// Payload sent with the documents-changed event
 #[derive(Clone, serde::Serialize)]

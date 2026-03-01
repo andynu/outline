@@ -1,7 +1,4 @@
 mod commands;
-mod data;
-mod import_export;
-mod search;
 mod watcher;
 
 use commands::AppState;
@@ -11,7 +8,7 @@ use watcher::WatcherState;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize data directory from saved config before anything else
-    data::init_data_dir_from_config();
+    outline_core::data::init_data_dir_from_config();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
