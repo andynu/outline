@@ -318,21 +318,44 @@ pub struct InboxConfig {
     pub node_id: String,
 }
 
+/// A named capture target — a specific document + node location for quick capture
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaptureTarget {
+    pub document_id: String,
+    pub node_id: String,
+    #[serde(default)]
+    pub default: bool,
+}
+
 /// App configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data_directory: Option<String>,
+    /// Legacy single inbox field (migrated to capture_targets on first load)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inbox: Option<InboxConfig>,
+    /// Named capture targets
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub capture_targets: HashMap<String, CaptureTarget>,
 }
 
-/// Load app configuration from disk
+/// Load app configuration from disk, migrating legacy inbox if needed
 pub fn load_config() -> AppConfig {
     let path = config_path();
     if path.exists() {
         if let Ok(content) = fs::read_to_string(&path) {
-            if let Ok(config) = serde_json::from_str(&content) {
+            if let Ok(mut config) = serde_json::from_str::<AppConfig>(&content) {
+                // Migrate legacy inbox to capture_targets
+                if config.capture_targets.is_empty() {
+                    if let Some(ref inbox) = config.inbox {
+                        config.capture_targets.insert("inbox".to_string(), CaptureTarget {
+                            document_id: inbox.document_id.clone(),
+                            node_id: inbox.node_id.clone(),
+                            default: true,
+                        });
+                    }
+                }
                 return config;
             }
         }
@@ -363,18 +386,41 @@ pub fn init_data_dir_from_config() {
     }
 }
 
-/// Get the current inbox configuration
+/// Get the current inbox configuration (uses default capture target for backward compatibility)
 pub fn get_inbox_config() -> Option<InboxConfig> {
-    load_config().inbox
+    let config = load_config();
+
+    // Try capture targets first (new system)
+    if let Some(target) = get_default_target_from(&config) {
+        return Some(InboxConfig {
+            document_id: target.document_id.clone(),
+            node_id: target.node_id.clone(),
+        });
+    }
+
+    // Fall back to legacy inbox field
+    config.inbox
 }
 
-/// Set the inbox configuration
+/// Set the inbox configuration (updates both legacy inbox and default capture target)
 pub fn set_inbox_config(document_id: String, node_id: String) -> Result<(), String> {
     let mut config = load_config();
     config.inbox = Some(InboxConfig {
+        document_id: document_id.clone(),
+        node_id: node_id.clone(),
+    });
+
+    // Also update default capture target
+    // Clear old default
+    for target in config.capture_targets.values_mut() {
+        target.default = false;
+    }
+    config.capture_targets.insert("inbox".to_string(), CaptureTarget {
         document_id,
         node_id,
+        default: true,
     });
+
     save_config(&config)
 }
 
@@ -382,6 +428,82 @@ pub fn set_inbox_config(document_id: String, node_id: String) -> Result<(), Stri
 pub fn clear_inbox_config() -> Result<(), String> {
     let mut config = load_config();
     config.inbox = None;
+    save_config(&config)
+}
+
+// -- Capture target management --
+
+/// Get the default capture target from a config
+fn get_default_target_from(config: &AppConfig) -> Option<&CaptureTarget> {
+    config.capture_targets.values().find(|t| t.default)
+}
+
+/// Get all capture targets
+pub fn get_capture_targets() -> HashMap<String, CaptureTarget> {
+    load_config().capture_targets
+}
+
+/// Get a capture target by name (or default if name is None)
+pub fn get_capture_target(name: Option<&str>) -> Option<(String, CaptureTarget)> {
+    let config = load_config();
+    match name {
+        Some(n) => config.capture_targets.get(n).map(|t| (n.to_string(), t.clone())),
+        None => {
+            // Find default target
+            config.capture_targets.iter()
+                .find(|(_, t)| t.default)
+                .map(|(n, t)| (n.clone(), t.clone()))
+        }
+    }
+}
+
+/// Add or update a capture target
+pub fn set_capture_target(name: &str, document_id: String, node_id: String) -> Result<CaptureTarget, String> {
+    let mut config = load_config();
+
+    // If this is the first target, make it default
+    let is_first = config.capture_targets.is_empty();
+
+    let target = CaptureTarget {
+        document_id,
+        node_id,
+        default: is_first,
+    };
+
+    config.capture_targets.insert(name.to_string(), target.clone());
+    save_config(&config)?;
+    Ok(target)
+}
+
+/// Remove a capture target
+pub fn remove_capture_target(name: &str) -> Result<(), String> {
+    let mut config = load_config();
+
+    let was_default = config.capture_targets.get(name).map(|t| t.default).unwrap_or(false);
+    config.capture_targets.remove(name);
+
+    // If we removed the default, assign default to first remaining target
+    if was_default {
+        if let Some(target) = config.capture_targets.values_mut().next() {
+            target.default = true;
+        }
+    }
+
+    save_config(&config)
+}
+
+/// Set which capture target is the default
+pub fn set_default_capture_target(name: &str) -> Result<(), String> {
+    let mut config = load_config();
+
+    if !config.capture_targets.contains_key(name) {
+        return Err(format!("Capture target '{}' not found", name));
+    }
+
+    for (n, target) in config.capture_targets.iter_mut() {
+        target.default = n == name;
+    }
+
     save_config(&config)
 }
 

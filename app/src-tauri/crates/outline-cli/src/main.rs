@@ -381,11 +381,14 @@ fn run(cli: Cli, out: &OutputMode) -> Result<(), String> {
             let doc_uuid = resolve_doc_ref(&doc_ref)?;
             cmd_compact(out, &doc_uuid.to_string())
         }
-        Commands::Capture { .. } => {
-            Err("capture command not yet implemented (requires multi-inbox config)".to_string())
+        Commands::Capture { content, to, note, r#type, stdin } => {
+            cmd_capture(out, content, to.as_deref(), note.as_deref(), &r#type, stdin)
         }
-        Commands::Target { .. } => {
-            Err("target command not yet implemented (requires multi-inbox config)".to_string())
+        Commands::Target { command } => match command {
+            TargetCommand::List => cmd_target_list(out),
+            TargetCommand::Add { name, doc, node } => cmd_target_add(out, &name, &doc, &node),
+            TargetCommand::Remove { name } => cmd_target_remove(out, &name),
+            TargetCommand::SetDefault { name } => cmd_target_set_default(out, &name),
         }
     }
 }
@@ -991,6 +994,158 @@ fn cmd_compact(out: &OutputMode, doc_id: &str) -> Result<(), String> {
         }));
     } else {
         eprintln!("Compacted document {} ({} pending ops merged)", doc_id, before);
+    }
+
+    Ok(())
+}
+
+// -- Capture commands --
+
+fn cmd_capture(out: &OutputMode, content_args: Vec<String>, to: Option<&str>, note: Option<&str>, node_type: &str, stdin: bool) -> Result<(), String> {
+    use outline_core::data::{documents_dir, Document, NodeType, NodeChanges, create_op_with_id, update_op, get_capture_target};
+
+    // Get content from args or stdin
+    let content = if stdin {
+        use std::io::Read;
+        let mut buf = String::new();
+        std::io::stdin().read_to_string(&mut buf)
+            .map_err(|e| format!("Read stdin: {}", e))?;
+        buf.trim().to_string()
+    } else {
+        content_args.join(" ")
+    };
+
+    if content.is_empty() {
+        return Err("No content to capture. Provide text or use --stdin.".to_string());
+    }
+
+    // Resolve target
+    let (target_name, target) = get_capture_target(to)
+        .ok_or_else(|| {
+            if let Some(name) = to {
+                format!("Capture target '{}' not found. Run 'outline target list'.", name)
+            } else {
+                "No default capture target configured. Run 'outline target add <name> --doc <id> --node <id>'.".to_string()
+            }
+        })?;
+
+    // Load document and create node directly
+    let doc_dir = documents_dir().join(&target.document_id);
+    if !doc_dir.exists() {
+        return Err(format!("Target document {} not found", target.document_id));
+    }
+
+    let mut doc = Document::load(doc_dir)?;
+
+    let parent_uuid = uuid::Uuid::parse_str(&target.node_id)
+        .map_err(|e| format!("Invalid target node ID: {}", e))?;
+
+    // Append after existing children
+    let position = doc.state.nodes.iter()
+        .filter(|n| n.parent_id == Some(parent_uuid))
+        .count() as i32;
+
+    let nt = match node_type {
+        "checkbox" => NodeType::Checkbox,
+        "heading" => NodeType::Heading,
+        _ => NodeType::Bullet,
+    };
+
+    let new_id = uuid::Uuid::now_v7();
+    let op = create_op_with_id(new_id, Some(parent_uuid), position, content.clone(), nt);
+    doc.append_op(&op)?;
+    op.apply(&mut doc.state);
+
+    // Apply note if provided
+    if let Some(note_text) = note {
+        let note_op = update_op(new_id, NodeChanges {
+            note: Some(note_text.to_string()),
+            ..Default::default()
+        });
+        doc.append_op(&note_op)?;
+        note_op.apply(&mut doc.state);
+    }
+
+    if out.is_json() {
+        out.print_json(&serde_json::json!({
+            "id": new_id.to_string(),
+            "target": target_name,
+            "content": content,
+        }));
+    } else {
+        eprintln!("Captured to '{}': {}", target_name, new_id);
+    }
+
+    Ok(())
+}
+
+// -- Target commands --
+
+fn cmd_target_list(out: &OutputMode) -> Result<(), String> {
+    let targets = outline_core::data::get_capture_targets();
+
+    if out.is_json() {
+        out.print_json(&serde_json::json!(targets));
+    } else if targets.is_empty() {
+        println!("No capture targets configured.");
+        println!("Add one with: outline target add <name> --doc <doc-id> --node <node-id>");
+    } else {
+        println!("{:<14} {:<7} {:<38} {}", "Name", "Default", "Document", "Node");
+        println!("{}", "-".repeat(80));
+        for (name, target) in &targets {
+            let default_marker = if target.default { "*" } else { "" };
+            println!("{:<14} {:<7} {:<38} {}",
+                name,
+                default_marker,
+                target.document_id,
+                target.node_id,
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn cmd_target_add(out: &OutputMode, name: &str, doc: &str, node: &str) -> Result<(), String> {
+    // Resolve doc ref (could be prefix or UUID)
+    let doc_uuid = resolve_doc_ref(doc)?;
+
+    let target = outline_core::data::set_capture_target(name, doc_uuid.to_string(), node.to_string())?;
+
+    if out.is_json() {
+        out.print_json(&serde_json::json!({
+            "name": name,
+            "target": target,
+        }));
+    } else {
+        eprintln!("Added capture target '{}'", name);
+        if target.default {
+            eprintln!("  (set as default)");
+        }
+    }
+
+    Ok(())
+}
+
+fn cmd_target_remove(out: &OutputMode, name: &str) -> Result<(), String> {
+    outline_core::data::remove_capture_target(name)?;
+
+    if out.is_json() {
+        out.print_json(&serde_json::json!({ "removed": name }));
+    } else {
+        eprintln!("Removed capture target '{}'", name);
+    }
+
+    Ok(())
+}
+
+fn cmd_target_set_default(out: &OutputMode, name: &str) -> Result<(), String> {
+    outline_core::data::set_default_capture_target(name)?;
+
+    if out.is_json() {
+        out.print_json(&serde_json::json!({ "default": name }));
+    } else {
+        eprintln!("Set '{}' as default capture target", name);
     }
 
     Ok(())
