@@ -2716,6 +2716,23 @@ body {
   white-space: nowrap;
 }
 
+.date-views-modal .result-item.deferred {
+  opacity: 0.6;
+}
+
+.date-views-modal .deferred-label {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-style: italic;
+  margin-left: 4px;
+}
+
+.date-views-modal .deferred-hint {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
 .date-views-modal .modal-footer .hint {
   font-size: 12px;
   color: var(--text-tertiary);

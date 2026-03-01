@@ -1,10 +1,24 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { getDateStatus, formatDateRelative, type DateStatus } from '../../lib/dateUtils';
+import { getDateStatus, formatDateRelative, formatISODate, type DateStatus } from '../../lib/dateUtils';
 import { DateBadge } from './DateBadge';
 import { getAllDatedNodes } from '../../lib/api';
 import type { DatedNodeInfo } from '../../lib/types';
 
 type ViewType = 'today' | 'upcoming' | 'overdue' | 'all';
+
+/**
+ * Check if a node is currently deferred (defer_date is in the future).
+ * Overdue items are never considered deferred regardless of defer_date.
+ */
+function isDeferred(node: DatedNodeInfo): boolean {
+  if (!node.defer_date) return false;
+  // Overdue items are never hidden
+  const status = getDateStatus(node.date, node.is_checked);
+  if (status === 'overdue') return false;
+
+  const today = formatISODate(new Date());
+  return node.defer_date > today;
+}
 
 interface DateViewsPanelProps {
   isOpen: boolean;
@@ -50,29 +64,39 @@ export function DateViewsPanel({ isOpen, onClose, onNavigate }: DateViewsPanelPr
     return () => { cancelled = true; };
   }, [isOpen]);
 
-  // Calculate counts for each view
+  // Calculate counts for each view (deferred items excluded from today/upcoming)
   const viewCounts = useMemo(() => {
     return {
-      today: allDatedNodes.filter(n => getDateStatus(n.date, n.is_checked) === 'today').length,
-      upcoming: allDatedNodes.filter(n => ['today', 'urgent', 'soon'].includes(getDateStatus(n.date, n.is_checked))).length,
+      today: allDatedNodes.filter(n => getDateStatus(n.date, n.is_checked) === 'today' && !isDeferred(n)).length,
+      upcoming: allDatedNodes.filter(n => ['today', 'urgent', 'soon'].includes(getDateStatus(n.date, n.is_checked)) && !isDeferred(n)).length,
       overdue: allDatedNodes.filter(n => getDateStatus(n.date, n.is_checked) === 'overdue').length,
       all: allDatedNodes.length,
     };
+  }, [allDatedNodes]);
+
+  // Count of deferred items (for info display)
+  const deferredCount = useMemo(() => {
+    return allDatedNodes.filter(n => isDeferred(n)).length;
   }, [allDatedNodes]);
 
   // Filter nodes by view type
   const filteredNodes = useMemo(() => {
     return allDatedNodes.filter(node => {
       const status = getDateStatus(node.date, node.is_checked);
+      const deferred = isDeferred(node);
 
       switch (activeView) {
         case 'today':
-          return status === 'today';
+          // Hide deferred items from Today view
+          return status === 'today' && !deferred;
         case 'upcoming':
-          return status === 'today' || status === 'urgent' || status === 'soon';
+          // Hide deferred items from Upcoming view
+          return (status === 'today' || status === 'urgent' || status === 'soon') && !deferred;
         case 'overdue':
+          // Overdue items are never hidden by defer date
           return status === 'overdue';
         case 'all':
+          // All view shows everything including deferred
           return true;
         default:
           return false;
@@ -174,35 +198,44 @@ export function DateViewsPanel({ isOpen, onClose, onNavigate }: DateViewsPanelPr
               {activeView === 'all' && 'No dated items'}
             </div>
           ) : (
-            filteredNodes.map(node => (
-              <button
-                key={`${node.document_id}-${node.id}`}
-                className={`result-item ${node.is_checked ? 'checked' : ''}`}
-                onClick={() => handleNodeClick(node.id, node.document_id)}
-              >
-                <div className="result-content">
-                  {node.node_type === 'checkbox' && (
-                    <span className={`checkbox-indicator ${node.is_checked ? 'checked' : ''}`}>
-                      {node.is_checked ? '✓' : ''}
+            filteredNodes.map(node => {
+              const deferred = isDeferred(node);
+              return (
+                <button
+                  key={`${node.document_id}-${node.id}`}
+                  className={`result-item ${node.is_checked ? 'checked' : ''} ${deferred ? 'deferred' : ''}`}
+                  onClick={() => handleNodeClick(node.id, node.document_id)}
+                >
+                  <div className="result-content">
+                    {node.node_type === 'checkbox' && (
+                      <span className={`checkbox-indicator ${node.is_checked ? 'checked' : ''}`}>
+                        {node.is_checked ? '✓' : ''}
+                      </span>
+                    )}
+                    <span className={`content-text ${node.is_checked ? 'strikethrough' : ''}`}>
+                      {stripHtml(node.content) || 'Untitled'}
                     </span>
-                  )}
-                  <span className={`content-text ${node.is_checked ? 'strikethrough' : ''}`}>
-                    {stripHtml(node.content) || 'Untitled'}
-                  </span>
-                  {hasMultipleDocuments && (
-                    <span className="document-label">{node.document_title}</span>
-                  )}
-                </div>
-                <DateBadge
-                  date={node.date}
-                  isChecked={node.is_checked}
-                />
-              </button>
-            ))
+                    {deferred && (
+                      <span className="deferred-label">deferred until {formatDateRelative(node.defer_date!)}</span>
+                    )}
+                    {hasMultipleDocuments && (
+                      <span className="document-label">{node.document_title}</span>
+                    )}
+                  </div>
+                  <DateBadge
+                    date={node.date}
+                    isChecked={node.is_checked}
+                  />
+                </button>
+              );
+            })
           )}
         </div>
 
         <div className="modal-footer">
+          {deferredCount > 0 && (activeView === 'today' || activeView === 'upcoming') && (
+            <span className="hint deferred-hint">{deferredCount} deferred {deferredCount === 1 ? 'item' : 'items'} hidden</span>
+          )}
           <span className="hint">Press Escape to close</span>
         </div>
       </div>
