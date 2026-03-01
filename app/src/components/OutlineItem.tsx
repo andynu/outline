@@ -610,7 +610,7 @@ export const OutlineItem = memo(function OutlineItem({
             }
 
             // Ctrl+Shift+D : open date picker (defer/start date)
-            if (event.key === 'D' && mod && event.shiftKey) {
+            if ((event.key === 'D' || event.key === 'd') && mod && event.shiftKey) {
               event.preventDefault();
               const rect = editorContainerRef.current?.getBoundingClientRect();
               if (rect) {
