@@ -215,6 +215,38 @@ body {
   min-width: 240px;
 }
 
+.date-picker-mode-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 8px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.date-picker-mode-tab {
+  flex: 1;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+
+.date-picker-mode-tab.active {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.date-picker-mode-tab:hover:not(.active) {
+  color: var(--text-primary);
+}
+
 .date-picker-header {
   margin-bottom: 8px;
 }
@@ -761,6 +793,17 @@ body {
 
 .date-badge.completed:hover {
   background: var(--date-completed-bg-hover);
+}
+
+.date-badge.defer {
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.date-badge.defer:hover {
+  background: var(--border-primary);
+  color: var(--text-secondary);
 }
 
 /* Modal Backdrop and Base */

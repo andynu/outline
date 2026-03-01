@@ -260,6 +260,7 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
         <div className="editor-wrapper">
           <div ref={staticContentRef} className="static-content" onClick={handleStaticClick} />
         </div>
+        {node.defer_date && <span className="date-badge defer" title={`Deferred until ${node.defer_date}`}>{'Defer: ' + formatDateRelative(node.defer_date)}</span>}
         {node.date && <span className="date-badge">{formatDateRelative(node.date)}</span>}
         {node.recurrence && <span className="recurrence-indicator" title="Repeating">↻</span>}
       </div>

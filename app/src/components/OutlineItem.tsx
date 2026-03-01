@@ -21,7 +21,7 @@ import { Mention } from '../lib/Mention';
 import { WikiLinkSuggestion } from './ui/WikiLinkSuggestion';
 import { HashtagSuggestion } from './ui/HashtagSuggestion';
 import { DueDateSuggestion } from './ui/DueDateSuggestion';
-import { DatePicker } from './ui/DatePicker';
+import { DatePicker, type DatePickerMode } from './ui/DatePicker';
 import { RecurrencePicker } from './ui/RecurrencePicker';
 import { formatDateRelative } from '../lib/dateUtils';
 import { looksLikeMarkdownList, parseMarkdownList } from '../lib/markdownPaste';
@@ -130,6 +130,7 @@ export const OutlineItem = memo(function OutlineItem({
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerPosition, setDatePickerPosition] = useState({ x: 0, y: 0 });
+  const [datePickerMode, setDatePickerMode] = useState<DatePickerMode>('due');
   const [showRecurrencePicker, setShowRecurrencePicker] = useState(false);
   const [recurrencePickerPosition, setRecurrencePickerPosition] = useState({ x: 0, y: 0 });
 
@@ -596,14 +597,26 @@ export const OutlineItem = memo(function OutlineItem({
             }
 
             // === DATE PICKER ===
-            // Ctrl+D : open date picker
+            // Ctrl+D : open date picker (due date)
             if (event.key === 'd' && mod && !event.shiftKey) {
               event.preventDefault();
-              // Get position from the editor
               const rect = editorContainerRef.current?.getBoundingClientRect();
               if (rect) {
                 setDatePickerPosition({ x: rect.left, y: rect.bottom + 5 });
               }
+              setDatePickerMode('due');
+              setShowDatePicker(true);
+              return true;
+            }
+
+            // Ctrl+Shift+D : open date picker (defer/start date)
+            if (event.key === 'D' && mod && event.shiftKey) {
+              event.preventDefault();
+              const rect = editorContainerRef.current?.getBoundingClientRect();
+              if (rect) {
+                setDatePickerPosition({ x: rect.left, y: rect.bottom + 5 });
+              }
+              setDatePickerMode('defer');
               setShowDatePicker(true);
               return true;
             }
@@ -1132,6 +1145,25 @@ export const OutlineItem = memo(function OutlineItem({
     },
     { separator: true as const },
     {
+      label: node.date ? 'Change Due Date' : 'Set Due Date',
+      action: () => {
+        setDatePickerPosition(contextMenuPosition);
+        setDatePickerMode('due');
+        setShowDatePicker(true);
+      },
+      shortcut: 'Ctrl+D',
+    },
+    {
+      label: node.defer_date ? 'Change Defer Date' : 'Defer Until...',
+      action: () => {
+        setDatePickerPosition(contextMenuPosition);
+        setDatePickerMode('defer');
+        setShowDatePicker(true);
+      },
+      shortcut: 'Ctrl+Shift+D',
+    },
+    { separator: true as const },
+    {
       label: 'Copy',
       action: copyToClipboard,
       shortcut: 'Ctrl+C',
@@ -1183,7 +1215,7 @@ export const OutlineItem = memo(function OutlineItem({
       action: () => deleteNode(node.id),
       shortcut: 'Ctrl+Shift+Backspace',
     },
-  ], [node.id, node.is_checked, node.node_type, node.collapsed, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch]);
+  ], [node.id, node.is_checked, node.node_type, node.collapsed, node.date, node.defer_date, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch, contextMenuPosition]);
 
   // Multi-selection context menu (shown when multiple items are selected)
   const bulkContextMenuItems = useMemo(() => {
@@ -1377,12 +1409,14 @@ export const OutlineItem = memo(function OutlineItem({
   }, []);
 
   // Date picker handlers
-  const handleDateSelect = useCallback(async (date: string | null) => {
+  const handleDateSelect = useCallback(async (date: string | null, pickerMode: DatePickerMode) => {
     setShowDatePicker(false);
-    // Update node date via API
     const api = await import('../lib/api');
-    await api.updateNode(node.id, { date: date || undefined });
-    // Reload state
+    if (pickerMode === 'defer') {
+      await api.updateNode(node.id, { defer_date: date || '' });
+    } else {
+      await api.updateNode(node.id, { date: date || '' });
+    }
     const state = await api.loadDocument();
     useOutlineStore.getState().updateFromState(state);
   }, [node.id]);
@@ -1396,6 +1430,16 @@ export const OutlineItem = memo(function OutlineItem({
     e.stopPropagation();
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     setDatePickerPosition({ x: rect.left, y: rect.bottom + 5 });
+    setDatePickerMode('due');
+    setShowDatePicker(true);
+  }, []);
+
+  const handleDeferBadgeClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setDatePickerPosition({ x: rect.left, y: rect.bottom + 5 });
+    setDatePickerMode('defer');
     setShowDatePicker(true);
   }, []);
 
@@ -1508,6 +1552,13 @@ export const OutlineItem = memo(function OutlineItem({
           )}
         </div>
 
+        {/* Defer date badge */}
+        {node.defer_date && (
+          <span className="date-badge defer" onClick={handleDeferBadgeClick} title={`Deferred until ${node.defer_date}`}>
+            {'Defer: ' + formatDateRelative(node.defer_date)}
+          </span>
+        )}
+
         {/* Date badge */}
         {node.date && (
           <span className="date-badge" onClick={handleDateBadgeClick}>
@@ -1611,6 +1662,8 @@ export const OutlineItem = memo(function OutlineItem({
         <DatePicker
           position={datePickerPosition}
           currentDate={node.date}
+          currentDeferDate={node.defer_date}
+          initialMode={datePickerMode}
           onSelect={handleDateSelect}
           onClose={handleDatePickerClose}
         />
