@@ -1899,6 +1899,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
               note: action.node.note,
               date: action.node.date,
               date_recurrence: action.node.date_recurrence,
+              defer_date: action.node.defer_date,
               is_checked: action.node.is_checked,
               collapsed: action.node.collapsed,
               color: action.node.color,

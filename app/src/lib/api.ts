@@ -453,6 +453,7 @@ export async function getAllDatedNodes(): Promise<DatedNodeInfo[]> {
       node_type: n.node_type,
       is_checked: n.is_checked,
       date_recurrence: n.date_recurrence,
+      defer_date: n.defer_date,
       document_id: 'mock-doc',
       document_title: 'Mock Document',
     }));
