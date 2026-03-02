@@ -41,6 +41,7 @@ interface ContextMenuProps {
 export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = useState(position);
+  const [maxHeight, setMaxHeight] = useState<number | undefined>(undefined);
   const [isPositioned, setIsPositioned] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
 
@@ -58,10 +59,10 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
       const viewportHeight = window.innerHeight;
       const padding = 10;
 
-      // Measure the menu's actual dimensions via scrollWidth/scrollHeight
-      // to get the full content size even if positioned off-screen
       const menuWidth = menu.offsetWidth;
-      const menuHeight = menu.offsetHeight;
+      // Use scrollHeight to get the full content height, even if CSS max-height
+      // has already constrained offsetHeight
+      const menuHeight = menu.scrollHeight;
 
       let x = position.x;
       let y = position.y;
@@ -83,9 +84,30 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
         x = padding;
       }
 
-      // Adjust if menu extends past bottom edge
-      if (y + menuHeight > viewportHeight - padding) {
-        y = viewportHeight - menuHeight - padding;
+      // Keep the menu top near the click point. If the menu would extend
+      // below the viewport, cap its height and let it scroll rather than
+      // pushing the menu far away from the click point.
+      const availableBelow = viewportHeight - y - padding;
+      const availableAbove = y - padding;
+
+      if (menuHeight <= availableBelow) {
+        // Menu fits below the click point — no adjustment needed
+        setMaxHeight(undefined);
+      } else if (menuHeight <= availableAbove) {
+        // Menu fits above the click point — flip upward
+        y = y - menuHeight;
+        setMaxHeight(undefined);
+      } else {
+        // Menu doesn't fully fit in either direction.
+        // Use whichever direction has more space, and cap the height with scrolling.
+        if (availableBelow >= availableAbove) {
+          // Keep top near click point, cap height to available space below
+          setMaxHeight(availableBelow);
+        } else {
+          // Position at top padding, cap height to available space above click point
+          y = padding;
+          setMaxHeight(availableAbove);
+        }
       }
 
       // Ensure menu doesn't go above top edge
@@ -196,6 +218,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
         left: isPositioned ? adjustedPosition.x : -9999,
         top: isPositioned ? adjustedPosition.y : -9999,
         visibility: isPositioned ? 'visible' : 'hidden',
+        ...(maxHeight != null ? { maxHeight } : {}),
       }}
       role="menu"
     >
