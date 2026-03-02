@@ -208,6 +208,15 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
       { label: 'Indent', action: () => s.indentNode(node.id), shortcut: 'Tab' },
       { label: 'Outdent', action: () => s.outdentNode(node.id), shortcut: 'Shift+Tab' },
       { separator: true as const },
+      { label: 'Sort children: Title (A-Z)', action: () => s.sortChildrenByTitle(node.id), disabled: !hasChildren },
+      { label: 'Sort children: Title (Z-A)', action: () => s.sortChildrenByTitleReverse(node.id), disabled: !hasChildren },
+      { label: 'Sort children: Date (newest)', action: () => s.sortChildrenByDate(node.id), disabled: !hasChildren },
+      { label: 'Sort children: Date (oldest)', action: () => s.sortChildrenByDateReverse(node.id), disabled: !hasChildren },
+      { label: 'Sort children: Updated (newest)', action: () => s.sortChildrenByUpdated(node.id), disabled: !hasChildren },
+      { label: 'Sort children: Updated (oldest)', action: () => s.sortChildrenByUpdatedReverse(node.id), disabled: !hasChildren },
+      { label: 'Sort children: Created (newest)', action: () => s.sortChildrenByCreated(node.id), disabled: !hasChildren },
+      { label: 'Sort children: Created (oldest)', action: () => s.sortChildrenByCreatedReverse(node.id), disabled: !hasChildren },
+      { separator: true as const },
       { label: 'Delete', action: () => s.deleteNode(node.id), shortcut: 'Ctrl+Shift+Backspace' },
     ];
   }, [node.id, node.is_checked, node.node_type, node.collapsed, node.content, hasChildren, selectedIds, getSelectedNodes]);

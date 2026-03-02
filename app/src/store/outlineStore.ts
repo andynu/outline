@@ -156,6 +156,16 @@ interface OutlineState {
   sortSelectedByDateReverse: () => Promise<boolean>;
   sortSelectedByCompletion: () => Promise<boolean>;
   reverseSelectedOrder: () => Promise<boolean>;
+  // Sort children of a specific node
+  _reorderChildren: (parentId: string, sortedNodes: Node[]) => Promise<boolean>;
+  sortChildrenByTitle: (parentId: string) => Promise<boolean>;
+  sortChildrenByTitleReverse: (parentId: string) => Promise<boolean>;
+  sortChildrenByDate: (parentId: string) => Promise<boolean>;
+  sortChildrenByDateReverse: (parentId: string) => Promise<boolean>;
+  sortChildrenByUpdated: (parentId: string) => Promise<boolean>;
+  sortChildrenByUpdatedReverse: (parentId: string) => Promise<boolean>;
+  sortChildrenByCreated: (parentId: string) => Promise<boolean>;
+  sortChildrenByCreatedReverse: (parentId: string) => Promise<boolean>;
 }
 
 // Check if a node matches the filter query
@@ -2751,5 +2761,142 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     const reversed = sortedByPosition.reverse();
 
     return _reorderSelectedNodes(reversed);
+  },
+
+  // Sort children of a specific node
+  _reorderChildren: async (parentId: string, sortedNodes: Node[]): Promise<boolean> => {
+    const { updateFromState } = get();
+    if (sortedNodes.length === 0) return false;
+
+    const originalPositions = sortedNodes.map(n => n.position).sort((a, b) => a - b);
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      let lastState: DocumentState | null = null;
+
+      for (let i = 0; i < sortedNodes.length; i++) {
+        const node = sortedNodes[i];
+        const newPosition = originalPositions[i];
+        if (node.position !== newPosition) {
+          lastState = await api.moveNode(node.id, node.parent_id, newPosition);
+        }
+      }
+
+      if (lastState) {
+        updateFromState(lastState);
+      }
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  sortChildrenByTitle: async (parentId: string) => {
+    const { childrenOf, _reorderChildren } = get();
+    const children = childrenOf(parentId);
+    if (children.length === 0) return false;
+
+    const sorted = [...children].sort((a, b) => {
+      const textA = a.content.replace(/<[^>]+>/g, '').toLowerCase();
+      const textB = b.content.replace(/<[^>]+>/g, '').toLowerCase();
+      return textA.localeCompare(textB);
+    });
+
+    return _reorderChildren(parentId, sorted);
+  },
+
+  sortChildrenByTitleReverse: async (parentId: string) => {
+    const { childrenOf, _reorderChildren } = get();
+    const children = childrenOf(parentId);
+    if (children.length === 0) return false;
+
+    const sorted = [...children].sort((a, b) => {
+      const textA = a.content.replace(/<[^>]+>/g, '').toLowerCase();
+      const textB = b.content.replace(/<[^>]+>/g, '').toLowerCase();
+      return textB.localeCompare(textA);
+    });
+
+    return _reorderChildren(parentId, sorted);
+  },
+
+  sortChildrenByDate: async (parentId: string) => {
+    const { childrenOf, _reorderChildren } = get();
+    const children = childrenOf(parentId);
+    if (children.length === 0) return false;
+
+    const sorted = [...children].sort((a, b) => {
+      if (!a.date && !b.date) return 0;
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return b.date.localeCompare(a.date);
+    });
+
+    return _reorderChildren(parentId, sorted);
+  },
+
+  sortChildrenByDateReverse: async (parentId: string) => {
+    const { childrenOf, _reorderChildren } = get();
+    const children = childrenOf(parentId);
+    if (children.length === 0) return false;
+
+    const sorted = [...children].sort((a, b) => {
+      if (!a.date && !b.date) return 0;
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return a.date.localeCompare(b.date);
+    });
+
+    return _reorderChildren(parentId, sorted);
+  },
+
+  sortChildrenByUpdated: async (parentId: string) => {
+    const { childrenOf, _reorderChildren } = get();
+    const children = childrenOf(parentId);
+    if (children.length === 0) return false;
+
+    const sorted = [...children].sort((a, b) => {
+      return b.updated_at.localeCompare(a.updated_at);
+    });
+
+    return _reorderChildren(parentId, sorted);
+  },
+
+  sortChildrenByUpdatedReverse: async (parentId: string) => {
+    const { childrenOf, _reorderChildren } = get();
+    const children = childrenOf(parentId);
+    if (children.length === 0) return false;
+
+    const sorted = [...children].sort((a, b) => {
+      return a.updated_at.localeCompare(b.updated_at);
+    });
+
+    return _reorderChildren(parentId, sorted);
+  },
+
+  sortChildrenByCreated: async (parentId: string) => {
+    const { childrenOf, _reorderChildren } = get();
+    const children = childrenOf(parentId);
+    if (children.length === 0) return false;
+
+    const sorted = [...children].sort((a, b) => {
+      return b.created_at.localeCompare(a.created_at);
+    });
+
+    return _reorderChildren(parentId, sorted);
+  },
+
+  sortChildrenByCreatedReverse: async (parentId: string) => {
+    const { childrenOf, _reorderChildren } = get();
+    const children = childrenOf(parentId);
+    if (children.length === 0) return false;
+
+    const sorted = [...children].sort((a, b) => {
+      return a.created_at.localeCompare(b.created_at);
+    });
+
+    return _reorderChildren(parentId, sorted);
   },
 }));

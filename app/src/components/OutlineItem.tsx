@@ -1211,6 +1211,47 @@ export const OutlineItem = memo(function OutlineItem({
     },
     { separator: true as const },
     {
+      label: 'Sort children: Title (A-Z)',
+      action: () => useOutlineStore.getState().sortChildrenByTitle(node.id),
+      disabled: !hasChildren,
+    },
+    {
+      label: 'Sort children: Title (Z-A)',
+      action: () => useOutlineStore.getState().sortChildrenByTitleReverse(node.id),
+      disabled: !hasChildren,
+    },
+    {
+      label: 'Sort children: Date (newest)',
+      action: () => useOutlineStore.getState().sortChildrenByDate(node.id),
+      disabled: !hasChildren,
+    },
+    {
+      label: 'Sort children: Date (oldest)',
+      action: () => useOutlineStore.getState().sortChildrenByDateReverse(node.id),
+      disabled: !hasChildren,
+    },
+    {
+      label: 'Sort children: Updated (newest)',
+      action: () => useOutlineStore.getState().sortChildrenByUpdated(node.id),
+      disabled: !hasChildren,
+    },
+    {
+      label: 'Sort children: Updated (oldest)',
+      action: () => useOutlineStore.getState().sortChildrenByUpdatedReverse(node.id),
+      disabled: !hasChildren,
+    },
+    {
+      label: 'Sort children: Created (newest)',
+      action: () => useOutlineStore.getState().sortChildrenByCreated(node.id),
+      disabled: !hasChildren,
+    },
+    {
+      label: 'Sort children: Created (oldest)',
+      action: () => useOutlineStore.getState().sortChildrenByCreatedReverse(node.id),
+      disabled: !hasChildren,
+    },
+    { separator: true as const },
+    {
       label: 'Delete',
       action: () => deleteNode(node.id),
       shortcut: 'Ctrl+Shift+Backspace',
