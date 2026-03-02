@@ -144,7 +144,7 @@ function App() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
-      return document.documentElement.classList.contains('dark');
+      return document.documentElement.getAttribute('data-theme') === 'dark';
     }
     return false;
   });
@@ -284,7 +284,7 @@ function App() {
   const toggleTheme = useCallback(() => {
     const newDark = !isDark;
     setIsDark(newDark);
-    document.documentElement.classList.toggle('dark', newDark);
+    document.documentElement.setAttribute('data-theme', newDark ? 'dark' : 'light');
     localStorage.setItem('theme', newDark ? 'dark' : 'light');
   }, [isDark]);
 
@@ -293,10 +293,10 @@ function App() {
     const stored = localStorage.getItem('theme');
     if (stored === 'dark') {
       setIsDark(true);
-      document.documentElement.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
     } else if (stored === 'light') {
       setIsDark(false);
-      document.documentElement.classList.remove('dark');
+      document.documentElement.setAttribute('data-theme', 'light');
     }
   }, []);
 
