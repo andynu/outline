@@ -16,6 +16,7 @@ export interface Node {
   date?: string;
   date_recurrence?: string;
   recurrence?: string;  // Alias for date_recurrence (used by UI)
+  recurrence_mode?: string;  // "schedule" (default) or "complete" (repeat from completion)
   defer_date?: string;
   collapsed: boolean;
   mirror_source_id?: string;
@@ -38,6 +39,7 @@ export interface NodeChanges {
   date?: string;
   date_recurrence?: string;
   recurrence?: string;  // Alias for date_recurrence (used by UI)
+  recurrence_mode?: string;  // "schedule" (default) or "complete" (repeat from completion)
   defer_date?: string;
   collapsed?: boolean;
   mirror_source_id?: string;
@@ -81,6 +83,7 @@ export interface DatedNodeInfo {
   node_type: NodeType;
   is_checked: boolean;
   date_recurrence?: string;
+  recurrence_mode?: string;
   defer_date?: string;
   document_id: string;
   document_title: string;

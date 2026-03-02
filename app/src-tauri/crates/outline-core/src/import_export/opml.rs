@@ -186,6 +186,7 @@ fn parse_outline_element(
         tags: Vec::new(),
         date,
         date_recurrence,
+        recurrence_mode: None,
         defer_date: None,
         short_id: None,
         collapsed: false,

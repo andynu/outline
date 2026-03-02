@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
+export type RecurrenceMode = 'schedule' | 'complete';
+
 interface RecurrencePickerProps {
   position: { x: number; y: number };
   currentRecurrence?: string;
-  onSelect: (rrule: string | null) => void;
+  currentMode?: RecurrenceMode;
+  onSelect: (rrule: string | null, mode: RecurrenceMode) => void;
   onClose: () => void;
 }
 
@@ -62,7 +65,7 @@ function buildRRule(frequency: FrequencyType, interval: number, weekdays: string
   return rrule;
 }
 
-export function RecurrencePicker({ position, currentRecurrence, onSelect, onClose }: RecurrencePickerProps) {
+export function RecurrencePicker({ position, currentRecurrence, currentMode, onSelect, onClose }: RecurrencePickerProps) {
   const initialState = currentRecurrence
     ? parseRRule(currentRecurrence)
     : { frequency: 'none' as FrequencyType, interval: 1, weekdays: [] };
@@ -70,6 +73,7 @@ export function RecurrencePicker({ position, currentRecurrence, onSelect, onClos
   const [frequency, setFrequency] = useState<FrequencyType>(initialState.frequency);
   const [interval, setInterval] = useState(initialState.interval);
   const [weekdays, setWeekdays] = useState<string[]>(initialState.weekdays);
+  const [mode, setMode] = useState<RecurrenceMode>(currentMode ?? 'schedule');
 
   // Click outside handler
   useEffect(() => {
@@ -91,11 +95,11 @@ export function RecurrencePicker({ position, currentRecurrence, onSelect, onClos
   }, [onClose]);
 
   const handleApply = useCallback(() => {
-    onSelect(buildRRule(frequency, interval, weekdays));
-  }, [frequency, interval, weekdays, onSelect]);
+    onSelect(buildRRule(frequency, interval, weekdays), mode);
+  }, [frequency, interval, weekdays, mode, onSelect]);
 
   const handleClear = useCallback(() => {
-    onSelect(null);
+    onSelect(null, 'schedule');
   }, [onSelect]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -140,8 +144,11 @@ export function RecurrencePicker({ position, currentRecurrence, onSelect, onClos
         text = pluralize ? `Every ${interval} years` : 'Yearly';
         break;
     }
+    if (mode === 'complete') {
+      text += ' (after completion)';
+    }
     return text;
-  }, [frequency, interval, weekdays]);
+  }, [frequency, interval, weekdays, mode]);
 
   const getIntervalUnit = () => {
     switch (frequency) {
@@ -212,6 +219,24 @@ export function RecurrencePicker({ position, currentRecurrence, onSelect, onClos
                 </div>
               </div>
             )}
+
+            <div className="form-row">
+              <label>Repeat mode</label>
+              <div className="mode-toggle">
+                <button
+                  className={`mode-btn ${mode === 'schedule' ? 'selected' : ''}`}
+                  onClick={() => setMode('schedule')}
+                >
+                  On schedule
+                </button>
+                <button
+                  className={`mode-btn ${mode === 'complete' ? 'selected' : ''}`}
+                  onClick={() => setMode('complete')}
+                >
+                  After completion
+                </button>
+              </div>
+            </div>
           </>
         )}
 

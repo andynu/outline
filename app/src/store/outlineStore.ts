@@ -9,6 +9,45 @@ const NOTE_UPDATE_DEBOUNCE_MS = 300;
 // Debounce timer for note updates (stored outside Zustand to avoid re-renders)
 const pendingNoteUpdates = new Map<string, ReturnType<typeof setTimeout>>();
 
+/**
+ * Calculate the next date for a "repeat from completion" recurring task.
+ * Parses the RRULE to extract the interval and applies it to the completion date.
+ */
+function calculateNextDateFromCompletion(rrule: string, completionDate: Date): string | null {
+  let freq = '';
+  let interval = 1;
+
+  const parts = rrule.split(';');
+  for (const part of parts) {
+    const [key, value] = part.split('=');
+    if (key === 'FREQ') freq = value;
+    if (key === 'INTERVAL') interval = parseInt(value, 10) || 1;
+  }
+
+  const next = new Date(completionDate);
+  switch (freq) {
+    case 'DAILY':
+      next.setDate(next.getDate() + interval);
+      break;
+    case 'WEEKLY':
+      next.setDate(next.getDate() + interval * 7);
+      break;
+    case 'MONTHLY':
+      next.setMonth(next.getMonth() + interval);
+      break;
+    case 'YEARLY':
+      next.setFullYear(next.getFullYear() + interval);
+      break;
+    default:
+      return null;
+  }
+
+  const year = next.getFullYear();
+  const month = String(next.getMonth() + 1).padStart(2, '0');
+  const day = String(next.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Flat item for virtual list rendering
 export interface FlatItem {
   node: Node;
@@ -1685,18 +1724,61 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     const oldIsChecked = node.is_checked;
     const newIsChecked = !oldIsChecked;
 
+    // Check if this is a recurring task being completed
+    const recurrence = node.recurrence ?? node.date_recurrence;
+    const isRecurringCompletion = newIsChecked && recurrence && node.date;
+
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      const state = await api.updateNode(nodeId, { is_checked: newIsChecked });
-      updateFromState(state);
+      if (isRecurringCompletion) {
+        // Recurring task: advance date and uncheck instead of checking off
+        const recurrenceMode = node.recurrence_mode ?? 'schedule';
+        const oldDate = node.date!;
+        let nextDate: string | null = null;
 
-      // Push undo entry
-      _pushUndo({
-        description: newIsChecked ? 'Complete item' : 'Uncomplete item',
-        undo: { type: 'update', id: nodeId, changes: { is_checked: oldIsChecked } },
-        redo: { type: 'update', id: nodeId, changes: { is_checked: newIsChecked } },
-        timestamp: Date.now(),
-      });
+        if (recurrenceMode === 'complete') {
+          // "After completion" mode: calculate next date from today + interval
+          nextDate = calculateNextDateFromCompletion(recurrence, new Date());
+        } else {
+          // "On schedule" mode: calculate next occurrence from the current due date
+          nextDate = await api.getNextOccurrence(recurrence, oldDate);
+        }
+
+        if (nextDate) {
+          // Advance the date and keep unchecked
+          const state = await api.updateNode(nodeId, { date: nextDate, is_checked: false });
+          updateFromState(state);
+
+          _pushUndo({
+            description: 'Advance recurring task',
+            undo: { type: 'update', id: nodeId, changes: { date: oldDate, is_checked: false } },
+            redo: { type: 'update', id: nodeId, changes: { date: nextDate, is_checked: false } },
+            timestamp: Date.now(),
+          });
+        } else {
+          // Fallback: if next date calculation fails, just toggle normally
+          const state = await api.updateNode(nodeId, { is_checked: newIsChecked });
+          updateFromState(state);
+
+          _pushUndo({
+            description: newIsChecked ? 'Complete item' : 'Uncomplete item',
+            undo: { type: 'update', id: nodeId, changes: { is_checked: oldIsChecked } },
+            redo: { type: 'update', id: nodeId, changes: { is_checked: newIsChecked } },
+            timestamp: Date.now(),
+          });
+        }
+      } else {
+        // Non-recurring or unchecking: simple toggle
+        const state = await api.updateNode(nodeId, { is_checked: newIsChecked });
+        updateFromState(state);
+
+        _pushUndo({
+          description: newIsChecked ? 'Complete item' : 'Uncomplete item',
+          undo: { type: 'update', id: nodeId, changes: { is_checked: oldIsChecked } },
+          redo: { type: 'update', id: nodeId, changes: { is_checked: newIsChecked } },
+          timestamp: Date.now(),
+        });
+      }
 
       return true;
     } catch (e) {
@@ -2083,6 +2165,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
               note: action.node.note,
               date: action.node.date,
               date_recurrence: action.node.date_recurrence,
+              recurrence_mode: action.node.recurrence_mode,
               defer_date: action.node.defer_date,
               is_checked: action.node.is_checked,
               collapsed: action.node.collapsed,

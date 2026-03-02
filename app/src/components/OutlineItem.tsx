@@ -22,7 +22,7 @@ import { WikiLinkSuggestion } from './ui/WikiLinkSuggestion';
 import { HashtagSuggestion } from './ui/HashtagSuggestion';
 import { DueDateSuggestion } from './ui/DueDateSuggestion';
 import { DatePicker, type DatePickerMode } from './ui/DatePicker';
-import { RecurrencePicker } from './ui/RecurrencePicker';
+import { RecurrencePicker, type RecurrenceMode } from './ui/RecurrencePicker';
 import { formatDateRelative } from '../lib/dateUtils';
 import { looksLikeMarkdownList, parseMarkdownList } from '../lib/markdownPaste';
 
@@ -1565,11 +1565,21 @@ export const OutlineItem = memo(function OutlineItem({
   }, []);
 
   // Recurrence picker handlers
-  const handleRecurrenceSelect = useCallback(async (rrule: string | null) => {
+  const handleRecurrenceSelect = useCallback(async (rrule: string | null, mode: RecurrenceMode) => {
     setShowRecurrencePicker(false);
-    // Update node recurrence via API
+    // Update node recurrence and mode via API
     const api = await import('../lib/api');
-    await api.updateNode(node.id, { recurrence: rrule || undefined });
+    const changes: Record<string, string | undefined> = {
+      recurrence: rrule || undefined,
+    };
+    // Only store recurrence_mode if it's "complete" (to preserve backward compat)
+    // When clearing recurrence, also clear mode
+    if (rrule == null) {
+      changes.recurrence_mode = '';  // empty string clears the field
+    } else {
+      changes.recurrence_mode = mode === 'complete' ? 'complete' : '';
+    }
+    await api.updateNode(node.id, changes);
     // Reload state
     const state = await api.loadDocument();
     useOutlineStore.getState().updateFromState(state);
@@ -1799,6 +1809,7 @@ export const OutlineItem = memo(function OutlineItem({
         <RecurrencePicker
           position={recurrencePickerPosition}
           currentRecurrence={node.recurrence}
+          currentMode={(node.recurrence_mode as RecurrenceMode) ?? 'schedule'}
           onSelect={handleRecurrenceSelect}
           onClose={handleRecurrencePickerClose}
         />

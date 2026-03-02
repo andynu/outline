@@ -473,6 +473,38 @@ body {
   color: white;
 }
 
+.mode-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 6px 12px;
+  border: none;
+  background: var(--bg-elevated);
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.1s;
+}
+
+.mode-btn:first-child {
+  border-right: 1px solid var(--border-primary);
+}
+
+.mode-btn:hover {
+  background: var(--bg-tertiary);
+}
+
+.mode-btn.selected {
+  background: var(--accent-primary);
+  color: white;
+}
+
 .picker-footer {
   display: flex;
   justify-content: flex-end;
