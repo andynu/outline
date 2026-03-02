@@ -23,7 +23,7 @@ import { HashtagSuggestion } from './ui/HashtagSuggestion';
 import { DueDateSuggestion } from './ui/DueDateSuggestion';
 import { DatePicker, type DatePickerMode } from './ui/DatePicker';
 import { RecurrencePicker, type RecurrenceMode } from './ui/RecurrencePicker';
-import { formatDateRelative } from '../lib/dateUtils';
+import { formatDateRelative, formatDateRange } from '../lib/dateUtils';
 import { looksLikeMarkdownList, parseMarkdownList } from '../lib/markdownPaste';
 
 interface OutlineItemProps {
@@ -1219,6 +1219,14 @@ export const OutlineItem = memo(function OutlineItem({
       shortcut: 'Ctrl+D',
     },
     {
+      label: node.date_end ? 'Change End Date' : 'Set End Date',
+      action: () => {
+        setDatePickerPosition(contextMenuPosition);
+        setDatePickerMode('end');
+        setShowDatePicker(true);
+      },
+    },
+    {
       label: node.defer_date ? 'Change Defer Date' : 'Defer Until...',
       action: () => {
         setDatePickerPosition(contextMenuPosition);
@@ -1332,7 +1340,7 @@ export const OutlineItem = memo(function OutlineItem({
       action: () => deleteNode(node.id),
       shortcut: 'Ctrl+Shift+Backspace',
     },
-  ], [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.date, node.defer_date, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, setHeadingLevel, clearHeading, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch, contextMenuPosition]);
+  ], [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.date, node.date_end, node.defer_date, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, setHeadingLevel, clearHeading, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch, contextMenuPosition]);
 
   // Multi-selection context menu (shown when multiple items are selected)
   const bulkContextMenuItems = useMemo(() => {
@@ -1535,6 +1543,8 @@ export const OutlineItem = memo(function OutlineItem({
     const api = await import('../lib/api');
     if (pickerMode === 'defer') {
       await api.updateNode(node.id, { defer_date: date || '' });
+    } else if (pickerMode === 'end') {
+      await api.updateNode(node.id, { date_end: date || '' });
     } else {
       await api.updateNode(node.id, { date: date || '' });
     }
@@ -1696,8 +1706,8 @@ export const OutlineItem = memo(function OutlineItem({
 
         {/* Date badge */}
         {node.date && (
-          <span className="date-badge" onClick={handleDateBadgeClick}>
-            {formatDateRelative(node.date)}
+          <span className="date-badge" onClick={handleDateBadgeClick} title={node.date_end ? `${node.date} - ${node.date_end}` : node.date}>
+            {formatDateRange(node.date, node.date_end)}
           </span>
         )}
 
@@ -1798,6 +1808,7 @@ export const OutlineItem = memo(function OutlineItem({
           position={datePickerPosition}
           currentDate={node.date}
           currentDeferDate={node.defer_date}
+          currentDateEnd={node.date_end}
           initialMode={datePickerMode}
           onSelect={handleDateSelect}
           onClose={handleDatePickerClose}

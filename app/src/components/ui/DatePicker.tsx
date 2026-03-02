@@ -1,20 +1,23 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { parseNaturalDate, formatISODate } from '../../lib/dateUtils';
 
-export type DatePickerMode = 'due' | 'defer';
+export type DatePickerMode = 'due' | 'defer' | 'end';
 
 interface DatePickerProps {
   position: { x: number; y: number };
   currentDate?: string;
   currentDeferDate?: string;
+  currentDateEnd?: string;
   initialMode?: DatePickerMode;
   onSelect: (date: string | null, mode: DatePickerMode) => void;
   onClose: () => void;
 }
 
-export function DatePicker({ position, currentDate, currentDeferDate, initialMode = 'due', onSelect, onClose }: DatePickerProps) {
+const MODE_CYCLE: DatePickerMode[] = ['due', 'end', 'defer'];
+
+export function DatePicker({ position, currentDate, currentDeferDate, currentDateEnd, initialMode = 'due', onSelect, onClose }: DatePickerProps) {
   const [mode, setMode] = useState<DatePickerMode>(initialMode);
-  const activeDate = mode === 'due' ? currentDate : currentDeferDate;
+  const activeDate = mode === 'due' ? currentDate : mode === 'defer' ? currentDeferDate : currentDateEnd;
   const [inputValue, setInputValue] = useState(activeDate || '');
   const [adjustedPosition, setAdjustedPosition] = useState<{ x: number; y: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -26,14 +29,14 @@ export function DatePicker({ position, currentDate, currentDeferDate, initialMod
   // Reset input value when mode changes
   const handleModeChange = useCallback((newMode: DatePickerMode) => {
     setMode(newMode);
-    const newDate = newMode === 'due' ? currentDate : currentDeferDate;
+    const newDate = newMode === 'due' ? currentDate : newMode === 'defer' ? currentDeferDate : currentDateEnd;
     setInputValue(newDate || '');
     // Re-focus input after mode switch
     setTimeout(() => {
       inputRef.current?.focus();
       inputRef.current?.select();
     }, 0);
-  }, [currentDate, currentDeferDate]);
+  }, [currentDate, currentDeferDate, currentDateEnd]);
 
   // Adjust position to stay in viewport using useLayoutEffect for synchronous update
   useEffect(() => {
@@ -100,9 +103,11 @@ export function DatePicker({ position, currentDate, currentDeferDate, initialMod
       e.preventDefault();
       onSelect(null, mode); // Clear the date
     } else if (e.key === 'Tab') {
-      // Tab switches between due/defer modes
+      // Tab cycles through due/end/defer modes
       e.preventDefault();
-      handleModeChange(mode === 'due' ? 'defer' : 'due');
+      const currentIndex = MODE_CYCLE.indexOf(mode);
+      const nextIndex = (currentIndex + 1) % MODE_CYCLE.length;
+      handleModeChange(MODE_CYCLE[nextIndex]);
     }
   }, [inputValue, onClose, onSelect, mode, handleModeChange]);
 
@@ -133,6 +138,12 @@ export function DatePicker({ position, currentDate, currentDeferDate, initialMod
   const displayPosition = adjustedPosition || position;
   const isPositioned = adjustedPosition !== null;
 
+  const placeholderText = mode === 'due'
+    ? 'today, tomorrow, jan 15...'
+    : mode === 'end'
+    ? 'end date...'
+    : 'defer until...';
+
   return (
     <div
       ref={popupRef}
@@ -152,6 +163,12 @@ export function DatePicker({ position, currentDate, currentDeferDate, initialMod
           Due date
         </button>
         <button
+          className={`date-picker-mode-tab ${mode === 'end' ? 'active' : ''}`}
+          onClick={() => handleModeChange('end')}
+        >
+          End date
+        </button>
+        <button
           className={`date-picker-mode-tab ${mode === 'defer' ? 'active' : ''}`}
           onClick={() => handleModeChange('defer')}
         >
@@ -166,7 +183,7 @@ export function DatePicker({ position, currentDate, currentDeferDate, initialMod
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           className={`date-input ${!isValid ? 'invalid' : ''}`}
-          placeholder={mode === 'due' ? 'today, tomorrow, jan 15...' : 'defer until...'}
+          placeholder={placeholderText}
           spellCheck={false}
         />
       </div>
@@ -181,6 +198,12 @@ export function DatePicker({ position, currentDate, currentDeferDate, initialMod
             <button className="quick-date" onClick={() => setQuickDate(0)}>Today</button>
             <button className="quick-date" onClick={() => setQuickDate(1)}>Tomorrow</button>
             <button className="quick-date" onClick={() => setQuickDate(7)}>Next week</button>
+          </>
+        ) : mode === 'end' ? (
+          <>
+            <button className="quick-date" onClick={() => setQuickDate(1)}>Tomorrow</button>
+            <button className="quick-date" onClick={() => setQuickDate(7)}>In a week</button>
+            <button className="quick-date" onClick={() => setQuickDate(14)}>In 2 weeks</button>
           </>
         ) : (
           <>

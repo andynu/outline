@@ -8,7 +8,7 @@ use output::OutputMode;
 
 /// Outline CLI — manage outline documents, nodes, and search
 #[derive(Parser)]
-#[command(name = "outline", version, about)]
+#[command(name = "otl", version, about)]
 struct Cli {
     /// Output JSON instead of human-readable text
     #[arg(long, global = true)]
@@ -107,16 +107,16 @@ enum Commands {
 enum DocCommand {
     /// List all documents
     List,
-    /// Show document contents as a tree
+    /// Show document or subtree contents as a tree
     Show {
-        /// Document ID
+        /// Document or node ID (short ID like inbox-a3x shows subtree)
         id: String,
         /// Show as flat list (one node per line with ID)
         #[arg(long)]
         flat: bool,
         /// Limit tree depth
-        #[arg(long)]
-        depth: Option<usize>,
+        #[arg(short = 'L', long)]
+        level: Option<usize>,
     },
     /// Delete a document
     Delete {
@@ -168,6 +168,9 @@ enum NodeCommand {
         /// Due date (YYYY-MM-DD)
         #[arg(long)]
         date: Option<String>,
+        /// End date for date ranges (YYYY-MM-DD)
+        #[arg(long)]
+        date_end: Option<String>,
     },
     /// Move a node to a new parent/position
     Move {
@@ -273,12 +276,12 @@ enum TargetCommand {
     Add {
         /// Target name
         name: String,
-        /// Document ID
+        /// Document ID or prefix (inferred from node if omitted; uses root if --node omitted)
         #[arg(long)]
-        doc: String,
-        /// Node ID
+        doc: Option<String>,
+        /// Node ID or short ID (uses document root if omitted)
         #[arg(long)]
-        node: String,
+        node: Option<String>,
     },
     /// Remove a capture target
     Remove {
@@ -314,7 +317,7 @@ fn run(cli: Cli, out: &OutputMode) -> Result<(), String> {
     match cli.command {
         Commands::Doc { command } => match command {
             DocCommand::List => cmd_doc_list(out),
-            DocCommand::Show { id, flat, depth } => cmd_doc_show(out, &id, flat, depth),
+            DocCommand::Show { id, flat, level } => cmd_doc_show(out, &id, flat, level, &cli.doc),
             DocCommand::Delete { id } => cmd_doc_delete(out, &id),
         },
         Commands::Node { command } => match command {
@@ -322,9 +325,9 @@ fn run(cli: Cli, out: &OutputMode) -> Result<(), String> {
                 let (doc_id, parent_uuid) = resolve_node_ref(&parent_id, &cli.doc)?;
                 cmd_node_create(out, &doc_id, parent_uuid, &content, position, &r#type, note.as_deref())
             }
-            NodeCommand::Update { id, content, note, check, uncheck, r#type, color, date } => {
+            NodeCommand::Update { id, content, note, check, uncheck, r#type, color, date, date_end } => {
                 let (doc_id, node_uuid) = resolve_node_ref(&id, &cli.doc)?;
-                cmd_node_update(out, &doc_id, node_uuid, content, note, check, uncheck, r#type, color, date)
+                cmd_node_update(out, &doc_id, node_uuid, content, note, check, uncheck, r#type, color, date, date_end)
             }
             NodeCommand::Move { id, parent, position } => {
                 let (doc_id, node_uuid) = resolve_node_ref(&id, &cli.doc)?;
@@ -386,7 +389,7 @@ fn run(cli: Cli, out: &OutputMode) -> Result<(), String> {
         }
         Commands::Target { command } => match command {
             TargetCommand::List => cmd_target_list(out),
-            TargetCommand::Add { name, doc, node } => cmd_target_add(out, &name, &doc, &node),
+            TargetCommand::Add { name, doc, node } => cmd_target_add(out, &name, doc.as_deref(), node.as_deref(), &cli.doc),
             TargetCommand::Remove { name } => cmd_target_remove(out, &name),
             TargetCommand::SetDefault { name } => cmd_target_set_default(out, &name),
         }
@@ -513,11 +516,20 @@ fn cmd_doc_list(out: &OutputMode) -> Result<(), String> {
     Ok(())
 }
 
-fn cmd_doc_show(out: &OutputMode, id: &str, flat: bool, max_depth: Option<usize>) -> Result<(), String> {
+fn cmd_doc_show(out: &OutputMode, id: &str, flat: bool, max_depth: Option<usize>, active_doc: &Option<String>) -> Result<(), String> {
     use outline_core::data::{documents_dir, Document};
     use outline_core::data::short_ids;
 
-    let doc_id = resolve_doc_ref(id)?;
+    // Try resolving as a node ref first (short ID like inbox-a3x), fall back to doc ref
+    let (doc_id, root_node) = match resolve_node_ref(id, active_doc) {
+        Ok((doc_id_str, node_uuid)) => {
+            let doc_uuid = uuid::Uuid::parse_str(&doc_id_str)
+                .map_err(|e| format!("Invalid document ID: {}", e))?;
+            (doc_uuid, Some(node_uuid))
+        }
+        Err(_) => (resolve_doc_ref(id)?, None),
+    };
+
     let doc_dir = documents_dir().join(doc_id.to_string());
     if !doc_dir.exists() {
         return Err(format!("Document not found: {}", id));
@@ -527,22 +539,58 @@ fn cmd_doc_show(out: &OutputMode, id: &str, flat: bool, max_depth: Option<usize>
     let prefix = short_ids::ensure_short_ids(&mut doc)?;
 
     if out.is_json() {
-        out.print_json(&serde_json::json!({
-            "id": doc_id.to_string(),
-            "prefix": prefix,
-            "nodes": doc.state.nodes,
-        }));
+        if let Some(root_id) = root_node {
+            // Collect subtree node IDs
+            let subtree = collect_subtree(&doc.state.nodes, root_id);
+            let nodes: Vec<_> = doc.state.nodes.iter()
+                .filter(|n| subtree.contains(&n.id))
+                .collect();
+            out.print_json(&serde_json::json!({
+                "id": doc_id.to_string(),
+                "root_node": root_id.to_string(),
+                "prefix": prefix,
+                "nodes": nodes,
+            }));
+        } else {
+            out.print_json(&serde_json::json!({
+                "id": doc_id.to_string(),
+                "prefix": prefix,
+                "nodes": doc.state.nodes,
+            }));
+        }
     } else if flat {
-        for node in &doc.state.nodes {
+        let nodes: Vec<_> = if let Some(root_id) = root_node {
+            let subtree = collect_subtree(&doc.state.nodes, root_id);
+            doc.state.nodes.iter().filter(|n| subtree.contains(&n.id)).collect()
+        } else {
+            doc.state.nodes.iter().collect()
+        };
+        for node in nodes {
             let content = strip_html(&node.content);
             let sid = node.short_id.as_deref().unwrap_or("????");
             println!("{}-{} {}", prefix, sid, content);
         }
     } else {
-        print_tree(&doc.state.nodes, None, 0, max_depth, &prefix);
+        let root_parent = root_node.map(|id| Some(id)).unwrap_or(None);
+        print_tree(&doc.state.nodes, root_parent, 0, max_depth, &prefix);
     }
 
     Ok(())
+}
+
+fn collect_subtree(nodes: &[outline_core::data::Node], root_id: uuid::Uuid) -> std::collections::HashSet<uuid::Uuid> {
+    let mut result = std::collections::HashSet::new();
+    result.insert(root_id);
+    let mut stack = vec![root_id];
+    while let Some(parent) = stack.pop() {
+        for node in nodes {
+            if node.parent_id == Some(parent) && !result.contains(&node.id) {
+                result.insert(node.id);
+                stack.push(node.id);
+            }
+        }
+    }
+    result
 }
 
 fn print_tree(nodes: &[outline_core::data::Node], parent_id: Option<uuid::Uuid>, depth: usize, max_depth: Option<usize>, prefix: &str) {
@@ -646,7 +694,7 @@ fn cmd_node_create(out: &OutputMode, doc_id: &str, parent_uuid: uuid::Uuid, cont
 }
 
 #[allow(clippy::too_many_arguments)]
-fn cmd_node_update(out: &OutputMode, doc_id: &str, node_uuid: uuid::Uuid, content: Option<String>, note: Option<String>, check: bool, uncheck: bool, node_type: Option<String>, color: Option<String>, date: Option<String>) -> Result<(), String> {
+fn cmd_node_update(out: &OutputMode, doc_id: &str, node_uuid: uuid::Uuid, content: Option<String>, note: Option<String>, check: bool, uncheck: bool, node_type: Option<String>, color: Option<String>, date: Option<String>, date_end: Option<String>) -> Result<(), String> {
     use outline_core::data::{documents_dir, Document, NodeType, NodeChanges, update_op};
 
     let doc_dir = documents_dir().join(doc_id);
@@ -664,6 +712,7 @@ fn cmd_node_update(out: &OutputMode, doc_id: &str, node_uuid: uuid::Uuid, conten
     });
     changes.color = color;
     changes.date = date;
+    changes.date_end = date_end;
 
     let op = update_op(node_uuid, changes);
     doc.append_op(&op)?;
@@ -1003,19 +1052,21 @@ fn cmd_compact(out: &OutputMode, doc_id: &str) -> Result<(), String> {
 
 fn cmd_capture(out: &OutputMode, content_args: Vec<String>, to: Option<&str>, note: Option<&str>, node_type: &str, stdin: bool) -> Result<(), String> {
     use outline_core::data::{documents_dir, Document, NodeType, NodeChanges, create_op_with_id, update_op, get_capture_target};
+    use outline_core::data::short_ids;
 
-    // Get content from args or stdin
-    let content = if stdin {
+    // Get items: each arg is a separate item, stdin is one item
+    let items: Vec<String> = if stdin {
         use std::io::Read;
         let mut buf = String::new();
         std::io::stdin().read_to_string(&mut buf)
             .map_err(|e| format!("Read stdin: {}", e))?;
-        buf.trim().to_string()
+        let trimmed = buf.trim().to_string();
+        if trimmed.is_empty() { vec![] } else { vec![trimmed] }
     } else {
-        content_args.join(" ")
+        content_args.into_iter().filter(|s| !s.is_empty()).collect()
     };
 
-    if content.is_empty() {
+    if items.is_empty() {
         return Err("No content to capture. Provide text or use --stdin.".to_string());
     }
 
@@ -1025,11 +1076,11 @@ fn cmd_capture(out: &OutputMode, content_args: Vec<String>, to: Option<&str>, no
             if let Some(name) = to {
                 format!("Capture target '{}' not found. Run 'outline target list'.", name)
             } else {
-                "No default capture target configured. Run 'outline target add <name> --doc <id> --node <id>'.".to_string()
+                "No default capture target configured. Run 'otl target add <name> --doc <id>'.".to_string()
             }
         })?;
 
-    // Load document and create node directly
+    // Load document and create nodes directly
     let doc_dir = documents_dir().join(&target.document_id);
     if !doc_dir.exists() {
         return Err(format!("Target document {} not found", target.document_id));
@@ -1040,40 +1091,72 @@ fn cmd_capture(out: &OutputMode, content_args: Vec<String>, to: Option<&str>, no
     let parent_uuid = uuid::Uuid::parse_str(&target.node_id)
         .map_err(|e| format!("Invalid target node ID: {}", e))?;
 
-    // Append after existing children
-    let position = doc.state.nodes.iter()
-        .filter(|n| n.parent_id == Some(parent_uuid))
-        .count() as i32;
-
     let nt = match node_type {
         "checkbox" => NodeType::Checkbox,
         "heading" => NodeType::Heading,
         _ => NodeType::Bullet,
     };
 
-    let new_id = uuid::Uuid::now_v7();
-    let op = create_op_with_id(new_id, Some(parent_uuid), position, content.clone(), nt);
-    doc.append_op(&op)?;
-    op.apply(&mut doc.state);
+    // Create a node per item
+    let mut created: Vec<(uuid::Uuid, i32, String)> = Vec::new();
+    for item in &items {
+        let position = doc.state.nodes.iter()
+            .filter(|n| n.parent_id == Some(parent_uuid))
+            .count() as i32;
 
-    // Apply note if provided
-    if let Some(note_text) = note {
-        let note_op = update_op(new_id, NodeChanges {
-            note: Some(note_text.to_string()),
-            ..Default::default()
-        });
-        doc.append_op(&note_op)?;
-        note_op.apply(&mut doc.state);
+        let new_id = uuid::Uuid::now_v7();
+        let op = create_op_with_id(new_id, Some(parent_uuid), position, item.clone(), nt.clone());
+        doc.append_op(&op)?;
+        op.apply(&mut doc.state);
+        created.push((new_id, position, item.clone()));
     }
 
+    // Apply note to the last created node
+    if let Some(note_text) = note {
+        if let Some((last_id, _, _)) = created.last() {
+            let note_op = update_op(*last_id, NodeChanges {
+                note: Some(note_text.to_string()),
+                ..Default::default()
+            });
+            doc.append_op(&note_op)?;
+            note_op.apply(&mut doc.state);
+        }
+    }
+
+    // Assign short IDs to all nodes (including newly created)
+    let prefix = short_ids::ensure_short_ids(&mut doc)?;
+
+    // Output
     if out.is_json() {
-        out.print_json(&serde_json::json!({
-            "id": new_id.to_string(),
-            "target": target_name,
-            "content": content,
-        }));
+        let results: Vec<serde_json::Value> = created.iter().map(|(id, pos, content)| {
+            let sid = doc.state.nodes.iter()
+                .find(|n| n.id == *id)
+                .and_then(|n| n.short_id.as_deref())
+                .unwrap_or("????");
+            serde_json::json!({
+                "id": id.to_string(),
+                "short_id": format!("{}-{}", prefix, sid),
+                "document_id": target.document_id,
+                "position": pos,
+                "target": target_name,
+                "content": content,
+            })
+        }).collect();
+
+        if results.len() == 1 {
+            out.print_json(&results[0]);
+        } else {
+            out.print_json(&serde_json::json!(results));
+        }
     } else {
-        eprintln!("Captured to '{}': {}", target_name, new_id);
+        for (id, _, _) in &created {
+            let sid = doc.state.nodes.iter()
+                .find(|n| n.id == *id)
+                .and_then(|n| n.short_id.as_deref())
+                .unwrap_or("????");
+            println!("{}-{}", prefix, sid);
+        }
+        eprintln!("Captured {} item(s) to '{}'", created.len(), target_name);
     }
 
     Ok(())
@@ -1088,7 +1171,7 @@ fn cmd_target_list(out: &OutputMode) -> Result<(), String> {
         out.print_json(&serde_json::json!(targets));
     } else if targets.is_empty() {
         println!("No capture targets configured.");
-        println!("Add one with: outline target add <name> --doc <doc-id> --node <node-id>");
+        println!("Add one with: otl target add <name> --doc <doc-id>");
     } else {
         println!("{:<14} {:<7} {:<38} {}", "Name", "Default", "Document", "Node");
         println!("{}", "-".repeat(80));
@@ -1106,11 +1189,42 @@ fn cmd_target_list(out: &OutputMode) -> Result<(), String> {
     Ok(())
 }
 
-fn cmd_target_add(out: &OutputMode, name: &str, doc: &str, node: &str) -> Result<(), String> {
-    // Resolve doc ref (could be prefix or UUID)
-    let doc_uuid = resolve_doc_ref(doc)?;
+fn cmd_target_add(out: &OutputMode, name: &str, doc: Option<&str>, node: Option<&str>, active_doc: &Option<String>) -> Result<(), String> {
+    use outline_core::data::{documents_dir, Document};
 
-    let target = outline_core::data::set_capture_target(name, doc_uuid.to_string(), node.to_string())?;
+    let (doc_uuid, node_uuid) = match (doc, node) {
+        // Both provided
+        (Some(d), Some(n)) => {
+            let doc_id = resolve_doc_ref(d)?;
+            let node_id = uuid::Uuid::parse_str(n)
+                .or_else(|_| resolve_node_ref(n, active_doc).map(|(_, nid)| nid))
+                .map_err(|_| format!("Cannot resolve node '{}'", n))?;
+            (doc_id, node_id)
+        }
+        // Only doc: use document root node
+        (Some(d), None) => {
+            let doc_id = resolve_doc_ref(d)?;
+            let doc_dir = documents_dir().join(doc_id.to_string());
+            let doc = Document::load(doc_dir)?;
+            let root = doc.state.nodes.iter()
+                .find(|n| n.parent_id.is_none())
+                .ok_or_else(|| "Document has no root node".to_string())?;
+            (doc_id, root.id)
+        }
+        // Only node: infer document from node ref
+        (None, Some(n)) => {
+            let (doc_id_str, node_id) = resolve_node_ref(n, active_doc)?;
+            let doc_id = uuid::Uuid::parse_str(&doc_id_str)
+                .map_err(|e| format!("Invalid document ID: {}", e))?;
+            (doc_id, node_id)
+        }
+        // Neither
+        (None, None) => {
+            return Err("Provide --doc, --node, or both. Examples:\n  otl target add inbox --doc mydoc\n  otl target add inbox --node mydoc-a3x".to_string());
+        }
+    };
+
+    let target = outline_core::data::set_capture_target(name, doc_uuid.to_string(), node_uuid.to_string())?;
 
     if out.is_json() {
         out.print_json(&serde_json::json!({

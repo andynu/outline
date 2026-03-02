@@ -64,6 +64,10 @@ pub struct Node {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recurrence_mode: Option<String>,
 
+    /// End date for date ranges (e.g., multi-day events)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date_end: Option<String>,
+
     /// Defer/start date — item is hidden from views until this date arrives
     #[serde(skip_serializing_if = "Option::is_none")]
     pub defer_date: Option<String>,
@@ -103,6 +107,7 @@ impl Node {
             color: None,
             tags: Vec::new(),
             date: None,
+            date_end: None,
             date_recurrence: None,
             recurrence_mode: None,
             defer_date: None,

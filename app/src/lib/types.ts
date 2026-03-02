@@ -14,6 +14,7 @@ export interface Node {
   color?: string;
   tags?: string[];
   date?: string;
+  date_end?: string;
   date_recurrence?: string;
   recurrence?: string;  // Alias for date_recurrence (used by UI)
   recurrence_mode?: string;  // "schedule" (default) or "complete" (repeat from completion)
@@ -37,6 +38,7 @@ export interface NodeChanges {
   color?: string;
   tags?: string[];
   date?: string;
+  date_end?: string;
   date_recurrence?: string;
   recurrence?: string;  // Alias for date_recurrence (used by UI)
   recurrence_mode?: string;  // "schedule" (default) or "complete" (repeat from completion)
@@ -80,6 +82,7 @@ export interface DatedNodeInfo {
   id: string;
   content: string;
   date: string;
+  date_end?: string;
   node_type: NodeType;
   is_checked: boolean;
   date_recurrence?: string;

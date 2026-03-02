@@ -4,7 +4,7 @@ import { useOutlineStore } from '../store/outlineStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { ContextMenu } from './ui/ContextMenu';
 import { processStaticContentElement, handleStaticContentClick } from '../lib/renderStaticContent';
-import { formatDateRelative } from '../lib/dateUtils';
+import { formatDateRelative, formatDateRange } from '../lib/dateUtils';
 import DOMPurify from 'dompurify';
 
 interface OutlineItemStaticProps {
@@ -287,7 +287,7 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
           <div ref={staticContentRef} className="static-content" onClick={handleStaticClick} />
         </div>
         {node.defer_date && <span className="date-badge defer" title={`Deferred until ${node.defer_date}`}>{'Defer: ' + formatDateRelative(node.defer_date)}</span>}
-        {node.date && <span className="date-badge">{formatDateRelative(node.date)}</span>}
+        {node.date && <span className="date-badge" title={node.date_end ? `${node.date} - ${node.date_end}` : node.date}>{formatDateRange(node.date, node.date_end)}</span>}
         {node.recurrence && <span className="recurrence-indicator" title="Repeating">↻</span>}
       </div>
       {node.note && noteDisplayMode !== 'none' && (

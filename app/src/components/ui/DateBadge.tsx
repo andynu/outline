@@ -1,15 +1,17 @@
 import React, { useMemo } from 'react';
-import { formatDateRelative, getDateStatus } from '../../lib/dateUtils';
+import { formatDateRelative, formatDateRange, getDateStatus } from '../../lib/dateUtils';
 
 interface DateBadgeProps {
   date: string;
+  dateEnd?: string;
   isChecked?: boolean;
   onClick?: () => void;
 }
 
-export function DateBadge({ date, isChecked = false, onClick }: DateBadgeProps) {
+export function DateBadge({ date, dateEnd, isChecked = false, onClick }: DateBadgeProps) {
   const status = useMemo(() => getDateStatus(date, isChecked), [date, isChecked]);
-  const displayText = useMemo(() => formatDateRelative(date), [date]);
+  const displayText = useMemo(() => formatDateRange(date, dateEnd), [date, dateEnd]);
+  const titleText = dateEnd ? `${date} - ${dateEnd}` : date;
 
   const className = `date-badge ${status}`;
 
@@ -18,7 +20,7 @@ export function DateBadge({ date, isChecked = false, onClick }: DateBadgeProps) 
       className={className}
       onClick={onClick}
       tabIndex={-1}
-      title={date}
+      title={titleText}
     >
       {displayText}
     </button>

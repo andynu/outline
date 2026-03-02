@@ -51,6 +51,44 @@ export function formatDateRelative(dateStr: string): string {
 }
 
 /**
+ * Format a date range for display (e.g., "Mar 1 - Mar 5" or "Mar 1 - 5" if same month)
+ * Returns the formatted start date if no end date is provided.
+ */
+export function formatDateRange(startDate: string, endDate?: string): string {
+  const startText = formatDateRelative(startDate);
+
+  if (!endDate) return startText;
+
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+
+  // If end is before or equal to start, just show start
+  if (end <= start) return startText;
+
+  const endText = formatDateRelative(endDate);
+
+  // Use compact format when both dates are absolute (not relative like "Today", "Tomorrow")
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const startDiff = Math.floor((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const endDiff = Math.floor((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  const startIsRelative = startDiff >= -1 && startDiff <= 1;
+  const endIsRelative = endDiff >= -1 && endDiff <= 1;
+
+  // If same month and year, and neither is relative, use compact format: "Mar 1 - 5"
+  if (!startIsRelative && !endIsRelative &&
+      start.getMonth() === end.getMonth() &&
+      start.getFullYear() === end.getFullYear()) {
+    return `${startText} - ${end.getDate()}`;
+  }
+
+  return `${startText} - ${endText}`;
+}
+
+/**
  * Parse natural language date input into ISO date string
  * Supports: today, tomorrow, yesterday, next week, +Nd, weekday names, dates like "jan 15"
  */

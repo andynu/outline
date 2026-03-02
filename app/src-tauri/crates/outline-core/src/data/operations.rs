@@ -71,6 +71,9 @@ pub struct NodeChanges {
     pub date: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub date_end: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub date_recurrence: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -125,6 +128,7 @@ impl Operation {
                     color: None,
                     tags: Vec::new(),
                     date: None,
+                    date_end: None,
                     date_recurrence: None,
                     recurrence_mode: None,
                     defer_date: None,
@@ -170,6 +174,10 @@ impl Operation {
                         if let Some(ref date) = changes.date {
                             // Empty string means clear the date
                             node.date = if date.is_empty() { None } else { Some(date.clone()) };
+                        }
+                        if let Some(ref date_end) = changes.date_end {
+                            // Empty string means clear the end date
+                            node.date_end = if date_end.is_empty() { None } else { Some(date_end.clone()) };
                         }
                         if let Some(ref date_recurrence) = changes.date_recurrence {
                             // Empty string means clear the recurrence

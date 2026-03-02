@@ -450,6 +450,7 @@ export async function getAllDatedNodes(): Promise<DatedNodeInfo[]> {
       id: n.id,
       content: n.content,
       date: n.date!,
+      date_end: n.date_end,
       node_type: n.node_type,
       is_checked: n.is_checked,
       date_recurrence: n.date_recurrence,

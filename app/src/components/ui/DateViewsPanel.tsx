@@ -224,6 +224,7 @@ export function DateViewsPanel({ isOpen, onClose, onNavigate }: DateViewsPanelPr
                   </div>
                   <DateBadge
                     date={node.date}
+                    dateEnd={node.date_end}
                     isChecked={node.is_checked}
                   />
                 </button>

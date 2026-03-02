@@ -412,6 +412,7 @@ pub struct DatedNodeInfo {
     pub id: String,
     pub content: String,
     pub date: String,
+    pub date_end: Option<String>,
     pub node_type: NodeType,
     pub is_checked: bool,
     pub date_recurrence: Option<String>,
@@ -449,6 +450,7 @@ pub fn get_all_dated_nodes() -> Result<Vec<DatedNodeInfo>, String> {
                         id: node.id.to_string(),
                         content: node.content.clone(),
                         date: date.clone(),
+                        date_end: node.date_end.clone(),
                         node_type: node.node_type.clone(),
                         is_checked: node.is_checked,
                         date_recurrence: node.date_recurrence.clone(),
@@ -601,6 +603,15 @@ pub fn generate_ical_feed(state: State<AppState>) -> Result<String, String> {
             // DTSTART - all-day event format
             let date_compact = date.replace("-", "");
             ical.push_str(&format!("DTSTART;VALUE=DATE:{}\r\n", date_compact));
+
+            // DTEND - end date for date ranges (exclusive, so add 1 day per iCal spec)
+            if let Some(ref date_end) = node.date_end {
+                // Parse end date and add 1 day (iCal DTEND for all-day events is exclusive)
+                if let Ok(end_date) = chrono::NaiveDate::parse_from_str(date_end, "%Y-%m-%d") {
+                    let end_exclusive = end_date + chrono::Duration::days(1);
+                    ical.push_str(&format!("DTEND;VALUE=DATE:{}\r\n", end_exclusive.format("%Y%m%d")));
+                }
+            }
 
             // SUMMARY - strip HTML from content
             let summary = strip_html_for_title(&node.content);
