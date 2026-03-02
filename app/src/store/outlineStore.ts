@@ -148,6 +148,7 @@ interface OutlineState {
   copySelectedAsMarkdown: () => Promise<boolean>;
   copySelectedAsPlainText: () => Promise<boolean>;
   exportSelectedToFile: () => Promise<boolean>;
+  exportSelectedToFilePlainText: () => Promise<boolean>;
   exportSelection: () => Promise<boolean>;
   groupSelectedUnderNewParent: () => Promise<string | null>;
   // Sort and reverse operations (internal helper)
@@ -2584,6 +2585,38 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       }
 
       await api.saveToFileWithDialog(markdown, `${suggestedName}.md`, 'md');
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    }
+  },
+
+  exportSelectedToFilePlainText: async () => {
+    const { selectedIds, nodes } = get();
+    if (selectedIds.size === 0) return false;
+
+    try {
+      const nodeIds = Array.from(selectedIds);
+      const plainText = await api.exportSelectionPlainText(nodeIds, true);
+
+      // Generate suggested filename from first selected node content
+      const firstNodeId = nodeIds[0];
+      const firstNode = nodes.find(n => n.id === firstNodeId);
+      let suggestedName = 'export';
+      if (firstNode) {
+        // Strip HTML and limit to 30 chars
+        const text = firstNode.content
+          .replace(/<[^>]*>/g, '')
+          .replace(/[^a-zA-Z0-9 ]/g, '')
+          .trim()
+          .substring(0, 30);
+        if (text) {
+          suggestedName = text.replace(/\s+/g, '_');
+        }
+      }
+
+      await api.saveToFileWithDialog(plainText, `${suggestedName}.txt`, 'txt');
       return true;
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });

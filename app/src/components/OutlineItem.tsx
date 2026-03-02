@@ -101,6 +101,7 @@ export const OutlineItem = memo(function OutlineItem({
   const copySelectedAsMarkdown = useOutlineStore(state => state.copySelectedAsMarkdown);
   const copySelectedAsPlainText = useOutlineStore(state => state.copySelectedAsPlainText);
   const exportSelectedToFile = useOutlineStore(state => state.exportSelectedToFile);
+  const exportSelectedToFilePlainText = useOutlineStore(state => state.exportSelectedToFilePlainText);
   const deleteSelectedNodes = useOutlineStore(state => state.deleteSelectedNodes);
   const getSelectedNodes = useOutlineStore(state => state.getSelectedNodes);
   const groupSelectedUnderNewParent = useOutlineStore(state => state.groupSelectedUnderNewParent);
@@ -1420,8 +1421,12 @@ export const OutlineItem = memo(function OutlineItem({
         action: copySelectedAsPlainText,
       },
       {
-        label: 'Export to file...',
+        label: 'Export selection as Markdown...',
         action: exportSelectedToFile,
+      },
+      {
+        label: 'Export selection as Plain Text...',
+        action: exportSelectedToFilePlainText,
       },
       { separator: true as const },
       {
@@ -1430,7 +1435,7 @@ export const OutlineItem = memo(function OutlineItem({
         shortcut: 'Ctrl+Shift+Backspace',
       },
     ];
-  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, moveSelectedToTop, moveSelectedToBottom, groupSelectedUnderNewParent, sortSelectedAlphabetical, sortSelectedReverseAlphabetical, sortSelectedByDate, sortSelectedByDateReverse, sortSelectedByCompletion, reverseSelectedOrder, copySelectedAsMarkdown, copySelectedAsPlainText, exportSelectedToFile, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes, onOpenBulkQuickMove]);
+  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, moveSelectedToTop, moveSelectedToBottom, groupSelectedUnderNewParent, sortSelectedAlphabetical, sortSelectedReverseAlphabetical, sortSelectedByDate, sortSelectedByDateReverse, sortSelectedByCompletion, reverseSelectedOrder, copySelectedAsMarkdown, copySelectedAsPlainText, exportSelectedToFile, exportSelectedToFilePlainText, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes, onOpenBulkQuickMove]);
 
   // Wiki link suggestion handlers
   const handleWikiLinkSelect = useCallback((nodeId: string, displayText: string) => {

@@ -187,7 +187,8 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
         { separator: true as const },
         { label: 'Copy as Markdown', action: () => s.copySelectedAsMarkdown(), shortcut: 'Ctrl+Shift+C' },
         { label: 'Copy as Plain Text', action: () => s.copySelectedAsPlainText() },
-        { label: 'Export to file...', action: () => s.exportSelectedToFile() },
+        { label: 'Export selection as Markdown...', action: () => s.exportSelectedToFile() },
+        { label: 'Export selection as Plain Text...', action: () => s.exportSelectedToFilePlainText() },
         { separator: true as const },
         { label: `Delete selected (${selectionCount})`, action: () => s.deleteSelectedNodes(), shortcut: 'Ctrl+Shift+Backspace' },
       ];
