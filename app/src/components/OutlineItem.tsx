@@ -16,6 +16,7 @@ import { DueDate } from '../lib/DueDate';
 import { AutoLink } from '../lib/AutoLink';
 import { MarkdownLink } from '../lib/MarkdownLink';
 import { Mention } from '../lib/Mention';
+import { EmojiShortcode } from '../lib/EmojiShortcode';
 
 // Suggestion popups
 import { WikiLinkSuggestion } from './ui/WikiLinkSuggestion';
@@ -287,6 +288,8 @@ export const OutlineItem = memo(function OutlineItem({
               useOutlineStore.getState().setFilterQuery(`@${mention}`);
             },
           }),
+          // Emoji shortcode conversion (:smile: -> emoji)
+          EmojiShortcode,
         ],
         content: node.content || '',
         editorProps: {
