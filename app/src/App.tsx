@@ -882,8 +882,8 @@ function App() {
         return;
       }
 
-      // Reset Zoom (Ctrl+0)
-      if (mod && event.key === '0') {
+      // Reset Zoom (Ctrl+0) — only when no item is focused (Ctrl+0 in editor resets heading level)
+      if (mod && event.key === '0' && !focusedId) {
         event.preventDefault();
         resetZoom();
         return;

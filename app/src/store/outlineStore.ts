@@ -103,6 +103,8 @@ interface OutlineState {
   swapWithNext: (nodeId: string) => Promise<boolean>;
   toggleCheckbox: (nodeId: string) => Promise<boolean>;
   toggleNodeType: (nodeId: string) => Promise<boolean>;
+  setHeadingLevel: (nodeId: string, level: number) => Promise<boolean>;
+  clearHeading: (nodeId: string) => Promise<boolean>;
   convertToCheckbox: (nodeId: string, isChecked: boolean) => Promise<boolean>;
   moveNodeTo: (nodeId: string, newParentId: string | null, newPosition: number) => Promise<boolean>;
   createItemsFromMarkdown: (afterNodeId: string, items: Array<{ content: string; nodeType: 'bullet' | 'checkbox'; isChecked: boolean; indent: number }>) => Promise<string | null>;
@@ -1627,6 +1629,77 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         description: newType === 'checkbox' ? 'Convert to checkbox' : 'Convert to bullet',
         undo: { type: 'update', id: nodeId, changes: { node_type: oldType, is_checked: oldIsChecked } },
         redo: { type: 'update', id: nodeId, changes: { node_type: newType, is_checked: newIsChecked } },
+        timestamp: Date.now(),
+      });
+
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  setHeadingLevel: async (nodeId: string, level: number) => {
+    const { getNode, updateFromState, _pushUndo } = get();
+    const node = getNode(nodeId);
+    if (!node) return false;
+
+    const oldType = node.node_type;
+    const oldLevel = node.heading_level ?? null;
+    const clampedLevel = Math.max(1, Math.min(6, level));
+
+    // No-op if already at this heading level
+    if (oldType === 'heading' && oldLevel === clampedLevel) return false;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      const state = await api.updateNode(nodeId, {
+        node_type: 'heading',
+        heading_level: clampedLevel,
+        is_checked: false,
+      });
+      updateFromState(state);
+
+      _pushUndo({
+        description: `Set heading level ${clampedLevel}`,
+        undo: { type: 'update', id: nodeId, changes: { node_type: oldType, heading_level: oldLevel as number | undefined, is_checked: node.is_checked } },
+        redo: { type: 'update', id: nodeId, changes: { node_type: 'heading', heading_level: clampedLevel, is_checked: false } },
+        timestamp: Date.now(),
+      });
+
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  clearHeading: async (nodeId: string) => {
+    const { getNode, updateFromState, _pushUndo } = get();
+    const node = getNode(nodeId);
+    if (!node) return false;
+
+    // No-op if already a bullet (not a heading)
+    if (node.node_type !== 'heading') return false;
+
+    const oldType = node.node_type;
+    const oldLevel = node.heading_level ?? null;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      const state = await api.updateNode(nodeId, {
+        node_type: 'bullet',
+      });
+      updateFromState(state);
+
+      _pushUndo({
+        description: 'Clear heading',
+        undo: { type: 'update', id: nodeId, changes: { node_type: oldType, heading_level: oldLevel as number | undefined } },
+        redo: { type: 'update', id: nodeId, changes: { node_type: 'bullet' } },
         timestamp: Date.now(),
       });
 

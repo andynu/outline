@@ -73,6 +73,8 @@ export const OutlineItem = memo(function OutlineItem({
   const toggleCollapse = useOutlineStore(state => state.toggleCollapse);
   const toggleCheckbox = useOutlineStore(state => state.toggleCheckbox);
   const toggleNodeType = useOutlineStore(state => state.toggleNodeType);
+  const setHeadingLevel = useOutlineStore(state => state.setHeadingLevel);
+  const clearHeading = useOutlineStore(state => state.clearHeading);
   const indentNode = useOutlineStore(state => state.indentNode);
   const outdentNode = useOutlineStore(state => state.outdentNode);
   const swapWithPrevious = useOutlineStore(state => state.swapWithPrevious);
@@ -187,6 +189,8 @@ export const OutlineItem = memo(function OutlineItem({
     toggleCollapse,
     toggleCheckbox,
     toggleNodeType,
+    setHeadingLevel,
+    clearHeading,
     indentNode,
     outdentNode,
     swapWithPrevious,
@@ -207,6 +211,8 @@ export const OutlineItem = memo(function OutlineItem({
       toggleCollapse,
       toggleCheckbox,
       toggleNodeType,
+      setHeadingLevel,
+      clearHeading,
       indentNode,
       outdentNode,
       swapWithPrevious,
@@ -648,6 +654,21 @@ export const OutlineItem = memo(function OutlineItem({
             if (event.key.toLowerCase() === 'x' && mod && event.shiftKey) {
               event.preventDefault();
               store.toggleNodeType(nodeId);
+              return true;
+            }
+
+            // === HEADING LEVELS ===
+            // Ctrl+1-6: Set heading level (also sets node_type to 'heading')
+            if (mod && !event.shiftKey && event.key >= '1' && event.key <= '6') {
+              event.preventDefault();
+              store.setHeadingLevel(nodeId, parseInt(event.key, 10));
+              return true;
+            }
+
+            // Ctrl+0: Reset to normal bullet (clear heading)
+            if (mod && !event.shiftKey && event.key === '0') {
+              event.preventDefault();
+              store.clearHeading(nodeId);
               return true;
             }
 
@@ -1145,6 +1166,49 @@ export const OutlineItem = memo(function OutlineItem({
     },
     { separator: true as const },
     {
+      label: 'Heading 1',
+      action: () => setHeadingLevel(node.id, 1),
+      shortcut: 'Ctrl+1',
+      disabled: node.node_type === 'heading' && node.heading_level === 1,
+    },
+    {
+      label: 'Heading 2',
+      action: () => setHeadingLevel(node.id, 2),
+      shortcut: 'Ctrl+2',
+      disabled: node.node_type === 'heading' && node.heading_level === 2,
+    },
+    {
+      label: 'Heading 3',
+      action: () => setHeadingLevel(node.id, 3),
+      shortcut: 'Ctrl+3',
+      disabled: node.node_type === 'heading' && node.heading_level === 3,
+    },
+    {
+      label: 'Heading 4',
+      action: () => setHeadingLevel(node.id, 4),
+      shortcut: 'Ctrl+4',
+      disabled: node.node_type === 'heading' && node.heading_level === 4,
+    },
+    {
+      label: 'Heading 5',
+      action: () => setHeadingLevel(node.id, 5),
+      shortcut: 'Ctrl+5',
+      disabled: node.node_type === 'heading' && node.heading_level === 5,
+    },
+    {
+      label: 'Heading 6',
+      action: () => setHeadingLevel(node.id, 6),
+      shortcut: 'Ctrl+6',
+      disabled: node.node_type === 'heading' && node.heading_level === 6,
+    },
+    {
+      label: 'Normal text',
+      action: () => clearHeading(node.id),
+      shortcut: 'Ctrl+0',
+      disabled: node.node_type !== 'heading',
+    },
+    { separator: true as const },
+    {
       label: node.date ? 'Change Due Date' : 'Set Due Date',
       action: () => {
         setDatePickerPosition(contextMenuPosition);
@@ -1256,7 +1320,7 @@ export const OutlineItem = memo(function OutlineItem({
       action: () => deleteNode(node.id),
       shortcut: 'Ctrl+Shift+Backspace',
     },
-  ], [node.id, node.is_checked, node.node_type, node.collapsed, node.date, node.defer_date, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch, contextMenuPosition]);
+  ], [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.date, node.defer_date, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, setHeadingLevel, clearHeading, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch, contextMenuPosition]);
 
   // Multi-selection context menu (shown when multiple items are selected)
   const bulkContextMenuItems = useMemo(() => {
@@ -1508,6 +1572,9 @@ export const OutlineItem = memo(function OutlineItem({
   }, []);
 
   // Build className for the item
+  const headingClass = node.node_type === 'heading' && node.heading_level
+    ? `heading-${node.heading_level}`
+    : null;
   const itemClasses = [
     'outline-item',
     isFocused && 'focused',
@@ -1519,6 +1586,7 @@ export const OutlineItem = memo(function OutlineItem({
     dropPosition === 'before' && 'drop-before',
     dropPosition === 'after' && 'drop-after',
     dropPosition === 'child' && 'drop-child',
+    headingClass,
   ].filter(Boolean).join(' ');
 
   return (

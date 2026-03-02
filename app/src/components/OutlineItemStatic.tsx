@@ -198,6 +198,14 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
       { label: node.is_checked ? 'Mark Incomplete' : 'Mark Complete', action: () => s.toggleCheckbox(node.id), shortcut: 'Ctrl+Enter' },
       { label: node.node_type === 'checkbox' ? 'Convert to Bullet' : 'Convert to Checkbox', action: () => s.toggleNodeType(node.id), shortcut: 'Ctrl+Shift+X' },
       { separator: true as const },
+      { label: 'Heading 1', action: () => s.setHeadingLevel(node.id, 1), shortcut: 'Ctrl+1', disabled: node.node_type === 'heading' && node.heading_level === 1 },
+      { label: 'Heading 2', action: () => s.setHeadingLevel(node.id, 2), shortcut: 'Ctrl+2', disabled: node.node_type === 'heading' && node.heading_level === 2 },
+      { label: 'Heading 3', action: () => s.setHeadingLevel(node.id, 3), shortcut: 'Ctrl+3', disabled: node.node_type === 'heading' && node.heading_level === 3 },
+      { label: 'Heading 4', action: () => s.setHeadingLevel(node.id, 4), shortcut: 'Ctrl+4', disabled: node.node_type === 'heading' && node.heading_level === 4 },
+      { label: 'Heading 5', action: () => s.setHeadingLevel(node.id, 5), shortcut: 'Ctrl+5', disabled: node.node_type === 'heading' && node.heading_level === 5 },
+      { label: 'Heading 6', action: () => s.setHeadingLevel(node.id, 6), shortcut: 'Ctrl+6', disabled: node.node_type === 'heading' && node.heading_level === 6 },
+      { label: 'Normal text', action: () => s.clearHeading(node.id), shortcut: 'Ctrl+0', disabled: node.node_type !== 'heading' },
+      { separator: true as const },
       { label: 'Copy', action: () => navigator.clipboard.writeText((node.content || '').replace(/<[^>]*>/g, '')), shortcut: 'Ctrl+C' },
       { separator: true as const },
       { label: node.collapsed ? 'Expand' : 'Collapse', action: () => s.toggleCollapse(node.id), shortcut: 'Ctrl+.', disabled: !hasChildren },
@@ -219,14 +227,18 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
       { separator: true as const },
       { label: 'Delete', action: () => s.deleteNode(node.id), shortcut: 'Ctrl+Shift+Backspace' },
     ];
-  }, [node.id, node.is_checked, node.node_type, node.collapsed, node.content, hasChildren, selectedIds, getSelectedNodes]);
+  }, [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.content, hasChildren, selectedIds, getSelectedNodes]);
 
+  const headingClass = node.node_type === 'heading' && node.heading_level
+    ? `heading-${node.heading_level}`
+    : null;
   const itemClasses = [
     'outline-item',
     isSelected && 'selected',
     isInFocusedSubtree && 'in-focused-subtree',
     node.is_checked && 'checked',
     isDragging && 'dragging',
+    headingClass,
   ].filter(Boolean).join(' ');
 
   return (

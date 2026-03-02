@@ -95,6 +95,63 @@ body {
   color: var(--text-tertiary);
 }
 
+/* Heading level styles */
+.outline-item.heading-1 > .item-row .editor-wrapper,
+.outline-item.heading-1 > .item-row .static-content {
+  font-size: 1.6em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.outline-item.heading-2 > .item-row .editor-wrapper,
+.outline-item.heading-2 > .item-row .static-content {
+  font-size: 1.4em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.outline-item.heading-3 > .item-row .editor-wrapper,
+.outline-item.heading-3 > .item-row .static-content {
+  font-size: 1.2em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.outline-item.heading-4 > .item-row .editor-wrapper,
+.outline-item.heading-4 > .item-row .static-content {
+  font-size: 1.1em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.outline-item.heading-5 > .item-row .editor-wrapper,
+.outline-item.heading-5 > .item-row .static-content {
+  font-size: 1.0em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.outline-item.heading-6 > .item-row .editor-wrapper,
+.outline-item.heading-6 > .item-row .static-content {
+  font-size: 0.95em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+
+/* Heading items get a slightly larger bullet to match */
+.outline-item.heading-1 > .item-row .bullet,
+.outline-item.heading-2 > .item-row .bullet {
+  font-size: 0.7em;
+}
+
+/* Ensure TipTap editor inside headings also inherits styles */
+.outline-item[class*="heading-"] > .item-row .editor-wrapper .outline-editor {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
 .children {
   /* Children are indented via marginLeft on outline-item */
 }
