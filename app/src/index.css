@@ -47,7 +47,7 @@ body {
 
 .item-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   padding: 2px 0;
   border-radius: 4px;
   cursor: pointer;
