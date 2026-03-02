@@ -6,7 +6,9 @@ import {
   FONT_SIZES,
   AUTO_SAVE_OPTIONS,
   AVAILABLE_THEMES,
+  NOTE_DISPLAY_OPTIONS,
   type Theme,
+  type NoteDisplayMode,
 } from '../../store/settingsStore';
 import * as api from '../../lib/api';
 import type { DataDirectoryInfo } from '../../lib/api';
@@ -30,6 +32,7 @@ export function SettingsModal({ isOpen, onClose, onOpenShortcuts }: SettingsModa
   const [localAutoSave, setLocalAutoSave] = useState(settings.autoSaveInterval);
   const [localConfirmDelete, setLocalConfirmDelete] = useState(settings.confirmDelete);
   const [localStartCollapsed, setLocalStartCollapsed] = useState(settings.startCollapsed);
+  const [localNoteDisplayMode, setLocalNoteDisplayMode] = useState<NoteDisplayMode>(settings.noteDisplayMode);
   const [localSearchEngine, setLocalSearchEngine] = useState(settings.searchEngine);
   const [localSearchEngineUrl, setLocalSearchEngineUrl] = useState(settings.searchEngineUrl);
 
@@ -48,6 +51,7 @@ export function SettingsModal({ isOpen, onClose, onOpenShortcuts }: SettingsModa
       setLocalAutoSave(settings.autoSaveInterval);
       setLocalConfirmDelete(settings.confirmDelete);
       setLocalStartCollapsed(settings.startCollapsed);
+      setLocalNoteDisplayMode(settings.noteDisplayMode);
       setLocalSearchEngine(settings.searchEngine);
       setLocalSearchEngineUrl(settings.searchEngineUrl);
 
@@ -130,6 +134,11 @@ export function SettingsModal({ isOpen, onClose, onOpenShortcuts }: SettingsModa
     updateSettings({ startCollapsed: value });
   }
 
+  function handleNoteDisplayModeChange(mode: NoteDisplayMode) {
+    setLocalNoteDisplayMode(mode);
+    updateSettings({ noteDisplayMode: mode });
+  }
+
   function handleSearchEngineChange(engine: string) {
     setLocalSearchEngine(engine);
     updateSettings({ searchEngine: engine });
@@ -148,6 +157,7 @@ export function SettingsModal({ isOpen, onClose, onOpenShortcuts }: SettingsModa
     setLocalAutoSave(30);
     setLocalConfirmDelete(true);
     setLocalStartCollapsed(false);
+    setLocalNoteDisplayMode('one-line');
     setLocalSearchEngine('duckduckgo');
     setLocalSearchEngineUrl('');
   }
@@ -297,6 +307,23 @@ export function SettingsModal({ isOpen, onClose, onOpenShortcuts }: SettingsModa
                 />
                 <span className="toggle-slider"></span>
               </label>
+            </div>
+
+            <div className="setting-row">
+              <label className="setting-label" htmlFor="note-display-mode">
+                <span className="label-text">Note display</span>
+                <span className="label-hint">How notes are shown on unfocused items</span>
+              </label>
+              <select
+                id="note-display-mode"
+                className="setting-select"
+                value={localNoteDisplayMode}
+                onChange={(e) => handleNoteDisplayModeChange(e.target.value as NoteDisplayMode)}
+              >
+                {NOTE_DISPLAY_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
             </div>
           </section>
 

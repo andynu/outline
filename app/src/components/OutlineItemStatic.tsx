@@ -1,6 +1,7 @@
 import React, { memo, useRef, useEffect, useState, useMemo, DragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import type { TreeNode } from '../lib/types';
 import { useOutlineStore } from '../store/outlineStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { ContextMenu } from './ui/ContextMenu';
 import { processStaticContentElement, handleStaticContentClick } from '../lib/renderStaticContent';
 import { formatDateRelative } from '../lib/dateUtils';
@@ -25,6 +26,7 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
   // Use separate selectors with primitive returns for stable memoization
   const isSelected = useOutlineStore(state => state.selectedIds.has(node.id));
   const isDragging = useOutlineStore(state => state.draggedId === node.id);
+  const noteDisplayMode = useSettingsStore(state => state.noteDisplayMode);
   const staticContentRef = useRef<HTMLDivElement>(null);
   const dropPositionRef = useRef<'before' | 'after' | 'child' | null>(null);
   const itemRef = useRef<HTMLDivElement>(null);
@@ -286,10 +288,12 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
         {node.date && <span className="date-badge">{formatDateRelative(node.date)}</span>}
         {node.recurrence && <span className="recurrence-indicator" title="Repeating">↻</span>}
       </div>
-      {node.note && (
+      {node.note && noteDisplayMode !== 'none' && (
         <div className="note-row">
           <div className="note-content note-preview">
-            {node.note.length > 100 ? node.note.slice(0, 100) + '...' : node.note}
+            {noteDisplayMode === 'one-line'
+              ? (node.note.length > 100 ? node.note.slice(0, 100) + '...' : node.note)
+              : node.note}
           </div>
         </div>
       )}

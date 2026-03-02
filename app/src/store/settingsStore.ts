@@ -8,6 +8,7 @@ import { create } from 'zustand';
 
 // Types
 export type Theme = 'light' | 'dark' | 'system' | 'gruvbox-dark' | 'gruvbox-light';
+export type NoteDisplayMode = 'none' | 'one-line' | 'full';
 
 export interface Settings {
   // Appearance
@@ -22,6 +23,9 @@ export interface Settings {
 
   // Data
   dataDirectory: string;  // Read-only display of data location
+
+  // Display
+  noteDisplayMode: NoteDisplayMode;  // How notes are shown on unfocused items
 
   // Web Search
   searchEngine: string;  // Search engine preset or 'custom'
@@ -45,6 +49,12 @@ export const SEARCH_ENGINES = [
   { value: 'kagi', label: 'Kagi', url: 'https://kagi.com/search?q=%s' },
   { value: 'brave', label: 'Brave', url: 'https://search.brave.com/search?q=%s' },
   { value: 'custom', label: 'Custom...', url: '' },
+];
+
+export const NOTE_DISPLAY_OPTIONS: { value: NoteDisplayMode; label: string }[] = [
+  { value: 'none', label: 'Hidden' },
+  { value: 'one-line', label: 'One line (truncated)' },
+  { value: 'full', label: 'Full' },
 ];
 
 export const FONT_FAMILIES = [
@@ -81,6 +91,7 @@ const DEFAULT_SETTINGS: Settings = {
   autoSaveInterval: 30,
   confirmDelete: true,
   startCollapsed: false,
+  noteDisplayMode: 'one-line',
   dataDirectory: '~/.outline-data',
   searchEngine: 'duckduckgo',
   searchEngineUrl: '',
