@@ -14,6 +14,7 @@ import {
   type FolderState,
 } from '../lib/api';
 import { RenameModal } from './ui/RenameModal';
+import { closeAllContextMenus, CLOSE_ALL_CONTEXT_MENUS } from './ui/ContextMenu';
 import { showToast } from '../store/toastStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useSavedSearchStore, type SavedSearch } from '../store/savedSearchStore';
@@ -110,14 +111,22 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
     loadAll();
   }, [loadAll]);
 
-  // Close context menus on click elsewhere
+  // Close context menus on click elsewhere or when another context menu opens
   useEffect(() => {
     function handleGlobalClick() {
       setContextMenuTarget(null);
       setSavedSearchContextMenu(null);
     }
+    function handleCloseAll() {
+      setContextMenuTarget(null);
+      setSavedSearchContextMenu(null);
+    }
     document.addEventListener('click', handleGlobalClick);
-    return () => document.removeEventListener('click', handleGlobalClick);
+    document.addEventListener(CLOSE_ALL_CONTEXT_MENUS, handleCloseAll);
+    return () => {
+      document.removeEventListener('click', handleGlobalClick);
+      document.removeEventListener(CLOSE_ALL_CONTEXT_MENUS, handleCloseAll);
+    };
   }, []);
 
   // Focus new folder input when shown
@@ -180,6 +189,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
   const handleDocumentContextMenu = useCallback((e: React.MouseEvent, doc: DocumentInfo) => {
     e.preventDefault();
     e.stopPropagation();
+    closeAllContextMenus();
     setContextMenuTarget({ type: 'document', doc });
     setContextMenuPosition({ x: e.clientX, y: e.clientY });
   }, []);
@@ -187,6 +197,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
   const handleFolderContextMenu = useCallback((e: React.MouseEvent, folder: Folder) => {
     e.preventDefault();
     e.stopPropagation();
+    closeAllContextMenus();
     setContextMenuTarget({ type: 'folder', folder });
     setContextMenuPosition({ x: e.clientX, y: e.clientY });
   }, []);
@@ -613,6 +624,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
                   onContextMenu={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    closeAllContextMenus();
                     setSavedSearchContextMenu({ search, x: e.clientX, y: e.clientY });
                   }}
                   title={search.query}

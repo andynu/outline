@@ -2,7 +2,7 @@ import React, { memo, useRef, useEffect, useState, useMemo, DragEvent, MouseEven
 import type { TreeNode } from '../lib/types';
 import { useOutlineStore } from '../store/outlineStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { ContextMenu } from './ui/ContextMenu';
+import { ContextMenu, closeAllContextMenus } from './ui/ContextMenu';
 import { processStaticContentElement, handleStaticContentClick } from '../lib/renderStaticContent';
 import { formatDateRelative, formatDateRange } from '../lib/dateUtils';
 import { NODE_COLORS, getColorCss } from '../lib/colorPalette';
@@ -145,6 +145,7 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
   const openContextMenu = (e: ReactMouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    closeAllContextMenus();
     setContextMenuPosition({ x: e.clientX, y: e.clientY });
     setShowContextMenu(true);
   };

@@ -51,12 +51,21 @@ interface ContextMenuProps {
   onClose: () => void;
 }
 
+/** Custom event name used to coordinate context menu exclusivity across the app. */
+export const CLOSE_ALL_CONTEXT_MENUS = 'close-all-context-menus';
+
+/** Dispatch a close event so all open context menus dismiss themselves. */
+export function closeAllContextMenus() {
+  document.dispatchEvent(new CustomEvent(CLOSE_ALL_CONTEXT_MENUS));
+}
+
 export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = useState(position);
   const [maxHeight, setMaxHeight] = useState<number | undefined>(undefined);
   const [isPositioned, setIsPositioned] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
+  const instanceId = useRef(Symbol('context-menu'));
 
   // Get indices of actionable (non-separator, non-disabled, non-colorPicker, non-headingPicker) items
   const actionableIndices = items.reduce<number[]>((acc, item, i) => {
@@ -133,7 +142,27 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
     }
   }, [position]);
 
-  // Close on click outside and escape
+  // Close when another context menu opens (global coordination).
+  // On mount, broadcast close so any previously open menu dismisses itself.
+  useEffect(() => {
+    const id = instanceId.current;
+
+    // Tell all other context menus to close.
+    document.dispatchEvent(new CustomEvent(CLOSE_ALL_CONTEXT_MENUS, { detail: id }));
+
+    const handleCloseAll = (e: Event) => {
+      // Ignore the event we just dispatched ourselves.
+      if ((e as CustomEvent).detail === id) return;
+      onClose();
+    };
+
+    document.addEventListener(CLOSE_ALL_CONTEXT_MENUS, handleCloseAll);
+    return () => {
+      document.removeEventListener(CLOSE_ALL_CONTEXT_MENUS, handleCloseAll);
+    };
+  }, [onClose]);
+
+  // Close on click outside, right-click outside, and escape
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -191,12 +220,14 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
     // Delay to avoid immediate close from the same click
     const timeoutId = setTimeout(() => {
       document.addEventListener('click', handleClickOutside);
+      document.addEventListener('contextmenu', handleClickOutside);
       document.addEventListener('keydown', handleKeydown);
     }, 0);
 
     return () => {
       clearTimeout(timeoutId);
       document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('contextmenu', handleClickOutside);
       document.removeEventListener('keydown', handleKeydown);
     };
   }, [onClose, focusedIndex, actionableIndices, items]);

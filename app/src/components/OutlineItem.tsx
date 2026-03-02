@@ -5,7 +5,7 @@ import StarterKit from '@tiptap/starter-kit';
 import type { TreeNode } from '../lib/types';
 import { useOutlineStore } from '../store/outlineStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { ContextMenu } from './ui/ContextMenu';
+import { ContextMenu, closeAllContextMenus } from './ui/ContextMenu';
 import { processStaticContentElement, handleStaticContentClick } from '../lib/renderStaticContent';
 import DOMPurify from 'dompurify';
 
@@ -1150,6 +1150,7 @@ export const OutlineItem = memo(function OutlineItem({
   const handleContextMenu = useCallback((e: ReactMouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    closeAllContextMenus();
     setContextMenuPosition({ x: e.clientX, y: e.clientY });
     setShowContextMenu(true);
     setFocusedId(node.id);
@@ -1647,6 +1648,7 @@ export const OutlineItem = memo(function OutlineItem({
           className="hover-menu-btn"
           onClick={(e) => {
             e.stopPropagation();
+            closeAllContextMenus();
             setContextMenuPosition({ x: e.clientX, y: e.clientY });
             setShowContextMenu(true);
             setFocusedId(node.id);

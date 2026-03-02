@@ -212,4 +212,59 @@ test.describe('Context menu', () => {
     const separatorCount = await separators.count();
     expect(separatorCount).toBeGreaterThan(0);
   });
+
+  test('only one context menu is visible at a time', async ({ page }) => {
+    const items = page.locator('.outline-item');
+    const itemCount = await items.count();
+    // Need at least two items to test this
+    expect(itemCount).toBeGreaterThanOrEqual(2);
+
+    // Right-click the first item to open its context menu
+    await items.nth(0).click({ button: 'right' });
+    await page.waitForTimeout(150);
+
+    let contextMenus = page.locator('.context-menu');
+    await expect(contextMenus.first()).toBeVisible();
+    expect(await contextMenus.count()).toBe(1);
+
+    // Dismiss the first menu first, then right-click the second item.
+    // We dismiss first because the fixed-position context menu may visually
+    // overlap the second item, causing Playwright's actionability check to fail.
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
+    await expect(page.locator('.context-menu')).not.toBeVisible();
+
+    // Right-click the second item
+    await items.nth(1).click({ button: 'right' });
+    await page.waitForTimeout(150);
+
+    contextMenus = page.locator('.context-menu');
+    await expect(contextMenus.first()).toBeVisible();
+    expect(await contextMenus.count()).toBe(1);
+  });
+
+  test('right-clicking another item closes the previous context menu', async ({ page }) => {
+    // To test that two menus don't coexist, we need to right-click items
+    // that are far enough apart that the context menu won't overlap.
+    // We'll use the last two items in the list for this.
+    const items = page.locator('.outline-item');
+    const itemCount = await items.count();
+    expect(itemCount).toBeGreaterThanOrEqual(2);
+
+    // Right-click the first item in the list
+    await items.first().click({ button: 'right' });
+    await page.waitForTimeout(150);
+    await expect(page.locator('.context-menu')).toBeVisible();
+
+    // Right-click the last item (likely far enough away to avoid overlap).
+    // Use force to bypass Playwright's actionability check in case the context
+    // menu's fixed-position overlay still intercepts.
+    await items.last().click({ button: 'right', force: true });
+    await page.waitForTimeout(150);
+
+    // There should be exactly one context menu visible
+    const contextMenus = page.locator('.context-menu');
+    await expect(contextMenus.first()).toBeVisible();
+    expect(await contextMenus.count()).toBe(1);
+  });
 });
