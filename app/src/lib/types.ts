@@ -112,3 +112,4 @@ export type UndoAction =
   | { type: 'update'; id: string; changes: NodeChanges }    // Revert field changes
   | { type: 'move'; id: string; parentId: string | null; position: number }  // Move back
   | { type: 'swap'; id: string; position: number; otherId: string; otherPosition: number }  // Swap positions
+  | { type: 'batch'; actions: UndoAction[]; focusId?: string }  // Execute multiple actions in sequence

@@ -855,7 +855,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   splitNode: async (nodeId: string, beforeContent: string, afterContent: string) => {
-    const { getNode, getSiblings, childrenOf, updateFromState, zoomedNodeId } = get();
+    const { getNode, getSiblings, childrenOf, updateFromState, zoomedNodeId, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node) return null;
 
@@ -865,6 +865,9 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
     // Get children to move to new node
     const children = childrenOf(nodeId);
+
+    // Capture original content before split for undo
+    const originalContent = node.content;
 
     // Check if we're zoomed into the node being split and it has children
     // If so, we need to zoom out after the split to avoid an empty view
@@ -900,9 +903,38 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         set({ zoomedNodeId: node.parent_id });
       }
 
-      // Note: Undo for split is complex (would need to restore content and move children back)
-      // For now, we don't add undo support for split
-      // TODO: Add proper undo support for split
+      // Build undo entry for split:
+      // Undo: move children back to original node, delete the new node, restore original content
+      // Redo: re-split by updating content, creating new node, and moving children
+      const undoActions: UndoAction[] = [];
+      // Move children back from new node to original node
+      for (let i = 0; i < children.length; i++) {
+        undoActions.push({ type: 'move', id: children[i].id, parentId: nodeId, position: i });
+      }
+      // Delete the new split-off node
+      undoActions.push({ type: 'delete', id: result.id });
+      // Restore the original node's content
+      undoActions.push({ type: 'update', id: nodeId, changes: { content: originalContent } });
+
+      const newNode = get().getNode(result.id);
+      const redoActions: UndoAction[] = [];
+      // Update original node to before content
+      redoActions.push({ type: 'update', id: nodeId, changes: { content: beforeContent } });
+      // Recreate the split-off node
+      if (newNode) {
+        redoActions.push({ type: 'create', node: { ...newNode } });
+      }
+      // Move children to the new node
+      for (let i = 0; i < children.length; i++) {
+        redoActions.push({ type: 'move', id: children[i].id, parentId: result.id, position: i });
+      }
+
+      _pushUndo({
+        description: 'Split item',
+        undo: { type: 'batch', actions: undoActions, focusId: nodeId },
+        redo: { type: 'batch', actions: redoActions, focusId: result.id },
+        timestamp: Date.now(),
+      });
 
       return result.id;
     } catch (e) {
@@ -914,7 +946,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   mergeWithNextSibling: async (nodeId: string) => {
-    const { getNode, getSiblings, childrenOf, updateFromState } = get();
+    const { getNode, getSiblings, childrenOf, updateFromState, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node) return null;
 
@@ -924,6 +956,11 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     // Check if there's a next sibling
     if (idx < 0 || idx >= siblings.length - 1) return null;
     const nextSibling = siblings[idx + 1];
+
+    // Capture state before merge for undo
+    const originalContent = node.content;
+    const nextSiblingContent = nextSibling.content;
+    const savedNextSibling = { ...nextSibling };
 
     // Calculate cursor position (end of current content, before merge)
     // Strip HTML tags to get text length
@@ -949,8 +986,35 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       const state = await api.loadDocument();
       updateFromState(state);
 
-      // Note: Undo for merge is complex (would need to restore split content and move children back)
-      // TODO: Add proper undo support for merge
+      // Build undo entry for merge:
+      // Undo: restore original content, recreate next sibling, move children back
+      // Redo: re-merge by updating content, moving children, deleting next sibling
+      const undoActions: UndoAction[] = [];
+      // Restore original content of surviving node
+      undoActions.push({ type: 'update', id: nodeId, changes: { content: originalContent } });
+      // Recreate the deleted next sibling
+      undoActions.push({ type: 'create', node: savedNextSibling });
+      // Move children back to the recreated next sibling
+      for (let i = 0; i < nextChildren.length; i++) {
+        undoActions.push({ type: 'move', id: nextChildren[i].id, parentId: nextSibling.id, position: i });
+      }
+
+      const redoActions: UndoAction[] = [];
+      // Re-merge: update surviving node with merged content
+      redoActions.push({ type: 'update', id: nodeId, changes: { content: mergedContent } });
+      // Move children from next sibling to surviving node
+      for (let i = 0; i < nextChildren.length; i++) {
+        redoActions.push({ type: 'move', id: nextChildren[i].id, parentId: nodeId, position: currentChildren.length + i });
+      }
+      // Delete the next sibling again
+      redoActions.push({ type: 'delete', id: nextSibling.id });
+
+      _pushUndo({
+        description: 'Merge items',
+        undo: { type: 'batch', actions: undoActions, focusId: nodeId },
+        redo: { type: 'batch', actions: redoActions, focusId: nodeId },
+        timestamp: Date.now(),
+      });
 
       return { cursorPos: plainTextLength };
     } catch (e) {
@@ -962,7 +1026,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   mergeWithPreviousSibling: async (nodeId: string) => {
-    const { getNode, getSiblings, childrenOf, updateFromState, setFocusedId } = get();
+    const { getNode, getSiblings, childrenOf, updateFromState, setFocusedId, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node) return null;
 
@@ -972,6 +1036,10 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     // Check if there's a previous sibling
     if (idx <= 0) return null;
     const prevSibling = siblings[idx - 1];
+
+    // Capture state before merge for undo
+    const prevOriginalContent = prevSibling.content;
+    const savedCurrentNode = { ...node };
 
     // Calculate cursor position (end of prev sibling content, before merge)
     // Strip HTML tags to get text length
@@ -999,6 +1067,36 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
       // Focus the previous sibling with cursor at merge point
       set({ focusedId: prevSibling.id, pendingCursorPos: plainTextLength });
+
+      // Build undo entry for merge with previous:
+      // Undo: restore prev sibling's original content, recreate current node, move children back
+      // Redo: re-merge by updating content, moving children, deleting current node
+      const undoActions: UndoAction[] = [];
+      // Restore previous sibling's original content
+      undoActions.push({ type: 'update', id: prevSibling.id, changes: { content: prevOriginalContent } });
+      // Recreate the deleted current node
+      undoActions.push({ type: 'create', node: savedCurrentNode });
+      // Move children back to the recreated current node
+      for (let i = 0; i < currentChildren.length; i++) {
+        undoActions.push({ type: 'move', id: currentChildren[i].id, parentId: nodeId, position: i });
+      }
+
+      const redoActions: UndoAction[] = [];
+      // Re-merge: update previous sibling with merged content
+      redoActions.push({ type: 'update', id: prevSibling.id, changes: { content: mergedContent } });
+      // Move children from current node to previous sibling
+      for (let i = 0; i < currentChildren.length; i++) {
+        redoActions.push({ type: 'move', id: currentChildren[i].id, parentId: prevSibling.id, position: prevChildren.length + i });
+      }
+      // Delete the current node again
+      redoActions.push({ type: 'delete', id: nodeId });
+
+      _pushUndo({
+        description: 'Merge items',
+        undo: { type: 'batch', actions: undoActions, focusId: nodeId },
+        redo: { type: 'batch', actions: redoActions, focusId: prevSibling.id },
+        timestamp: Date.now(),
+      });
 
       return { cursorPos: plainTextLength, newFocusId: prevSibling.id };
     } catch (e) {
@@ -2022,6 +2120,23 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
           await api.moveNode(action.id, node.parent_id, action.position);
           const state = await api.moveNode(action.otherId, otherNode.parent_id, action.otherPosition);
           updateFromState(state);
+          return true;
+        }
+        case 'batch': {
+          // Execute multiple actions in sequence
+          // Temporarily decrement pendingOperations since each recursive call increments it
+          set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+          for (const subAction of action.actions) {
+            const success = await get()._executeUndoAction(subAction);
+            if (!success) {
+              set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+              return false;
+            }
+          }
+          set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+          if (action.focusId) {
+            set({ focusedId: action.focusId });
+          }
           return true;
         }
         default:
