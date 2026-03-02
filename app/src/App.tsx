@@ -637,6 +637,34 @@ function App() {
     }
   }, [load]);
 
+  const handleImportOpmlMerge = useCallback(async () => {
+    try {
+      const file = await api.pickAndReadFile([{ name: 'OPML', extensions: ['opml', 'xml'] }]);
+      if (!file) return;
+      await api.importOpml(file.content);
+      // Reload current document to reflect merged content
+      await load(currentDocumentId);
+      showToast('OPML imported into current document');
+    } catch (e) {
+      console.error('Import OPML (merge) failed:', e);
+      showToast('Import failed');
+    }
+  }, [load, currentDocumentId]);
+
+  const handleImportJson = useCallback(async () => {
+    try {
+      const file = await api.pickAndReadFile([{ name: 'JSON', extensions: ['json'] }]);
+      if (!file) return;
+      await api.importJson(file.content);
+      // Reload current document to reflect imported content
+      await load(currentDocumentId);
+      showToast('JSON imported into current document');
+    } catch (e) {
+      console.error('Import JSON failed:', e);
+      showToast('Import failed');
+    }
+  }, [load, currentDocumentId]);
+
   // File menu items
   const fileMenuItems: MenuEntry[] = useMemo(() => [
     { label: 'New Document', shortcut: 'Ctrl+N', action: handleNewDocument, separator: false },
@@ -650,8 +678,10 @@ function App() {
     { label: 'Export HTML (Dark)', action: handleExportHtmlDark, separator: false },
     { label: 'Export iCal', action: handleExportIcal, separator: false },
     { separator: true },
-    { label: 'Import OPML...', action: handleImportOpml, separator: false },
-  ], [handleNewDocument, handleSave, handleExportOpml, handleExportMarkdown, handleExportJson, handleExportHtml, handleExportHtmlDark, handleExportIcal, handleImportOpml]);
+    { label: 'Import OPML as New Document...', action: handleImportOpml, separator: false },
+    { label: 'Import OPML into Current Document...', action: handleImportOpmlMerge, separator: false },
+    { label: 'Import JSON into Current Document...', action: handleImportJson, separator: false },
+  ], [handleNewDocument, handleSave, handleExportOpml, handleExportMarkdown, handleExportJson, handleExportHtml, handleExportHtmlDark, handleExportIcal, handleImportOpml, handleImportOpmlMerge, handleImportJson]);
 
   // Edit menu items
   const deleteAllCompleted = useOutlineStore(state => state.deleteAllCompleted);
