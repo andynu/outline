@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import * as api from '../../lib/api';
-import type { SearchResult } from '../../lib/api';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useOutlineStore } from '../../store/outlineStore';
 import { showToast } from '../../store/toastStore';
+import { buildAncestryIndex, searchAncestryIndex } from '../../lib/ancestrySearch';
+import type { AncestrySearchResult } from '../../lib/ancestrySearch';
 
 interface QuickMoveProps {
   isOpen: boolean;
@@ -24,9 +24,8 @@ function stripHtml(html: string): string {
 
 export function QuickMove({ isOpen, onClose, bulkMode = false }: QuickMoveProps) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<AncestrySearchResult[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [moving, setMoving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -39,6 +38,12 @@ export function QuickMove({ isOpen, onClose, bulkMode = false }: QuickMoveProps)
   const selectedIds = useOutlineStore(state => state.selectedIds);
   const clearSelection = useOutlineStore(state => state.clearSelection);
 
+  // Build ancestry index once when modal opens or nodes change while open
+  const ancestryIndex = useMemo(() => {
+    if (!isOpen) return [];
+    return buildAncestryIndex(nodes);
+  }, [isOpen, nodes]);
+
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -49,7 +54,7 @@ export function QuickMove({ isOpen, onClose, bulkMode = false }: QuickMoveProps)
     }
   }, [isOpen]);
 
-  // Search when query changes
+  // Search when query changes using ancestry-aware search
   useEffect(() => {
     if (query.trim().length === 0) {
       setResults([]);
@@ -57,19 +62,26 @@ export function QuickMove({ isOpen, onClose, bulkMode = false }: QuickMoveProps)
       return;
     }
 
-    const timeoutId = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const searchResults = await api.search(query, undefined, 30);
-        setResults(searchResults);
-        setSelectedIndex(0);
-      } finally {
-        setLoading(false);
+    // Build exclusion set: don't show the node being moved (or its descendants) as targets
+    const excludeIds = new Set<string>();
+    if (bulkMode && selectedIds.size > 0) {
+      const selected = getSelectedNodes();
+      for (const n of selected) {
+        if (n) excludeIds.add(n.id);
       }
-    }, 150);
+    } else if (focusedId) {
+      excludeIds.add(focusedId);
+    }
+
+    // Debounce the search slightly for responsiveness
+    const timeoutId = setTimeout(() => {
+      const searchResults = searchAncestryIndex(ancestryIndex, query, 30, excludeIds);
+      setResults(searchResults);
+      setSelectedIndex(0);
+    }, 50);
 
     return () => clearTimeout(timeoutId);
-  }, [query]);
+  }, [query, ancestryIndex, focusedId, bulkMode, selectedIds, getSelectedNodes]);
 
   // Scroll selected result into view
   useEffect(() => {
@@ -98,8 +110,6 @@ export function QuickMove({ isOpen, onClose, bulkMode = false }: QuickMoveProps)
     }
 
     // Don't allow moving a node to itself or its descendant
-    const targetNodeIds = new Set([targetNodeId]);
-    // Build set of all descendants of nodes being moved
     const isDescendant = (nodeId: string, ancestorIds: Set<string>): boolean => {
       let current = getNode(nodeId);
       while (current?.parent_id) {
@@ -120,7 +130,7 @@ export function QuickMove({ isOpen, onClose, bulkMode = false }: QuickMoveProps)
     setMoving(true);
     try {
       // Get current children count of target
-      let targetChildren = nodes.filter(n => n.parent_id === targetNodeId);
+      const targetChildren = nodes.filter(n => n.parent_id === targetNodeId);
       let newPosition = targetChildren.length;
 
       // Move nodes in order - this maintains their relative ordering
@@ -224,17 +234,16 @@ export function QuickMove({ isOpen, onClose, bulkMode = false }: QuickMoveProps)
             ref={inputRef}
             type="text"
             className="search-input"
-            placeholder="Move to..."
+            placeholder="Move to... (use spaces for path search)"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             disabled={moving}
           />
-          {loading && <span className="loading-indicator">...</span>}
           {moving && <span className="loading-indicator">Moving...</span>}
         </div>
 
         <div className="results" role="listbox">
-          {results.length === 0 && query.trim().length > 0 && !loading ? (
+          {results.length === 0 && query.trim().length > 0 ? (
             <div className="no-results">No items found</div>
           ) : results.length === 0 && query.trim().length === 0 ? (
             <div className="hint-text">Search for a destination node...</div>
@@ -249,8 +258,20 @@ export function QuickMove({ isOpen, onClose, bulkMode = false }: QuickMoveProps)
                 onClick={() => moveToNode(result.node_id)}
               >
                 <div className="result-content">
-                  {stripHtml(result.snippet)}
+                  {result.content}
                 </div>
+                {result.breadcrumbSegments.length > 1 && (
+                  <div className="result-breadcrumb">
+                    {result.breadcrumbSegments.map((segment, i) => (
+                      <React.Fragment key={i}>
+                        {i > 0 && <span className="breadcrumb-sep"> / </span>}
+                        <span className={i === result.breadcrumbSegments.length - 1 ? 'breadcrumb-current-seg' : 'breadcrumb-ancestor-seg'}>
+                          {segment.length > 30 ? segment.substring(0, 30) + '...' : segment}
+                        </span>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                )}
               </div>
             ))
           )}

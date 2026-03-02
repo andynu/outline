@@ -3414,6 +3414,30 @@ body {
   border-radius: 2px;
 }
 
+.quick-navigator-modal .result-breadcrumb {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-navigator-modal .result-breadcrumb .breadcrumb-sep {
+  color: var(--text-tertiary);
+  opacity: 0.6;
+}
+
+.quick-navigator-modal .result-breadcrumb .breadcrumb-ancestor-seg {
+  color: var(--text-tertiary);
+}
+
+.quick-navigator-modal .result-breadcrumb .breadcrumb-current-seg {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 .quick-navigator-modal .modal-footer .hint {
   font-size: 12px;
   color: var(--text-secondary);
@@ -3532,6 +3556,30 @@ body {
   font-size: 14px;
   line-height: 1.5;
   color: var(--text-primary);
+}
+
+.quick-move-modal .result-breadcrumb {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-move-modal .result-breadcrumb .breadcrumb-sep {
+  color: var(--text-tertiary);
+  opacity: 0.6;
+}
+
+.quick-move-modal .result-breadcrumb .breadcrumb-ancestor-seg {
+  color: var(--text-tertiary);
+}
+
+.quick-move-modal .result-breadcrumb .breadcrumb-current-seg {
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .quick-move-modal .modal-footer .hint {

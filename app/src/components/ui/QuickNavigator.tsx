@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import * as api from '../../lib/api';
-import type { SearchResult, DocumentInfo } from '../../lib/api';
+import type { DocumentInfo } from '../../lib/api';
+import { useOutlineStore } from '../../store/outlineStore';
+import { buildAncestryIndex, searchAncestryIndex } from '../../lib/ancestrySearch';
+import type { AncestrySearchResult } from '../../lib/ancestrySearch';
 
 type NavigatorMode = 'files' | 'items';
 
@@ -11,20 +14,22 @@ interface QuickNavigatorProps {
   onNavigate: (nodeId: string, documentId: string) => void;
 }
 
-function stripHtml(html: string): string {
-  const div = document.createElement('div');
-  div.textContent = html;
-  return div.textContent || '';
-}
-
 export function QuickNavigator({ isOpen, mode, onClose, onNavigate }: QuickNavigatorProps) {
   const [query, setQuery] = useState('');
   const [fileResults, setFileResults] = useState<DocumentInfo[]>([]);
-  const [itemResults, setItemResults] = useState<SearchResult[]>([]);
+  const [itemResults, setItemResults] = useState<AncestrySearchResult[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [allDocuments, setAllDocuments] = useState<DocumentInfo[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Get nodes from store for ancestry-aware search
+  const nodes = useOutlineStore(state => state.nodes);
+
+  // Build ancestry index once when modal opens in items mode or nodes change while open
+  const ancestryIndex = useMemo(() => {
+    if (!isOpen || mode !== 'items') return [];
+    return buildAncestryIndex(nodes);
+  }, [isOpen, mode, nodes]);
 
   // Load documents when opened in file mode
   useEffect(() => {
@@ -59,7 +64,7 @@ export function QuickNavigator({ isOpen, mode, onClose, onNavigate }: QuickNavig
     }
   }, [mode, query, allDocuments]);
 
-  // Search items when query changes
+  // Search items when query changes using ancestry-aware search
   useEffect(() => {
     if (mode !== 'items') return;
     if (query.trim().length === 0) {
@@ -68,24 +73,30 @@ export function QuickNavigator({ isOpen, mode, onClose, onNavigate }: QuickNavig
       return;
     }
 
-    const timeoutId = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const results = await api.search(query, undefined, 30);
-        setItemResults(results);
-        setSelectedIndex(0);
-      } finally {
-        setLoading(false);
-      }
-    }, 150);
+    // Debounce the search slightly for responsiveness
+    const timeoutId = setTimeout(() => {
+      const results = searchAncestryIndex(ancestryIndex, query, 30);
+      setItemResults(results);
+      setSelectedIndex(0);
+    }, 50);
 
     return () => clearTimeout(timeoutId);
-  }, [mode, query]);
+  }, [mode, query, ancestryIndex]);
 
   // Focus input when modal opens
   useEffect(() => {
     if (isOpen && inputRef.current) {
       setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [isOpen]);
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setQuery('');
+      setFileResults([]);
+      setItemResults([]);
+      setSelectedIndex(0);
     }
   }, [isOpen]);
 
@@ -111,8 +122,10 @@ export function QuickNavigator({ isOpen, mode, onClose, onNavigate }: QuickNavig
     handleClose();
   }, [onNavigate, handleClose]);
 
-  const selectItem = useCallback((result: SearchResult) => {
-    onNavigate(result.node_id, result.document_id);
+  const selectItem = useCallback((result: AncestrySearchResult) => {
+    // For ancestry search results, we use current document context
+    // The node_id is sufficient for navigation within the current document
+    onNavigate(result.node_id, '');
     handleClose();
   }, [onNavigate, handleClose]);
 
@@ -171,7 +184,7 @@ export function QuickNavigator({ isOpen, mode, onClose, onNavigate }: QuickNavig
     return null;
   }
 
-  const placeholder = mode === 'files' ? 'Go to document...' : 'Go to item...';
+  const placeholder = mode === 'files' ? 'Go to document...' : 'Go to item... (use spaces for path search)';
 
   return (
     <div className="modal-backdrop" onClick={handleBackdropClick}>
@@ -197,7 +210,6 @@ export function QuickNavigator({ isOpen, mode, onClose, onNavigate }: QuickNavig
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          {loading && <span className="loading-indicator">...</span>}
         </div>
 
         <div className="results" role="listbox">
@@ -221,7 +233,7 @@ export function QuickNavigator({ isOpen, mode, onClose, onNavigate }: QuickNavig
             )
           ) : (
             <>
-              {itemResults.length === 0 && query.trim().length > 0 && !loading && (
+              {itemResults.length === 0 && query.trim().length > 0 && (
                 <div className="no-results">No items found</div>
               )}
               {itemResults.length === 0 && query.trim().length === 0 && (
@@ -237,8 +249,20 @@ export function QuickNavigator({ isOpen, mode, onClose, onNavigate }: QuickNavig
                   onClick={() => selectItem(result)}
                 >
                   <div className="result-content">
-                    {stripHtml(result.snippet)}
+                    {result.content}
                   </div>
+                  {result.breadcrumbSegments.length > 1 && (
+                    <div className="result-breadcrumb">
+                      {result.breadcrumbSegments.map((segment, i) => (
+                        <React.Fragment key={i}>
+                          {i > 0 && <span className="breadcrumb-sep"> / </span>}
+                          <span className={i === result.breadcrumbSegments.length - 1 ? 'breadcrumb-current-seg' : 'breadcrumb-ancestor-seg'}>
+                            {segment.length > 30 ? segment.substring(0, 30) + '...' : segment}
+                          </span>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </>

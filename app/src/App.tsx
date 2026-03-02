@@ -535,7 +535,7 @@ function App() {
 
   // Handle quick navigator navigation
   const handleQuickNavigate = useCallback((nodeId: string, documentId: string) => {
-    if (documentId !== currentDocumentId) {
+    if (documentId && documentId !== currentDocumentId) {
       setCurrentDocumentId(documentId);
       load(documentId);
     }
