@@ -71,6 +71,7 @@ pub fn run() {
             commands::export_markdown,
             commands::export_selection_markdown,
             commands::export_json,
+            commands::export_html,
             commands::save_to_file_with_dialog,
             commands::import_json,
             commands::get_data_directory,

@@ -584,6 +584,28 @@ function App() {
     }
   }, [nodes]);
 
+  const handleExportHtml = useCallback(async () => {
+    try {
+      const title = nodes.find(n => !n.parent_id)?.content?.replace(/<[^>]*>/g, '') || 'Outline';
+      const content = await api.exportHtml(title, false);
+      await api.saveToFileWithDialog(content, `${title}.html`, 'html');
+    } catch (e) {
+      console.error('Export HTML failed:', e);
+      showToast('Export failed');
+    }
+  }, [nodes]);
+
+  const handleExportHtmlDark = useCallback(async () => {
+    try {
+      const title = nodes.find(n => !n.parent_id)?.content?.replace(/<[^>]*>/g, '') || 'Outline';
+      const content = await api.exportHtml(title, true);
+      await api.saveToFileWithDialog(content, `${title}.html`, 'html');
+    } catch (e) {
+      console.error('Export HTML (Dark) failed:', e);
+      showToast('Export failed');
+    }
+  }, [nodes]);
+
   const handleExportIcal = useCallback(async () => {
     try {
       const title = nodes.find(n => !n.parent_id)?.content?.replace(/<[^>]*>/g, '') || 'Outline';
@@ -620,10 +642,12 @@ function App() {
     { label: 'Export OPML', action: handleExportOpml, separator: false },
     { label: 'Export Markdown', action: handleExportMarkdown, separator: false },
     { label: 'Export JSON', action: handleExportJson, separator: false },
+    { label: 'Export HTML', action: handleExportHtml, separator: false },
+    { label: 'Export HTML (Dark)', action: handleExportHtmlDark, separator: false },
     { label: 'Export iCal', action: handleExportIcal, separator: false },
     { separator: true },
     { label: 'Import OPML...', action: handleImportOpml, separator: false },
-  ], [handleNewDocument, handleSave, handleExportOpml, handleExportMarkdown, handleExportJson, handleExportIcal, handleImportOpml]);
+  ], [handleNewDocument, handleSave, handleExportOpml, handleExportMarkdown, handleExportJson, handleExportHtml, handleExportHtmlDark, handleExportIcal, handleImportOpml]);
 
   // Edit menu items
   const deleteAllCompleted = useOutlineStore(state => state.deleteAllCompleted);

@@ -683,6 +683,16 @@ export async function exportJson(): Promise<string> {
   }, null, 2);
 }
 
+// Export current document to standalone HTML
+export async function exportHtml(title: string, darkMode: boolean = false): Promise<string> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('export_html', { title, darkMode }) as Promise<string>;
+  }
+  // Browser-only mode: generate basic HTML
+  return generateMockHtml(title, darkMode);
+}
+
 // Import JSON backup into the current document
 export async function importJson(content: string): Promise<DocumentState> {
   await initTauri();
@@ -768,6 +778,56 @@ function generateMockMarkdown(): string {
     addNode(root, 0);
   }
 
+  return lines.join('\n');
+}
+
+// Helper: Generate basic HTML for browser-only mode
+function generateMockHtml(title: string, darkMode: boolean): string {
+  const bg = darkMode ? '#1a1a2e' : '#ffffff';
+  const fg = darkMode ? '#e0e0e0' : '#1a1a1a';
+  const lines: string[] = [
+    '<!DOCTYPE html>',
+    '<html lang="en">',
+    '<head>',
+    '<meta charset="UTF-8">',
+    `<title>${escapeXml(title)}</title>`,
+    '<style>',
+    `body { background: ${bg}; color: ${fg}; font-family: sans-serif; padding: 2rem; max-width: 48rem; margin: 0 auto; }`,
+    'ul { list-style: disc; padding-left: 1.5rem; }',
+    'li { margin: 0.25rem 0; }',
+    '</style>',
+    '</head>',
+    '<body>',
+    '<div class="outline">',
+  ];
+
+  function addNode(node: Node, children: Node[]) {
+    const text = stripHtml(node.content);
+    const prefix = node.is_checked ? '[x] ' : (node.node_type === 'checkbox' ? '[ ] ' : '');
+    lines.push(`<li>${prefix}${escapeXml(text)}`);
+    const nodeChildren = mockState.nodes.filter(n => n.parent_id === node.id);
+    nodeChildren.sort((a, b) => a.position - b.position);
+    if (nodeChildren.length > 0) {
+      lines.push('<ul>');
+      for (const child of nodeChildren) {
+        addNode(child, []);
+      }
+      lines.push('</ul>');
+    }
+    lines.push('</li>');
+  }
+
+  const roots = mockState.nodes.filter(n => !n.parent_id);
+  roots.sort((a, b) => a.position - b.position);
+  lines.push('<ul>');
+  for (const root of roots) {
+    addNode(root, []);
+  }
+  lines.push('</ul>');
+
+  lines.push('</div>');
+  lines.push('</body>');
+  lines.push('</html>');
   return lines.join('\n');
 }
 

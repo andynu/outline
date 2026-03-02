@@ -1075,6 +1075,15 @@ pub fn export_json(state: State<AppState>) -> Result<String, String> {
     outline_core::import_export::generate_json_backup(&doc.state.nodes)
 }
 
+/// Export current document to standalone HTML
+#[tauri::command]
+pub fn export_html(state: State<AppState>, title: String, dark_mode: bool) -> Result<String, String> {
+    let current = state.current_document.lock().unwrap();
+    let doc = current.as_ref().ok_or("No document loaded")?;
+
+    Ok(outline_core::import_export::generate_html(&doc.state.nodes, &title, dark_mode))
+}
+
 /// Import JSON backup into the current document
 #[tauri::command]
 pub fn import_json(
