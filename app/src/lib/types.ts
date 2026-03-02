@@ -1,6 +1,6 @@
 // Types matching Rust data structures
 
-export type NodeType = 'bullet' | 'checkbox' | 'heading';
+export type NodeType = 'bullet' | 'checkbox' | 'heading' | 'numbered';
 
 export interface Node {
   id: string;

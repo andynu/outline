@@ -14,17 +14,21 @@ fn write_markdown_nodes(output: &mut String, nodes: &[Node], parent_id: Option<U
     let mut children: Vec<_> = nodes.iter().filter(|n| n.parent_id == parent_id).collect();
     children.sort_by_key(|n| n.position);
 
+    let mut numbered_counter = 0u32;
     for node in children {
         let indent = "  ".repeat(depth);
         let content = html_to_markdown(&node.content);
 
         // Determine bullet type
         let bullet = if node.is_checked {
-            "- [x]"
+            "- [x]".to_string()
         } else if matches!(node.node_type, crate::data::NodeType::Checkbox) {
-            "- [ ]"
+            "- [ ]".to_string()
+        } else if matches!(node.node_type, crate::data::NodeType::Numbered) {
+            numbered_counter += 1;
+            format!("{}.", numbered_counter)
         } else {
-            "-"
+            "-".to_string()
         };
 
         // Build the line with Obsidian Tasks metadata

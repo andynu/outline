@@ -9,7 +9,7 @@
 
 export interface ParsedItem {
   content: string;          // The text content (inline formatting preserved)
-  nodeType: 'bullet' | 'checkbox';
+  nodeType: 'bullet' | 'checkbox' | 'numbered';
   isChecked: boolean;
   indent: number;           // Indent level (0 = root, 1 = child, etc.)
 }
@@ -80,7 +80,7 @@ export function parseMarkdownList(text: string): ParsedItem[] | null {
       continue;
     }
 
-    // Try ordered list pattern (treat same as bullet)
+    // Try ordered list pattern
     const orderedMatch = line.match(ORDERED_PATTERN);
     if (orderedMatch) {
       hasListContent = true;
@@ -88,7 +88,7 @@ export function parseMarkdownList(text: string): ParsedItem[] | null {
       const indentLevel = Math.floor(indent.length / 2);
       items.push({
         content: convertInlineFormatting(content.trim()),
-        nodeType: 'bullet',
+        nodeType: 'numbered',
         isChecked: false,
         indent: indentLevel,
       });

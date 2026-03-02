@@ -150,11 +150,12 @@ interface OutlineState {
   swapWithNext: (nodeId: string) => Promise<boolean>;
   toggleCheckbox: (nodeId: string) => Promise<boolean>;
   toggleNodeType: (nodeId: string) => Promise<boolean>;
+  setNodeTypeTo: (nodeId: string, newType: import('../lib/types').NodeType) => Promise<boolean>;
   setHeadingLevel: (nodeId: string, level: number) => Promise<boolean>;
   clearHeading: (nodeId: string) => Promise<boolean>;
   convertToCheckbox: (nodeId: string, isChecked: boolean) => Promise<boolean>;
   moveNodeTo: (nodeId: string, newParentId: string | null, newPosition: number) => Promise<boolean>;
-  createItemsFromMarkdown: (afterNodeId: string, items: Array<{ content: string; nodeType: 'bullet' | 'checkbox'; isChecked: boolean; indent: number }>) => Promise<string | null>;
+  createItemsFromMarkdown: (afterNodeId: string, items: Array<{ content: string; nodeType: 'bullet' | 'checkbox' | 'numbered'; isChecked: boolean; indent: number }>) => Promise<string | null>;
 
   // Drag and drop
   startDrag: (nodeId: string) => void;
@@ -188,6 +189,7 @@ interface OutlineState {
   uncompleteSelectedNodes: () => Promise<boolean>;
   convertSelectedToCheckbox: () => Promise<boolean>;
   convertSelectedToBullet: () => Promise<boolean>;
+  convertSelectedToNumbered: () => Promise<boolean>;
   indentSelectedNodes: () => Promise<boolean>;
   outdentSelectedNodes: () => Promise<boolean>;
   moveSelectedToTop: () => Promise<boolean>;
@@ -892,7 +894,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     }
   },
 
-  createItemsFromMarkdown: async (afterNodeId: string, items: Array<{ content: string; nodeType: 'bullet' | 'checkbox'; isChecked: boolean; indent: number }>) => {
+  createItemsFromMarkdown: async (afterNodeId: string, items: Array<{ content: string; nodeType: 'bullet' | 'checkbox' | 'numbered'; isChecked: boolean; indent: number }>) => {
     if (items.length === 0) return null;
 
     const { getNode, getSiblings, childrenOf, updateFromState } = get();
@@ -941,6 +943,10 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
           finalState = await api.updateNode(createResult.id, {
             node_type: 'checkbox',
             is_checked: item.isChecked,
+          });
+        } else if (item.nodeType === 'numbered') {
+          finalState = await api.updateNode(createResult.id, {
+            node_type: 'numbered',
           });
         }
 
@@ -1899,6 +1905,43 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     }
   },
 
+  setNodeTypeTo: async (nodeId: string, newType: import('../lib/types').NodeType) => {
+    const { getNode, updateFromState, _pushUndo } = get();
+    const node = getNode(nodeId);
+    if (!node) return false;
+
+    const oldType = node.node_type;
+    const oldIsChecked = node.is_checked;
+
+    // No-op if already at this type
+    if (oldType === newType) return false;
+
+    const newIsChecked = newType === 'checkbox' ? oldIsChecked : false;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      const state = await api.updateNode(nodeId, {
+        node_type: newType,
+        is_checked: newIsChecked,
+      });
+      updateFromState(state);
+
+      _pushUndo({
+        description: `Convert to ${newType}`,
+        undo: { type: 'update', id: nodeId, changes: { node_type: oldType, is_checked: oldIsChecked } },
+        redo: { type: 'update', id: nodeId, changes: { node_type: newType, is_checked: newIsChecked } },
+        timestamp: Date.now(),
+      });
+
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
   setHeadingLevel: async (nodeId: string, level: number) => {
     const { getNode, updateFromState, _pushUndo } = get();
     const node = getNode(nodeId);
@@ -2622,6 +2665,35 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         if (node.node_type !== 'bullet') {
           await api.updateNode(node.id, {
             node_type: 'bullet',
+            is_checked: false
+          });
+        }
+      }
+
+      // Reload state
+      const state = await api.loadDocument();
+      updateFromState(state);
+
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  convertSelectedToNumbered: async () => {
+    const { getSelectedNodes, updateFromState } = get();
+    const selected = getSelectedNodes();
+    if (selected.length === 0) return false;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      for (const node of selected) {
+        if (node.node_type !== 'numbered') {
+          await api.updateNode(node.id, {
+            node_type: 'numbered',
             is_checked: false
           });
         }

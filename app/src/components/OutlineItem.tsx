@@ -94,6 +94,8 @@ export const OutlineItem = memo(function OutlineItem({
   const uncompleteSelectedNodes = useOutlineStore(state => state.uncompleteSelectedNodes);
   const convertSelectedToCheckbox = useOutlineStore(state => state.convertSelectedToCheckbox);
   const convertSelectedToBullet = useOutlineStore(state => state.convertSelectedToBullet);
+  const convertSelectedToNumbered = useOutlineStore(state => state.convertSelectedToNumbered);
+  const setNodeTypeTo = useOutlineStore(state => state.setNodeTypeTo);
   const indentSelectedNodes = useOutlineStore(state => state.indentSelectedNodes);
   const outdentSelectedNodes = useOutlineStore(state => state.outdentSelectedNodes);
   const moveSelectedToTop = useOutlineStore(state => state.moveSelectedToTop);
@@ -116,6 +118,7 @@ export const OutlineItem = memo(function OutlineItem({
   const endDrag = useOutlineStore(state => state.endDrag);
   const dropOnNode = useOutlineStore(state => state.dropOnNode);
   const updateNote = useOutlineStore(state => state.updateNote);
+  const getSiblings = useOutlineStore(state => state.getSiblings);
   const allNodes = useOutlineStore(state => state.nodes);
 
   const isFocused = focusedId === node.id;
@@ -789,7 +792,7 @@ export const OutlineItem = memo(function OutlineItem({
               // Insert plain text (without HTML tags)
               view.dispatch(view.state.tr.insertText(singleItem.content.replace(/<[^>]*>/g, '')));
 
-              // If it's a checkbox, convert this node
+              // If it's a checkbox or numbered, convert this node
               if (singleItem.nodeType === 'checkbox') {
                 const store = useOutlineStore.getState();
                 if (node.node_type !== 'checkbox') {
@@ -797,6 +800,11 @@ export const OutlineItem = memo(function OutlineItem({
                 }
                 if (singleItem.isChecked && !node.is_checked) {
                   store.toggleCheckbox(nodeId);
+                }
+              } else if (singleItem.nodeType === 'numbered') {
+                const store = useOutlineStore.getState();
+                if (node.node_type !== 'numbered') {
+                  store.setNodeTypeTo(nodeId, 'numbered');
                 }
               }
               return true;
@@ -813,6 +821,8 @@ export const OutlineItem = memo(function OutlineItem({
               if (firstItem.isChecked) {
                 store.toggleCheckbox(nodeId);
               }
+            } else if (firstItem.nodeType === 'numbered' && node.node_type !== 'numbered') {
+              store.setNodeTypeTo(nodeId, 'numbered');
             }
 
             // Process remaining items
@@ -1165,6 +1175,11 @@ export const OutlineItem = memo(function OutlineItem({
       action: () => toggleNodeType(node.id),
       shortcut: 'Ctrl+Shift+X',
     },
+    {
+      label: 'Convert to Numbered',
+      action: () => setNodeTypeTo(node.id, 'numbered'),
+      disabled: node.node_type === 'numbered',
+    },
     { separator: true as const },
     {
       label: 'Heading 1',
@@ -1340,7 +1355,7 @@ export const OutlineItem = memo(function OutlineItem({
       action: () => deleteNode(node.id),
       shortcut: 'Ctrl+Shift+Backspace',
     },
-  ], [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.date, node.date_end, node.defer_date, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, setHeadingLevel, clearHeading, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch, contextMenuPosition]);
+  ], [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.date, node.date_end, node.defer_date, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, setNodeTypeTo, setHeadingLevel, clearHeading, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch, contextMenuPosition]);
 
   // Multi-selection context menu (shown when multiple items are selected)
   const bulkContextMenuItems = useMemo(() => {
@@ -1350,6 +1365,7 @@ export const OutlineItem = memo(function OutlineItem({
     const hasAnyChecked = selected.some(n => n.is_checked && n.node_type === 'checkbox');
     const hasAnyBullet = selected.some(n => n.node_type === 'bullet');
     const hasAnyCheckbox = selected.some(n => n.node_type === 'checkbox');
+    const hasAnyNonNumbered = selected.some(n => n.node_type !== 'numbered');
 
     return [
       {
@@ -1367,12 +1383,17 @@ export const OutlineItem = memo(function OutlineItem({
       {
         label: 'Convert to checkbox',
         action: convertSelectedToCheckbox,
-        disabled: !hasAnyBullet,
+        disabled: !hasAnyBullet && !hasAnyNonNumbered,
       },
       {
         label: 'Convert to bullet',
         action: convertSelectedToBullet,
-        disabled: !hasAnyCheckbox,
+        disabled: !hasAnyCheckbox && !hasAnyNonNumbered,
+      },
+      {
+        label: 'Convert to numbered',
+        action: convertSelectedToNumbered,
+        disabled: !hasAnyNonNumbered,
       },
       { separator: true as const },
       {
@@ -1454,7 +1475,7 @@ export const OutlineItem = memo(function OutlineItem({
         shortcut: 'Ctrl+Shift+Backspace',
       },
     ];
-  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, moveSelectedToTop, moveSelectedToBottom, groupSelectedUnderNewParent, sortSelectedAlphabetical, sortSelectedReverseAlphabetical, sortSelectedByDate, sortSelectedByDateReverse, sortSelectedByCompletion, reverseSelectedOrder, copySelectedAsMarkdown, copySelectedAsPlainText, exportSelectedToFile, exportSelectedToFilePlainText, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes, onOpenBulkQuickMove]);
+  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, convertSelectedToNumbered, moveSelectedToTop, moveSelectedToBottom, groupSelectedUnderNewParent, sortSelectedAlphabetical, sortSelectedReverseAlphabetical, sortSelectedByDate, sortSelectedByDateReverse, sortSelectedByCompletion, reverseSelectedOrder, copySelectedAsMarkdown, copySelectedAsPlainText, exportSelectedToFile, exportSelectedToFilePlainText, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes, onOpenBulkQuickMove]);
 
   // Wiki link suggestion handlers
   const handleWikiLinkSelect = useCallback((nodeId: string, displayText: string) => {
@@ -1607,6 +1628,18 @@ export const OutlineItem = memo(function OutlineItem({
     setShowRecurrencePicker(true);
   }, []);
 
+  // Compute numbered index for numbered items
+  const numberedIndex = useMemo(() => {
+    if (node.node_type !== 'numbered') return 0;
+    const siblings = getSiblings(node.id);
+    let count = 0;
+    for (const sibling of siblings) {
+      if (sibling.node_type === 'numbered') count++;
+      if (sibling.id === node.id) break;
+    }
+    return count;
+  }, [node.id, node.node_type, node.position, getSiblings]);
+
   // Build className for the item
   const headingClass = node.node_type === 'heading' && node.heading_level
     ? `heading-${node.heading_level}`
@@ -1654,7 +1687,7 @@ export const OutlineItem = memo(function OutlineItem({
           </svg>
         </button>
 
-        {/* Drag handle / bullet / checkbox */}
+        {/* Drag handle / bullet / checkbox / numbered */}
         <span
           className="drag-handle"
           draggable="true"
@@ -1672,6 +1705,14 @@ export const OutlineItem = memo(function OutlineItem({
                 {node.is_checked ? '✓' : ''}
               </span>
             </button>
+          ) : node.node_type === 'numbered' ? (
+            <span
+              className={`numbered-indicator ${hasChildren ? 'has-children' : ''} ${node.collapsed ? 'collapsed' : ''}`}
+              onClick={hasChildren ? handleCollapseClick : undefined}
+              onDoubleClick={handleBulletDblClick}
+            >
+              {numberedIndex}.
+            </span>
           ) : (
             <span
               className={`bullet ${hasChildren ? 'has-children' : ''} ${node.collapsed ? 'collapsed' : ''}`}

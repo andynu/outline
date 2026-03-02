@@ -10,6 +10,7 @@ pub enum NodeType {
     Bullet,
     Checkbox,
     Heading,
+    Numbered,
 }
 
 /// A single node in the outline tree

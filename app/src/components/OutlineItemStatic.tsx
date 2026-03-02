@@ -164,13 +164,15 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
       const hasAnyChecked = selected.some(n => n.is_checked && n.node_type === 'checkbox');
       const hasAnyBullet = selected.some(n => n.node_type === 'bullet');
       const hasAnyCheckbox = selected.some(n => n.node_type === 'checkbox');
+      const hasAnyNonNumbered = selected.some(n => n.node_type !== 'numbered');
 
       return [
         { label: `Complete all (${selectionCount})`, action: () => s.completeSelectedNodes(), shortcut: 'Ctrl+Enter', disabled: !hasAnyUnchecked },
         { label: `Uncomplete all (${selectionCount})`, action: () => s.uncompleteSelectedNodes(), disabled: !hasAnyChecked },
         { separator: true as const },
-        { label: 'Convert to checkbox', action: () => s.convertSelectedToCheckbox(), disabled: !hasAnyBullet },
-        { label: 'Convert to bullet', action: () => s.convertSelectedToBullet(), disabled: !hasAnyCheckbox },
+        { label: 'Convert to checkbox', action: () => s.convertSelectedToCheckbox(), disabled: !hasAnyBullet && !hasAnyNonNumbered },
+        { label: 'Convert to bullet', action: () => s.convertSelectedToBullet(), disabled: !hasAnyCheckbox && !hasAnyNonNumbered },
+        { label: 'Convert to numbered', action: () => s.convertSelectedToNumbered(), disabled: !hasAnyNonNumbered },
         { separator: true as const },
         { label: 'Move to...', action: () => onOpenBulkQuickMove?.(), shortcut: 'Ctrl+Shift+M', disabled: !onOpenBulkQuickMove },
         { label: 'Move to top', action: () => s.moveSelectedToTop() },
@@ -200,6 +202,7 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
     return [
       { label: node.is_checked ? 'Mark Incomplete' : 'Mark Complete', action: () => s.toggleCheckbox(node.id), shortcut: 'Ctrl+Enter' },
       { label: node.node_type === 'checkbox' ? 'Convert to Bullet' : 'Convert to Checkbox', action: () => s.toggleNodeType(node.id), shortcut: 'Ctrl+Shift+X' },
+      { label: 'Convert to Numbered', action: () => s.setNodeTypeTo(node.id, 'numbered'), disabled: node.node_type === 'numbered' },
       { separator: true as const },
       { label: 'Heading 1', action: () => s.setHeadingLevel(node.id, 1), shortcut: 'Ctrl+1', disabled: node.node_type === 'heading' && node.heading_level === 1 },
       { label: 'Heading 2', action: () => s.setHeadingLevel(node.id, 2), shortcut: 'Ctrl+2', disabled: node.node_type === 'heading' && node.heading_level === 2 },
@@ -233,6 +236,18 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
       { label: 'Delete', action: () => s.deleteNode(node.id), shortcut: 'Ctrl+Shift+Backspace' },
     ];
   }, [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.content, hasChildren, selectedIds, getSelectedNodes]);
+
+  // Compute numbered index for numbered items
+  const numberedIndex = useMemo(() => {
+    if (node.node_type !== 'numbered') return 0;
+    const siblings = store().getSiblings(node.id);
+    let count = 0;
+    for (const sibling of siblings) {
+      if (sibling.node_type === 'numbered') count++;
+      if (sibling.id === node.id) break;
+    }
+    return count;
+  }, [node.id, node.node_type, node.position]);
 
   const headingClass = node.node_type === 'heading' && node.heading_level
     ? `heading-${node.heading_level}`
@@ -275,6 +290,12 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
                 {node.is_checked ? '✓' : ''}
               </span>
             </button>
+          ) : node.node_type === 'numbered' ? (
+            <span className={`numbered-indicator ${hasChildren ? 'has-children' : ''} ${node.collapsed ? 'collapsed' : ''}`}
+              onClick={hasChildren ? handleCollapseClick : undefined}
+              onDoubleClick={handleBulletDblClick}>
+              {numberedIndex}.
+            </span>
           ) : (
             <span className={`bullet ${hasChildren ? 'has-children' : ''} ${node.collapsed ? 'collapsed' : ''}`}
               onClick={hasChildren ? handleCollapseClick : undefined}

@@ -605,14 +605,19 @@ fn print_tree(nodes: &[outline_core::data::Node], parent_id: Option<uuid::Uuid>,
         .collect();
     children.sort_by_key(|n| n.position);
 
+    let mut numbered_counter = 0u32;
     for node in children {
         let indent = "  ".repeat(depth);
         let content = strip_html(&node.content);
         let marker = match node.node_type {
-            outline_core::data::NodeType::Checkbox if node.is_checked => "☑",
-            outline_core::data::NodeType::Checkbox => "☐",
-            outline_core::data::NodeType::Heading => "#",
-            outline_core::data::NodeType::Bullet => "•",
+            outline_core::data::NodeType::Checkbox if node.is_checked => "☑".to_string(),
+            outline_core::data::NodeType::Checkbox => "☐".to_string(),
+            outline_core::data::NodeType::Heading => "#".to_string(),
+            outline_core::data::NodeType::Numbered => {
+                numbered_counter += 1;
+                format!("{}.", numbered_counter)
+            },
+            outline_core::data::NodeType::Bullet => "•".to_string(),
         };
         let sid = node.short_id.as_deref().unwrap_or("????");
 
@@ -662,6 +667,7 @@ fn cmd_node_create(out: &OutputMode, doc_id: &str, parent_uuid: uuid::Uuid, cont
     let nt = match node_type {
         "checkbox" => NodeType::Checkbox,
         "heading" => NodeType::Heading,
+        "numbered" => NodeType::Numbered,
         _ => NodeType::Bullet,
     };
 
@@ -708,6 +714,7 @@ fn cmd_node_update(out: &OutputMode, doc_id: &str, node_uuid: uuid::Uuid, conten
     changes.node_type = node_type.map(|t| match t.as_str() {
         "checkbox" => NodeType::Checkbox,
         "heading" => NodeType::Heading,
+        "numbered" => NodeType::Numbered,
         _ => NodeType::Bullet,
     });
     changes.color = color;
@@ -1094,6 +1101,7 @@ fn cmd_capture(out: &OutputMode, content_args: Vec<String>, to: Option<&str>, no
     let nt = match node_type {
         "checkbox" => NodeType::Checkbox,
         "heading" => NodeType::Heading,
+        "numbered" => NodeType::Numbered,
         _ => NodeType::Bullet,
     };
 

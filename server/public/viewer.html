@@ -316,6 +316,14 @@
       let bulletHtml = '';
       if (node.node_type === 'checkbox') {
         bulletHtml = `<div class="node-checkbox ${node.is_checked ? 'checked' : ''}"></div>`;
+      } else if (node.node_type === 'numbered') {
+        const siblings = (currentDoc.nodes || []).filter(n => n.parent_id === node.parent_id).sort((a, b) => a.position - b.position);
+        let num = 0;
+        for (const s of siblings) {
+          if (s.node_type === 'numbered') num++;
+          if (s.id === node.id) break;
+        }
+        bulletHtml = `<div class="node-bullet">${num}.</div>`;
       } else {
         bulletHtml = '<div class="node-bullet"></div>';
       }

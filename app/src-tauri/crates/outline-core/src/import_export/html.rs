@@ -217,6 +217,12 @@ fn write_html_nodes(output: &mut String, nodes: &[Node], parent_id: Option<Uuid>
                     sanitize_content(&node.content),
                 ));
             }
+            NodeType::Numbered => {
+                output.push_str(&format!(
+                    "<li class=\"numbered\"><span class=\"content\">{}</span>",
+                    sanitize_content(&node.content),
+                ));
+            }
         }
 
         // Add date if present

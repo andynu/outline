@@ -20,6 +20,11 @@ const OutlineRow = memo(function OutlineRow({ item }: { item: FlatItem }) {
           <span className={`checkbox ${node.is_checked ? 'checked' : ''}`}>
             {node.is_checked ? '☑' : '☐'}
           </span>
+        ) : node.node_type === 'numbered' ? (
+          <span className="numbered-indicator">
+            {/* Simplified numbering for virtual list */}
+            {(node.position + 1)}.
+          </span>
         ) : (
           <span className="bullet">
             {hasChildren && node.collapsed ? '◉' : '●'}

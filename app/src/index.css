@@ -2359,6 +2359,37 @@ body {
   opacity: 0.4;
 }
 
+/* Numbered list indicator */
+.numbered-indicator {
+  width: 20px;
+  text-align: center;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  line-height: 24px;
+}
+
+.numbered-indicator.has-children {
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.numbered-indicator.collapsed {
+  color: var(--accent-primary);
+}
+
+/* Dim numbered indicator for completed items */
+.outline-item.checked .numbered-indicator {
+  opacity: 0.4;
+}
+
+/* Heading items get a slightly smaller numbered indicator to match */
+.outline-item.heading-1 > .item-row .numbered-indicator,
+.outline-item.heading-2 > .item-row .numbered-indicator {
+  font-size: 0.7em;
+}
+
 /* Editor wrapper */
 .editor-wrapper {
   flex: 1;

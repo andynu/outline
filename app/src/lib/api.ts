@@ -758,7 +758,7 @@ function generateMockMarkdown(): string {
   function addNode(node: Node, depth: number) {
     const indent = '  '.repeat(depth);
     const text = stripHtml(node.content);
-    const bullet = node.is_checked ? '- [x]' : (node.node_type === 'checkbox' ? '- [ ]' : '-');
+    const bullet = node.is_checked ? '- [x]' : (node.node_type === 'checkbox' ? '- [ ]' : (node.node_type === 'numbered' ? '1.' : '-'));
     lines.push(`${indent}${bullet} ${text}`);
 
     if (node.note) {
@@ -804,7 +804,7 @@ function generateMockHtml(title: string, darkMode: boolean): string {
 
   function addNode(node: Node, children: Node[]) {
     const text = stripHtml(node.content);
-    const prefix = node.is_checked ? '[x] ' : (node.node_type === 'checkbox' ? '[ ] ' : '');
+    const prefix = node.is_checked ? '[x] ' : (node.node_type === 'checkbox' ? '[ ] ' : (node.node_type === 'numbered' ? `${node.position + 1}. ` : ''));
     lines.push(`<li>${prefix}${escapeXml(text)}`);
     const nodeChildren = mockState.nodes.filter(n => n.parent_id === node.id);
     nodeChildren.sort((a, b) => a.position - b.position);
@@ -1104,7 +1104,7 @@ function generateSelectionMarkdown(nodeIds: string[], includeCompletedChildren: 
 
     const indent = '  '.repeat(depth);
     const text = stripHtml(node.content);
-    const bullet = node.is_checked ? '- [x]' : (node.node_type === 'checkbox' ? '- [ ]' : '-');
+    const bullet = node.is_checked ? '- [x]' : (node.node_type === 'checkbox' ? '- [ ]' : (node.node_type === 'numbered' ? '1.' : '-'));
     lines.push(`${indent}${bullet} ${text}`);
 
     if (node.note) {
