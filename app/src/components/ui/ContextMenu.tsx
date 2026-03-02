@@ -23,6 +23,7 @@ interface ContextMenuProps {
 export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = useState(position);
+  const [isPositioned, setIsPositioned] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
 
   // Get indices of actionable (non-separator, non-disabled) items
@@ -34,34 +35,48 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
   // Adjust position to keep menu on-screen
   useEffect(() => {
     if (menuRef.current) {
-      const rect = menuRef.current.getBoundingClientRect();
+      const menu = menuRef.current;
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
+      const padding = 10;
+
+      // Measure the menu's actual dimensions via scrollWidth/scrollHeight
+      // to get the full content size even if positioned off-screen
+      const menuWidth = menu.offsetWidth;
+      const menuHeight = menu.offsetHeight;
 
       let x = position.x;
       let y = position.y;
 
       // Adjust if menu extends past right edge
-      if (x + rect.width > viewportWidth - 10) {
-        x = viewportWidth - rect.width - 10;
-      }
-
-      // Adjust if menu extends past bottom edge
-      if (y + rect.height > viewportHeight - 10) {
-        y = viewportHeight - rect.height - 10;
-      }
-
-      // Ensure menu doesn't go above top edge
-      if (y < 10) {
-        y = 10;
+      if (x + menuWidth > viewportWidth - padding) {
+        // Try flipping to the left of the click point
+        const flippedX = position.x - menuWidth;
+        if (flippedX >= padding) {
+          x = flippedX;
+        } else {
+          // If flipping doesn't fit either, pin to right edge with padding
+          x = viewportWidth - menuWidth - padding;
+        }
       }
 
       // Ensure menu doesn't go past left edge
-      if (x < 10) {
-        x = 10;
+      if (x < padding) {
+        x = padding;
+      }
+
+      // Adjust if menu extends past bottom edge
+      if (y + menuHeight > viewportHeight - padding) {
+        y = viewportHeight - menuHeight - padding;
+      }
+
+      // Ensure menu doesn't go above top edge
+      if (y < padding) {
+        y = padding;
       }
 
       setAdjustedPosition({ x, y });
+      setIsPositioned(true);
     }
   }, [position]);
 
@@ -158,7 +173,11 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
     <div
       ref={menuRef}
       className="context-menu"
-      style={{ left: adjustedPosition.x, top: adjustedPosition.y }}
+      style={{
+        left: isPositioned ? adjustedPosition.x : -9999,
+        top: isPositioned ? adjustedPosition.y : -9999,
+        visibility: isPositioned ? 'visible' : 'hidden',
+      }}
       role="menu"
     >
       {items.map((item, index) => {
