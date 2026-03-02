@@ -88,6 +88,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
               <li><kbd>Ctrl+Shift+F</kbd> Global search</li>
               <li><kbd>Ctrl+Shift+I</kbd> Inbox</li>
               <li><kbd>Ctrl+Shift+H</kbd> Hide completed</li>
+              <li><kbd>Ctrl+Shift+D</kbd> Hide deferred</li>
               <li><kbd>Ctrl+Shift+#</kbd> Tags panel</li>
               <li><kbd>Ctrl+Shift+G</kbd> Web search</li>
             </ul>

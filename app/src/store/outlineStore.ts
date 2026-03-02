@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Node, TreeNode, DocumentState, UndoEntry, UndoAction, NodeChanges } from '../lib/types';
 import * as api from '../lib/api';
+import { formatISODate } from '../lib/dateUtils';
 
 // Constants
 const MAX_UNDO_STACK_SIZE = 100;
@@ -65,6 +66,7 @@ interface OutlineState {
   error: string | null;
   pendingOperations: number;
   hideCompleted: boolean;
+  hideDeferred: boolean;
   filterQuery: string | null;  // Hashtag filter, e.g., "#project"
   zoomedNodeId: string | null;  // Subtree zoom - show only this node's children
   draggedId: string | null;  // Currently dragged node ID
@@ -89,6 +91,8 @@ interface OutlineState {
   updateFromState: (state: DocumentState) => void;
   toggleHideCompleted: () => void;
   setHideCompleted: (hide: boolean) => void;
+  toggleHideDeferred: () => void;
+  setHideDeferred: (hide: boolean) => void;
   setFilterQuery: (query: string | null) => void;
   clearFilter: () => void;
   zoomTo: (nodeId: string | null) => void;
@@ -246,6 +250,13 @@ function hasMatchingDescendant(
   return false;
 }
 
+// Check if a node is currently deferred (defer_date is in the future)
+function isNodeDeferred(node: Node): boolean {
+  if (!node.defer_date) return false;
+  const today = formatISODate(new Date());
+  return node.defer_date > today;
+}
+
 // Build tree structure from flat nodes
 function buildTree(
   childrenByParent: Map<string | null, Node[]>,
@@ -254,7 +265,8 @@ function buildTree(
   hideCompleted: boolean = false,
   filterQuery: string | null = null,
   nodesById: Map<string, Node> = new Map(),
-  zoomedNodeId: string | null = null
+  zoomedNodeId: string | null = null,
+  hideDeferred: boolean = false
 ): TreeNode[] {
   // When zoomed, start from the zoomed node's children (only at root level)
   let effectiveParentId = parentId;
@@ -273,6 +285,11 @@ function buildTree(
     ? children.filter(n => !n.is_checked)
     : children;
 
+  // Filter out deferred items if hideDeferred is enabled
+  if (hideDeferred) {
+    visibleChildren = visibleChildren.filter(n => !isNodeDeferred(n));
+  }
+
   // If filtering, only show nodes that match OR have matching descendants
   if (filterQuery) {
     visibleChildren = visibleChildren.filter(n =>
@@ -283,10 +300,13 @@ function buildTree(
 
   return visibleChildren.map(node => {
     const nodeChildren = childrenByParent.get(node.id) ?? [];
-    // Check if there are visible children (accounting for hideCompleted and filter)
+    // Check if there are visible children (accounting for hideCompleted, hideDeferred, and filter)
     let visibleNodeChildren = hideCompleted
       ? nodeChildren.filter(n => !n.is_checked)
       : nodeChildren;
+    if (hideDeferred) {
+      visibleNodeChildren = visibleNodeChildren.filter(n => !isNodeDeferred(n));
+    }
     if (filterQuery) {
       visibleNodeChildren = visibleNodeChildren.filter(n =>
         nodeMatchesFilter(n, filterQuery) ||
@@ -301,7 +321,7 @@ function buildTree(
       hasChildren,
       // When filtering, expand all nodes to show matches
       children: hasChildren && (!node.collapsed || filterQuery)
-        ? buildTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById, null)
+        ? buildTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById, null, hideDeferred)
         : []
     };
   });
@@ -342,7 +362,8 @@ function flattenTree(
   hideCompleted: boolean = false,
   filterQuery: string | null = null,
   nodesById: Map<string, Node> = new Map(),
-  zoomedNodeId: string | null = null
+  zoomedNodeId: string | null = null,
+  hideDeferred: boolean = false
 ): FlatItem[] {
   // When zoomed, start from the zoomed node's children (only at root level)
   let effectiveParentId = parentId;
@@ -360,6 +381,11 @@ function flattenTree(
     ? children.filter(n => !n.is_checked)
     : children;
 
+  // Filter out deferred items if hideDeferred is enabled
+  if (hideDeferred) {
+    visibleChildren = visibleChildren.filter(n => !isNodeDeferred(n));
+  }
+
   // If filtering, only show nodes that match OR have matching descendants
   if (filterQuery) {
     visibleChildren = visibleChildren.filter(n =>
@@ -373,6 +399,9 @@ function flattenTree(
     let visibleNodeChildren = hideCompleted
       ? nodeChildren.filter(n => !n.is_checked)
       : nodeChildren;
+    if (hideDeferred) {
+      visibleNodeChildren = visibleNodeChildren.filter(n => !isNodeDeferred(n));
+    }
     if (filterQuery) {
       visibleNodeChildren = visibleNodeChildren.filter(n =>
         nodeMatchesFilter(n, filterQuery) ||
@@ -385,7 +414,7 @@ function flattenTree(
 
     // Recursively add children if not collapsed (always expand when filtering)
     if (hasChildren && (!node.collapsed || filterQuery)) {
-      result.push(...flattenTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById, null));
+      result.push(...flattenTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById, null, hideDeferred));
     }
   }
 
@@ -414,6 +443,9 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   pendingOperations: 0,
   hideCompleted: typeof localStorage !== 'undefined'
     ? localStorage.getItem('outline-hide-completed') === 'true'
+    : false,
+  hideDeferred: typeof localStorage !== 'undefined'
+    ? localStorage.getItem('outline-hide-deferred') === 'true'
     : false,
   filterQuery: null,
   zoomedNodeId: null,
@@ -458,6 +490,17 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   setHideCompleted: (hide: boolean) => {
     localStorage.setItem('outline-hide-completed', String(hide));
     set({ hideCompleted: hide });
+  },
+
+  toggleHideDeferred: () => {
+    const newValue = !get().hideDeferred;
+    localStorage.setItem('outline-hide-deferred', String(newValue));
+    set({ hideDeferred: newValue });
+  },
+
+  setHideDeferred: (hide: boolean) => {
+    localStorage.setItem('outline-hide-deferred', String(hide));
+    set({ hideDeferred: hide });
   },
 
   setFilterQuery: (query: string | null) => {
@@ -593,7 +636,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   // === Computed getters ===
 
   getTree: () => {
-    const { _childrenByParent, _nodesById, hideCompleted, filterQuery, zoomedNodeId, nodes } = get();
+    const { _childrenByParent, _nodesById, hideCompleted, hideDeferred, filterQuery, zoomedNodeId, nodes } = get();
 
     // Debug: Check for root nodes
     const rootNodes = _childrenByParent.get(null) ?? [];
@@ -609,12 +652,12 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       }
     }
 
-    return buildTree(_childrenByParent, null, 0, hideCompleted, filterQuery, _nodesById, zoomedNodeId);
+    return buildTree(_childrenByParent, null, 0, hideCompleted, filterQuery, _nodesById, zoomedNodeId, hideDeferred);
   },
 
   getFlatList: () => {
-    const { _childrenByParent, _nodesById, hideCompleted, filterQuery, zoomedNodeId } = get();
-    return flattenTree(_childrenByParent, null, 0, hideCompleted, filterQuery, _nodesById, zoomedNodeId);
+    const { _childrenByParent, _nodesById, hideCompleted, hideDeferred, filterQuery, zoomedNodeId } = get();
+    return flattenTree(_childrenByParent, null, 0, hideCompleted, filterQuery, _nodesById, zoomedNodeId, hideDeferred);
   },
 
   getVisibleNodes: () => {
@@ -761,7 +804,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   moveToFirstChild: () => {
-    const { focusedId, childrenOf, getNode, hideCompleted, filterQuery, _nodesById, _childrenByParent } = get();
+    const { focusedId, childrenOf, getNode, hideCompleted, hideDeferred, filterQuery, _nodesById, _childrenByParent } = get();
     if (!focusedId) return null;
     const node = getNode(focusedId);
     if (!node || node.collapsed) return null;
@@ -770,6 +813,10 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     // Filter hidden completed items
     if (hideCompleted) {
       children = children.filter(n => !n.is_checked);
+    }
+    // Filter hidden deferred items
+    if (hideDeferred) {
+      children = children.filter(n => !isNodeDeferred(n));
     }
     // Filter by search query if active
     if (filterQuery) {
@@ -786,12 +833,16 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   moveToNextSibling: () => {
-    const { focusedId, getSiblings, hideCompleted, filterQuery, _nodesById, _childrenByParent } = get();
+    const { focusedId, getSiblings, hideCompleted, hideDeferred, filterQuery, _nodesById, _childrenByParent } = get();
     if (!focusedId) return null;
     let siblings = getSiblings(focusedId);
     // Filter hidden completed items
     if (hideCompleted) {
       siblings = siblings.filter(n => !n.is_checked);
+    }
+    // Filter hidden deferred items
+    if (hideDeferred) {
+      siblings = siblings.filter(n => !isNodeDeferred(n));
     }
     // Filter by search query if active
     if (filterQuery) {
@@ -810,12 +861,16 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   moveToPrevSibling: () => {
-    const { focusedId, getSiblings, hideCompleted, filterQuery, _nodesById, _childrenByParent } = get();
+    const { focusedId, getSiblings, hideCompleted, hideDeferred, filterQuery, _nodesById, _childrenByParent } = get();
     if (!focusedId) return null;
     let siblings = getSiblings(focusedId);
     // Filter hidden completed items
     if (hideCompleted) {
       siblings = siblings.filter(n => !n.is_checked);
+    }
+    // Filter hidden deferred items
+    if (hideDeferred) {
+      siblings = siblings.filter(n => !isNodeDeferred(n));
     }
     // Filter by search query if active
     if (filterQuery) {

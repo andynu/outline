@@ -180,6 +180,8 @@ function App() {
   const toggleFocusedCollapse = useOutlineStore(state => state.toggleFocusedCollapse);
   const hideCompleted = useOutlineStore(state => state.hideCompleted);
   const toggleHideCompleted = useOutlineStore(state => state.toggleHideCompleted);
+  const hideDeferred = useOutlineStore(state => state.hideDeferred);
+  const toggleHideDeferred = useOutlineStore(state => state.toggleHideDeferred);
   const filterQuery = useOutlineStore(state => state.filterQuery);
   const setFilterQuery = useOutlineStore(state => state.setFilterQuery);
   const clearFilter = useOutlineStore(state => state.clearFilter);
@@ -698,6 +700,7 @@ function App() {
     { label: 'Toggle Sidebar', shortcut: 'Ctrl+\\', action: toggleSidebar, separator: false },
     { separator: true },
     { label: hideCompleted ? 'Show Completed' : 'Hide Completed', shortcut: 'Ctrl+Shift+H', action: toggleHideCompleted, separator: false },
+    { label: hideDeferred ? 'Show Deferred' : 'Hide Deferred', shortcut: 'Ctrl+Shift+D', action: toggleHideDeferred, separator: false },
     { label: 'Collapse All', shortcut: 'Ctrl+Shift+.', action: collapseAll, separator: false },
     { label: 'Expand All', shortcut: 'Ctrl+Shift+,', action: expandAll, separator: false },
     { label: 'Collapse Siblings', action: () => focusedId && collapseSiblings(focusedId), separator: false },
@@ -712,7 +715,7 @@ function App() {
     { label: 'Reset Zoom', shortcut: 'Ctrl+0', action: resetZoom, separator: false },
     { separator: true },
     { label: isDark ? 'Light Mode' : 'Dark Mode', action: toggleTheme, separator: false },
-  ], [toggleSidebar, toggleTheme, isDark, collapseAll, expandAll, expandToLevel, collapseSiblings, focusedId, hideCompleted, toggleHideCompleted, zoomIn, zoomOut, resetZoom]);
+  ], [toggleSidebar, toggleTheme, isDark, collapseAll, expandAll, expandToLevel, collapseSiblings, focusedId, hideCompleted, toggleHideCompleted, hideDeferred, toggleHideDeferred, zoomIn, zoomOut, resetZoom]);
 
   // Help menu items
   const helpMenuItems: MenuEntry[] = useMemo(() => [
@@ -926,6 +929,13 @@ function App() {
         return;
       }
 
+      // Hide Deferred (Ctrl+Shift+D)
+      if (mod && event.shiftKey && event.key === 'D') {
+        event.preventDefault();
+        toggleHideDeferred();
+        return;
+      }
+
       // Toggle collapse on focused item (Ctrl+.)
       if (mod && event.key === '.') {
         event.preventDefault();
@@ -1096,11 +1106,11 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
-  const rawTree = useMemo(() => getTree(), [getTree, nodes, hideCompleted, filterQuery, zoomedNodeId]);
+  const rawTree = useMemo(() => getTree(), [getTree, nodes, hideCompleted, hideDeferred, filterQuery, zoomedNodeId]);
   // Defer tree updates to keep UI responsive during large changes (expand/collapse)
   const tree = useDeferredValue(rawTree);
   const visibleCount = useMemo(() => {
@@ -1406,6 +1416,11 @@ function App() {
           {hideCompleted && (
             <span className="filter-indicator" title="Click to show completed items">
               (hiding completed)
+            </span>
+          )}
+          {hideDeferred && (
+            <span className="filter-indicator" title="Click to show deferred items">
+              (hiding deferred)
             </span>
           )}
           <button
