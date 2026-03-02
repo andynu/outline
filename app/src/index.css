@@ -3636,6 +3636,37 @@ body {
   height: 14px;
 }
 
+.zoom-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.zoom-nav-btn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.zoom-nav-btn:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+  opacity: 0.4;
+}
+
+.zoom-nav-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* Toast notifications */
 .toast-container {
   position: fixed;

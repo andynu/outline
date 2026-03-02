@@ -201,6 +201,10 @@ function App() {
   const zoomReset = useOutlineStore(state => state.zoomReset);
   const zoomToParent = useOutlineStore(state => state.zoomToParent);
   const zoomTo = useOutlineStore(state => state.zoomTo);
+  const zoomGoBack = useOutlineStore(state => state.zoomGoBack);
+  const zoomGoForward = useOutlineStore(state => state.zoomGoForward);
+  const canZoomGoBack = useOutlineStore(state => state.canZoomGoBack);
+  const canZoomGoForward = useOutlineStore(state => state.canZoomGoForward);
   const focusedId = useOutlineStore(state => state.focusedId);
   const focusedNodeContent = useOutlineStore(state => {
     if (!state.focusedId) return '';
@@ -920,6 +924,20 @@ function App() {
         return;
       }
 
+      // Zoom navigation history (Alt+Left/Right, browser-style)
+      if (event.altKey && !mod && !event.shiftKey) {
+        if (event.key === 'ArrowLeft') {
+          event.preventDefault();
+          zoomGoBack();
+          return;
+        }
+        if (event.key === 'ArrowRight') {
+          event.preventDefault();
+          zoomGoForward();
+          return;
+        }
+      }
+
       // Vim-style hierarchy navigation (Alt+H/J/K/L)
       // Works everywhere since Alt+letter doesn't conflict with typing
       if (event.altKey && !mod && !event.shiftKey) {
@@ -1048,7 +1066,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId

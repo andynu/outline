@@ -69,6 +69,10 @@ interface OutlineState {
   zoomedNodeId: string | null;  // Subtree zoom - show only this node's children
   draggedId: string | null;  // Currently dragged node ID
 
+  // Zoom navigation history
+  _zoomHistoryBack: (string | null)[];   // Stack of previous zoom targets
+  _zoomHistoryForward: (string | null)[];  // Stack of "undone" zoom targets
+
   // Undo/Redo stacks
   _undoStack: UndoEntry[];
   _redoStack: UndoEntry[];
@@ -90,6 +94,10 @@ interface OutlineState {
   zoomTo: (nodeId: string | null) => void;
   zoomToParent: () => void;  // Zoom out to parent level
   zoomReset: () => void;
+  zoomGoBack: () => void;    // Navigate back in zoom history
+  zoomGoForward: () => void; // Navigate forward in zoom history
+  canZoomGoBack: () => boolean;
+  canZoomGoForward: () => boolean;
   getZoomBreadcrumbs: () => { id: string | null; title: string }[];
 
   // Computed
@@ -406,6 +414,8 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   filterQuery: null,
   zoomedNodeId: null,
   draggedId: null,
+  _zoomHistoryBack: [],
+  _zoomHistoryForward: [],
   _undoStack: [],
   _redoStack: [],
   _nodesById: new Map(),
@@ -455,8 +465,15 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   zoomTo: (nodeId: string | null) => {
-    const { childrenOf, setFocusedId } = get();
-    set({ zoomedNodeId: nodeId });
+    const { zoomedNodeId, childrenOf, setFocusedId, _zoomHistoryBack } = get();
+    // Don't push history if navigating to the same node
+    if (nodeId === zoomedNodeId) return;
+    // Push current zoom target onto back stack, clear forward stack
+    set({
+      zoomedNodeId: nodeId,
+      _zoomHistoryBack: [..._zoomHistoryBack, zoomedNodeId],
+      _zoomHistoryForward: [],
+    });
     // When zooming into a node, focus its first child if it has children
     if (nodeId) {
       const children = childrenOf(nodeId);
@@ -467,18 +484,76 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   zoomToParent: () => {
-    const { zoomedNodeId, _nodesById } = get();
+    const { zoomedNodeId, _nodesById, _zoomHistoryBack } = get();
     if (!zoomedNodeId) return;  // Already at root
 
     const zoomedNode = _nodesById.get(zoomedNodeId);
     if (!zoomedNode) return;
 
-    // Zoom to parent (or null if parent is root)
-    set({ zoomedNodeId: zoomedNode.parent_id });
+    const parentId = zoomedNode.parent_id ?? null;
+    // Push current zoom target onto back stack, clear forward stack
+    set({
+      zoomedNodeId: parentId,
+      _zoomHistoryBack: [..._zoomHistoryBack, zoomedNodeId],
+      _zoomHistoryForward: [],
+    });
   },
 
   zoomReset: () => {
-    set({ zoomedNodeId: null });
+    const { zoomedNodeId, _zoomHistoryBack } = get();
+    if (zoomedNodeId == null) return;  // Already at root
+    // Push current zoom target onto back stack, clear forward stack
+    set({
+      zoomedNodeId: null,
+      _zoomHistoryBack: [..._zoomHistoryBack, zoomedNodeId],
+      _zoomHistoryForward: [],
+    });
+  },
+
+  zoomGoBack: () => {
+    const { zoomedNodeId, _zoomHistoryBack, _zoomHistoryForward, childrenOf, setFocusedId } = get();
+    if (_zoomHistoryBack.length === 0) return;
+    const newBack = [..._zoomHistoryBack];
+    const target = newBack.pop()!;
+    set({
+      zoomedNodeId: target,
+      _zoomHistoryBack: newBack,
+      _zoomHistoryForward: [..._zoomHistoryForward, zoomedNodeId],
+    });
+    // When navigating back to a zoomed node, focus its first child
+    if (target) {
+      const children = childrenOf(target);
+      if (children.length > 0) {
+        setFocusedId(children[0].id);
+      }
+    }
+  },
+
+  zoomGoForward: () => {
+    const { zoomedNodeId, _zoomHistoryBack, _zoomHistoryForward, childrenOf, setFocusedId } = get();
+    if (_zoomHistoryForward.length === 0) return;
+    const newForward = [..._zoomHistoryForward];
+    const target = newForward.pop()!;
+    set({
+      zoomedNodeId: target,
+      _zoomHistoryBack: [..._zoomHistoryBack, zoomedNodeId],
+      _zoomHistoryForward: newForward,
+    });
+    // When navigating forward to a zoomed node, focus its first child
+    if (target) {
+      const children = childrenOf(target);
+      if (children.length > 0) {
+        setFocusedId(children[0].id);
+      }
+    }
+  },
+
+  canZoomGoBack: () => {
+    return get()._zoomHistoryBack.length > 0;
+  },
+
+  canZoomGoForward: () => {
+    return get()._zoomHistoryForward.length > 0;
   },
 
   getZoomBreadcrumbs: () => {
