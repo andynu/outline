@@ -25,6 +25,7 @@ import { DatePicker, type DatePickerMode } from './ui/DatePicker';
 import { RecurrencePicker, type RecurrenceMode } from './ui/RecurrencePicker';
 import { formatDateRelative, formatDateRange } from '../lib/dateUtils';
 import { looksLikeMarkdownList, parseMarkdownList } from '../lib/markdownPaste';
+import { NODE_COLORS, getColorCss } from '../lib/colorPalette';
 
 interface OutlineItemProps {
   item: TreeNode;
@@ -113,6 +114,8 @@ export const OutlineItem = memo(function OutlineItem({
   const sortSelectedByDateReverse = useOutlineStore(state => state.sortSelectedByDateReverse);
   const sortSelectedByCompletion = useOutlineStore(state => state.sortSelectedByCompletion);
   const reverseSelectedOrder = useOutlineStore(state => state.reverseSelectedOrder);
+  const setNodeColor = useOutlineStore(state => state.setNodeColor);
+  const setSelectedNodesColor = useOutlineStore(state => state.setSelectedNodesColor);
   const draggedId = useOutlineStore(state => state.draggedId);
   const startDrag = useOutlineStore(state => state.startDrag);
   const endDrag = useOutlineStore(state => state.endDrag);
@@ -1350,12 +1353,14 @@ export const OutlineItem = memo(function OutlineItem({
       disabled: !hasChildren,
     },
     { separator: true as const },
+    { colorPicker: true as const, label: 'Color', colors: NODE_COLORS, currentColor: node.color || '', onSelectColor: (color: string) => setNodeColor(node.id, color) },
+    { separator: true as const },
     {
       label: 'Delete',
       action: () => deleteNode(node.id),
       shortcut: 'Ctrl+Shift+Backspace',
     },
-  ], [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.date, node.date_end, node.defer_date, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, setNodeTypeTo, setHeadingLevel, clearHeading, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch, contextMenuPosition]);
+  ], [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.date, node.date_end, node.defer_date, node.color, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, setNodeTypeTo, setHeadingLevel, clearHeading, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch, contextMenuPosition, setNodeColor]);
 
   // Multi-selection context menu (shown when multiple items are selected)
   const bulkContextMenuItems = useMemo(() => {
@@ -1469,13 +1474,15 @@ export const OutlineItem = memo(function OutlineItem({
         action: exportSelectedToFilePlainText,
       },
       { separator: true as const },
+      { colorPicker: true as const, label: 'Color', colors: NODE_COLORS, currentColor: '', onSelectColor: (color: string) => setSelectedNodesColor(color) },
+      { separator: true as const },
       {
         label: `Delete selected (${selectionCount})`,
         action: deleteSelectedNodes,
         shortcut: 'Ctrl+Shift+Backspace',
       },
     ];
-  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, convertSelectedToNumbered, moveSelectedToTop, moveSelectedToBottom, groupSelectedUnderNewParent, sortSelectedAlphabetical, sortSelectedReverseAlphabetical, sortSelectedByDate, sortSelectedByDateReverse, sortSelectedByCompletion, reverseSelectedOrder, copySelectedAsMarkdown, copySelectedAsPlainText, exportSelectedToFile, exportSelectedToFilePlainText, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes, onOpenBulkQuickMove]);
+  }, [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, convertSelectedToNumbered, moveSelectedToTop, moveSelectedToBottom, groupSelectedUnderNewParent, sortSelectedAlphabetical, sortSelectedReverseAlphabetical, sortSelectedByDate, sortSelectedByDateReverse, sortSelectedByCompletion, reverseSelectedOrder, copySelectedAsMarkdown, copySelectedAsPlainText, exportSelectedToFile, exportSelectedToFilePlainText, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes, onOpenBulkQuickMove, setSelectedNodesColor]);
 
   // Wiki link suggestion handlers
   const handleWikiLinkSelect = useCallback((nodeId: string, displayText: string) => {
@@ -1644,6 +1651,7 @@ export const OutlineItem = memo(function OutlineItem({
   const headingClass = node.node_type === 'heading' && node.heading_level
     ? `heading-${node.heading_level}`
     : null;
+  const nodeColorCss = getColorCss(node.color);
   const itemClasses = [
     'outline-item',
     isFocused && 'focused',
@@ -1656,12 +1664,13 @@ export const OutlineItem = memo(function OutlineItem({
     dropPosition === 'after' && 'drop-after',
     dropPosition === 'child' && 'drop-child',
     headingClass,
+    nodeColorCss && 'has-color',
   ].filter(Boolean).join(' ');
 
   return (
     <div
       className={itemClasses}
-      style={{ marginLeft: depth * 24 }}
+      style={{ marginLeft: depth * 24, ...(nodeColorCss ? { borderLeftColor: nodeColorCss } as React.CSSProperties : {}) }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

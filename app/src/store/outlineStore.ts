@@ -153,6 +153,8 @@ interface OutlineState {
   setNodeTypeTo: (nodeId: string, newType: import('../lib/types').NodeType) => Promise<boolean>;
   setHeadingLevel: (nodeId: string, level: number) => Promise<boolean>;
   clearHeading: (nodeId: string) => Promise<boolean>;
+  setNodeColor: (nodeId: string, color: string) => Promise<boolean>;
+  setSelectedNodesColor: (color: string) => Promise<boolean>;
   convertToCheckbox: (nodeId: string, isChecked: boolean) => Promise<boolean>;
   moveNodeTo: (nodeId: string, newParentId: string | null, newPosition: number) => Promise<boolean>;
   createItemsFromMarkdown: (afterNodeId: string, items: Array<{ content: string; nodeType: 'bullet' | 'checkbox' | 'numbered'; isChecked: boolean; indent: number }>) => Promise<string | null>;
@@ -2003,6 +2005,76 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         redo: { type: 'update', id: nodeId, changes: { node_type: 'bullet' } },
         timestamp: Date.now(),
       });
+
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  setNodeColor: async (nodeId: string, color: string) => {
+    const { getNode, updateFromState, _pushUndo } = get();
+    const node = getNode(nodeId);
+    if (!node) return false;
+
+    const oldColor = node.color || '';
+
+    // No-op if already this color
+    if (oldColor === color) return false;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      const state = await api.updateNode(nodeId, { color });
+      updateFromState(state);
+
+      _pushUndo({
+        description: color ? `Set color to ${color}` : 'Clear color',
+        undo: { type: 'update', id: nodeId, changes: { color: oldColor } },
+        redo: { type: 'update', id: nodeId, changes: { color } },
+        timestamp: Date.now(),
+      });
+
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  setSelectedNodesColor: async (color: string) => {
+    const { getSelectedNodes, updateFromState, _pushUndo } = get();
+    const selected = getSelectedNodes();
+    if (selected.length === 0) return false;
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      const undoActions: import('../lib/types').UndoAction[] = [];
+      const redoActions: import('../lib/types').UndoAction[] = [];
+      let lastState;
+
+      for (const node of selected) {
+        const oldColor = node.color || '';
+        if (oldColor === color) continue;
+
+        lastState = await api.updateNode(node.id, { color });
+        undoActions.push({ type: 'update', id: node.id, changes: { color: oldColor } });
+        redoActions.push({ type: 'update', id: node.id, changes: { color } });
+      }
+
+      if (lastState) {
+        updateFromState(lastState);
+        _pushUndo({
+          description: color ? `Set color to ${color} (${selected.length} items)` : `Clear color (${selected.length} items)`,
+          undo: { type: 'batch', actions: undoActions },
+          redo: { type: 'batch', actions: redoActions },
+          timestamp: Date.now(),
+        });
+      }
 
       return true;
     } catch (e) {

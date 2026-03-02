@@ -166,7 +166,8 @@ impl Operation {
                             node.is_checked = is_checked;
                         }
                         if let Some(ref color) = changes.color {
-                            node.color = Some(color.clone());
+                            // Empty string means clear the color
+                            node.color = if color.is_empty() { None } else { Some(color.clone()) };
                         }
                         if let Some(ref tags) = changes.tags {
                             node.tags = tags.clone();

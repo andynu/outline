@@ -1,14 +1,32 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 
+export type ColorOption = {
+  name: string;
+  value: string;  // color value (e.g., 'red') or '' for clear
+  cssColor: string;  // CSS color for the swatch
+};
+
 type MenuItem = {
   label: string;
   action: () => void;
   disabled?: boolean;
   separator?: false;
   shortcut?: string;
+  colorPicker?: undefined;
 } | {
   separator: true;
   label?: undefined;
+  action?: undefined;
+  disabled?: undefined;
+  shortcut?: undefined;
+  colorPicker?: undefined;
+} | {
+  colorPicker: true;
+  label: string;
+  colors: ColorOption[];
+  currentColor?: string;
+  onSelectColor: (color: string) => void;
+  separator?: false;
   action?: undefined;
   disabled?: undefined;
   shortcut?: undefined;
@@ -26,9 +44,9 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
   const [isPositioned, setIsPositioned] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
 
-  // Get indices of actionable (non-separator, non-disabled) items
+  // Get indices of actionable (non-separator, non-disabled, non-colorPicker) items
   const actionableIndices = items.reduce<number[]>((acc, item, i) => {
-    if (!item.separator && !item.disabled) acc.push(i);
+    if (!item.separator && !item.disabled && !('colorPicker' in item && item.colorPicker)) acc.push(i);
     return acc;
   }, []);
 
@@ -152,11 +170,12 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
   useEffect(() => {
     if (focusedIndex >= 0 && menuRef.current) {
       const buttons = menuRef.current.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]');
-      // Map focusedIndex to button index (skip separators)
+      // Map focusedIndex to button index (skip separators and colorPicker rows)
       let buttonIdx = 0;
       for (let i = 0; i < items.length; i++) {
         if (i === focusedIndex) break;
-        if (!items[i].separator) buttonIdx++;
+        const it = items[i];
+        if (!it.separator && !('colorPicker' in it && it.colorPicker)) buttonIdx++;
       }
       buttons[buttonIdx]?.focus();
     }
@@ -183,6 +202,28 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
       {items.map((item, index) => {
         if (item.separator) {
           return <div key={index} className="separator" />;
+        }
+
+        if ('colorPicker' in item && item.colorPicker) {
+          return (
+            <div key={index} className="menu-item color-picker-row">
+              <span className="label">{item.label}</span>
+              <span className="color-swatches">
+                {item.colors.map((color) => (
+                  <button
+                    key={color.value}
+                    className={`color-swatch ${item.currentColor === color.value || (!item.currentColor && color.value === '') ? 'active' : ''}`}
+                    style={color.value ? { backgroundColor: color.cssColor } : undefined}
+                    onClick={() => { item.onSelectColor(color.value); onClose(); }}
+                    title={color.name}
+                    aria-label={`Set color: ${color.name}`}
+                  >
+                    {!color.value && <span className="clear-icon">&#x2715;</span>}
+                  </button>
+                ))}
+              </span>
+            </div>
+          );
         }
 
         return (

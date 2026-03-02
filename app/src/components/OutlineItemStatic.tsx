@@ -5,6 +5,7 @@ import { useSettingsStore } from '../store/settingsStore';
 import { ContextMenu } from './ui/ContextMenu';
 import { processStaticContentElement, handleStaticContentClick } from '../lib/renderStaticContent';
 import { formatDateRelative, formatDateRange } from '../lib/dateUtils';
+import { NODE_COLORS, getColorCss } from '../lib/colorPalette';
 import DOMPurify from 'dompurify';
 
 interface OutlineItemStaticProps {
@@ -194,6 +195,8 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
         { label: 'Export selection as Markdown...', action: () => s.exportSelectedToFile() },
         { label: 'Export selection as Plain Text...', action: () => s.exportSelectedToFilePlainText() },
         { separator: true as const },
+        { colorPicker: true as const, label: 'Color', colors: NODE_COLORS, currentColor: '', onSelectColor: (color: string) => s.setSelectedNodesColor(color) },
+        { separator: true as const },
         { label: `Delete selected (${selectionCount})`, action: () => s.deleteSelectedNodes(), shortcut: 'Ctrl+Shift+Backspace' },
       ];
     }
@@ -233,9 +236,11 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
       { label: 'Sort children: Created (newest)', action: () => s.sortChildrenByCreated(node.id), disabled: !hasChildren },
       { label: 'Sort children: Created (oldest)', action: () => s.sortChildrenByCreatedReverse(node.id), disabled: !hasChildren },
       { separator: true as const },
+      { colorPicker: true as const, label: 'Color', colors: NODE_COLORS, currentColor: node.color || '', onSelectColor: (color: string) => s.setNodeColor(node.id, color) },
+      { separator: true as const },
       { label: 'Delete', action: () => s.deleteNode(node.id), shortcut: 'Ctrl+Shift+Backspace' },
     ];
-  }, [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.content, hasChildren, selectedIds, getSelectedNodes]);
+  }, [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.content, node.color, hasChildren, selectedIds, getSelectedNodes]);
 
   // Compute numbered index for numbered items
   const numberedIndex = useMemo(() => {
@@ -252,6 +257,7 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
   const headingClass = node.node_type === 'heading' && node.heading_level
     ? `heading-${node.heading_level}`
     : null;
+  const nodeColorCss = getColorCss(node.color);
   const itemClasses = [
     'outline-item',
     isSelected && 'selected',
@@ -259,10 +265,11 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
     node.is_checked && 'checked',
     isDragging && 'dragging',
     headingClass,
+    nodeColorCss && 'has-color',
   ].filter(Boolean).join(' ');
 
   return (
-    <div ref={itemRef} className={itemClasses} style={{ marginLeft: depth * 24 }}
+    <div ref={itemRef} className={itemClasses} style={{ marginLeft: depth * 24, ...(nodeColorCss ? { borderLeftColor: nodeColorCss } as React.CSSProperties : {}) }}
       onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
       onContextMenu={openContextMenu}>
       <div className="item-row" onClick={handleRowClick}>
