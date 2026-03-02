@@ -13,6 +13,7 @@ type MenuItem = {
   separator?: false;
   shortcut?: string;
   colorPicker?: undefined;
+  headingPicker?: undefined;
 } | {
   separator: true;
   label?: undefined;
@@ -20,6 +21,7 @@ type MenuItem = {
   disabled?: undefined;
   shortcut?: undefined;
   colorPicker?: undefined;
+  headingPicker?: undefined;
 } | {
   colorPicker: true;
   label: string;
@@ -30,6 +32,17 @@ type MenuItem = {
   action?: undefined;
   disabled?: undefined;
   shortcut?: undefined;
+  headingPicker?: undefined;
+} | {
+  headingPicker: true;
+  currentLevel: number | null;
+  onSelect: (level: number) => void;
+  separator?: false;
+  label?: undefined;
+  action?: undefined;
+  disabled?: undefined;
+  shortcut?: undefined;
+  colorPicker?: undefined;
 };
 
 interface ContextMenuProps {
@@ -45,9 +58,9 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
   const [isPositioned, setIsPositioned] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
 
-  // Get indices of actionable (non-separator, non-disabled, non-colorPicker) items
+  // Get indices of actionable (non-separator, non-disabled, non-colorPicker, non-headingPicker) items
   const actionableIndices = items.reduce<number[]>((acc, item, i) => {
-    if (!item.separator && !item.disabled && !('colorPicker' in item && item.colorPicker)) acc.push(i);
+    if (!item.separator && !item.disabled && !('colorPicker' in item && item.colorPicker) && !('headingPicker' in item && item.headingPicker)) acc.push(i);
     return acc;
   }, []);
 
@@ -192,12 +205,12 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
   useEffect(() => {
     if (focusedIndex >= 0 && menuRef.current) {
       const buttons = menuRef.current.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]');
-      // Map focusedIndex to button index (skip separators and colorPicker rows)
+      // Map focusedIndex to button index (skip separators, colorPicker, and headingPicker rows)
       let buttonIdx = 0;
       for (let i = 0; i < items.length; i++) {
         if (i === focusedIndex) break;
         const it = items[i];
-        if (!it.separator && !('colorPicker' in it && it.colorPicker)) buttonIdx++;
+        if (!it.separator && !('colorPicker' in it && it.colorPicker) && !('headingPicker' in it && it.headingPicker)) buttonIdx++;
       }
       buttons[buttonIdx]?.focus();
     }
@@ -242,6 +255,28 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
                     aria-label={`Set color: ${color.name}`}
                   >
                     {!color.value && <span className="clear-icon">&#x2715;</span>}
+                  </button>
+                ))}
+              </span>
+            </div>
+          );
+        }
+
+        if ('headingPicker' in item && item.headingPicker) {
+          const levels = [1, 2, 3, 4, 5, 6, 0];
+          return (
+            <div key={index} className="menu-item heading-picker-row">
+              <span className="label">H</span>
+              <span className="heading-buttons">
+                {levels.map((level) => (
+                  <button
+                    key={level}
+                    className={`heading-btn ${item.currentLevel === level || (level === 0 && item.currentLevel == null) ? 'active' : ''}`}
+                    onClick={() => { item.onSelect(level); onClose(); }}
+                    title={level === 0 ? 'Normal text (Ctrl+0)' : `Heading ${level} (Ctrl+${level})`}
+                    aria-label={level === 0 ? 'Normal text' : `Heading ${level}`}
+                  >
+                    {level === 0 ? 'N' : level}
                   </button>
                 ))}
               </span>
