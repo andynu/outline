@@ -1234,6 +1234,17 @@ export const OutlineItem = memo(function OutlineItem({
       shortcut: 'Ctrl+C',
     },
     {
+      label: 'Copy tree as Markdown',
+      action: () => useOutlineStore.getState().copyTreeAsMarkdown(node.id),
+      shortcut: 'Ctrl+Shift+C',
+      disabled: !hasChildren,
+    },
+    {
+      label: 'Copy tree as Plain Text',
+      action: () => useOutlineStore.getState().copyTreeAsPlainText(node.id),
+      disabled: !hasChildren,
+    },
+    {
       label: 'Web Search',
       action: webSearch,
       shortcut: 'Ctrl+Shift+G',

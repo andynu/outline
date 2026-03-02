@@ -210,6 +210,8 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
       { label: 'Normal text', action: () => s.clearHeading(node.id), shortcut: 'Ctrl+0', disabled: node.node_type !== 'heading' },
       { separator: true as const },
       { label: 'Copy', action: () => navigator.clipboard.writeText((node.content || '').replace(/<[^>]*>/g, '')), shortcut: 'Ctrl+C' },
+      { label: 'Copy tree as Markdown', action: () => s.copyTreeAsMarkdown(node.id), shortcut: 'Ctrl+Shift+C', disabled: !hasChildren },
+      { label: 'Copy tree as Plain Text', action: () => s.copyTreeAsPlainText(node.id), disabled: !hasChildren },
       { separator: true as const },
       { label: node.collapsed ? 'Expand' : 'Collapse', action: () => s.toggleCollapse(node.id), shortcut: 'Ctrl+.', disabled: !hasChildren },
       { separator: true as const },

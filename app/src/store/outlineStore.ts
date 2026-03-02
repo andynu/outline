@@ -147,6 +147,8 @@ interface OutlineState {
   moveSelectedToBottom: () => Promise<boolean>;
   copySelectedAsMarkdown: () => Promise<boolean>;
   copySelectedAsPlainText: () => Promise<boolean>;
+  copyTreeAsMarkdown: (nodeId: string) => Promise<boolean>;
+  copyTreeAsPlainText: (nodeId: string) => Promise<boolean>;
   exportSelectedToFile: () => Promise<boolean>;
   exportSelectedToFilePlainText: () => Promise<boolean>;
   exportSelection: () => Promise<boolean>;
@@ -2667,6 +2669,28 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     try {
       const nodeIds = Array.from(selectedIds);
       const plainText = await api.exportSelectionPlainText(nodeIds, true);
+      await navigator.clipboard.writeText(plainText);
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    }
+  },
+
+  copyTreeAsMarkdown: async (nodeId: string) => {
+    try {
+      const markdown = await api.exportSelectionMarkdown([nodeId], true);
+      await navigator.clipboard.writeText(markdown);
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    }
+  },
+
+  copyTreeAsPlainText: async (nodeId: string) => {
+    try {
+      const plainText = await api.exportSelectionPlainText([nodeId], true);
       await navigator.clipboard.writeText(plainText);
       return true;
     } catch (e) {
