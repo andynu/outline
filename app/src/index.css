@@ -1505,6 +1505,42 @@ body {
   outline: 2px dashed var(--status-info, #3b82f6);
 }
 
+.folder-header.dragging {
+  opacity: 0.4;
+}
+
+.folder-section.folder-reorder-before {
+  position: relative;
+}
+
+.folder-section.folder-reorder-before::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: var(--status-info, #3b82f6);
+  border-radius: 1px;
+  z-index: 1;
+}
+
+.folder-section.folder-reorder-after {
+  position: relative;
+}
+
+.folder-section.folder-reorder-after::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: var(--status-info, #3b82f6);
+  border-radius: 1px;
+  z-index: 1;
+}
+
 .folder-collapse-btn {
   display: flex;
   align-items: center;

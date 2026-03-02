@@ -8,6 +8,7 @@ import {
   deleteFolder,
   deleteDocument,
   moveDocumentToFolder,
+  reorderFolders,
   type DocumentInfo,
   type Folder,
   type FolderState,
@@ -43,6 +44,11 @@ interface DropTarget {
   id?: string;
 }
 
+interface FolderDropTarget {
+  folderId: string;
+  position: 'before' | 'after';
+}
+
 export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
   { isOpen, currentDocumentId, onToggle, onSelectDocument, onNewDocument, onDeleteDocument, onApplySavedSearch },
   ref
@@ -74,6 +80,9 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
   // Drag and drop state
   const [dragItem, setDragItem] = useState<DragItem | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+
+  // Folder reorder drag-drop state
+  const [folderDropTarget, setFolderDropTarget] = useState<FolderDropTarget | null>(null);
 
   // Load documents and folders
   const loadAll = useCallback(async () => {
@@ -339,6 +348,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
   const handleDragEnd = useCallback(() => {
     setDragItem(null);
     setDropTarget(null);
+    setFolderDropTarget(null);
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -382,6 +392,60 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
     setDropTarget(null);
   }, [dragItem, loadAll]);
 
+  // Folder reorder: drag over a folder to determine insertion position (above/below midpoint)
+  const handleFolderReorderDragOver = useCallback((e: React.DragEvent, folderId: string) => {
+    e.preventDefault();
+    if (dragItem?.type !== 'folder' || dragItem.id === folderId) {
+      return;
+    }
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const position = e.clientY < midY ? 'before' : 'after';
+    setFolderDropTarget({ folderId, position });
+  }, [dragItem]);
+
+  // Folder reorder: drop handler
+  const handleFolderReorderDrop = useCallback(async (e: React.DragEvent, targetFolderId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!dragItem || dragItem.type !== 'folder' || dragItem.id === targetFolderId) {
+      setFolderDropTarget(null);
+      return;
+    }
+
+    const currentFolderIds = organizedItems.folders.map(({ folder }) => folder.id);
+    const dragIndex = currentFolderIds.indexOf(dragItem.id);
+    const targetIndex = currentFolderIds.indexOf(targetFolderId);
+
+    if (dragIndex === -1 || targetIndex === -1) {
+      setFolderDropTarget(null);
+      return;
+    }
+
+    // Build new order: remove dragged folder, insert at target position
+    const newOrder = currentFolderIds.filter((id) => id !== dragItem.id);
+    const insertIndex = folderDropTarget?.position === 'before'
+      ? newOrder.indexOf(targetFolderId)
+      : newOrder.indexOf(targetFolderId) + 1;
+    newOrder.splice(insertIndex, 0, dragItem.id);
+
+    setDragItem(null);
+    setDropTarget(null);
+    setFolderDropTarget(null);
+
+    try {
+      await reorderFolders(newOrder);
+      await loadAll();
+    } catch (err) {
+      console.error('Failed to reorder folders:', err);
+      showToast('Failed to reorder folders');
+    }
+  }, [dragItem, organizedItems.folders, folderDropTarget, loadAll]);
+
   if (!isOpen) {
     return null;
   }
@@ -412,16 +476,41 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
             <div className="document-list">
               {/* Folders */}
               {organizedItems.folders.map(({ folder, docs }) => (
-                <div key={folder.id} className="folder-section">
+                <div key={folder.id} className={`folder-section${folderDropTarget?.folderId === folder.id && dragItem?.type === 'folder' ? ` folder-reorder-${folderDropTarget.position}` : ''}`}>
                   <div
-                    className={`folder-header ${dropTarget?.type === 'folder' && dropTarget.id === folder.id ? 'drop-target' : ''}`}
+                    className={`folder-header ${dropTarget?.type === 'folder' && dropTarget.id === folder.id ? 'drop-target' : ''} ${dragItem?.type === 'folder' && dragItem.id === folder.id ? 'dragging' : ''}`}
                     role="button"
                     tabIndex={0}
+                    draggable="true"
                     onDoubleClick={(e) => handleFolderDoubleClick(e, folder)}
                     onContextMenu={(e) => handleFolderContextMenu(e, folder)}
-                    onDragOver={handleDragOver}
-                    onDragEnter={(e) => handleFolderDragEnter(e, folder.id)}
-                    onDrop={(e) => handleDrop(e, 'folder', folder.id)}
+                    onDragStart={(e) => handleDragStart(e, 'folder', folder.id)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => {
+                      if (dragItem?.type === 'folder') {
+                        handleFolderReorderDragOver(e, folder.id);
+                      } else {
+                        handleDragOver(e);
+                      }
+                    }}
+                    onDragEnter={(e) => {
+                      if (dragItem?.type === 'document') {
+                        handleFolderDragEnter(e, folder.id);
+                      }
+                    }}
+                    onDragLeave={(e) => {
+                      // Only clear if leaving the folder-header entirely (not entering a child)
+                      if (dragItem?.type === 'folder' && !e.currentTarget.contains(e.relatedTarget as Node)) {
+                        setFolderDropTarget(null);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      if (dragItem?.type === 'folder') {
+                        handleFolderReorderDrop(e, folder.id);
+                      } else {
+                        handleDrop(e, 'folder', folder.id);
+                      }
+                    }}
                   >
                     <button
                       className="folder-collapse-btn"
