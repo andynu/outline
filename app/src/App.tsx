@@ -583,6 +583,17 @@ function App() {
     }
   }, [nodes]);
 
+  const handleExportIcal = useCallback(async () => {
+    try {
+      const title = nodes.find(n => !n.parent_id)?.content?.replace(/<[^>]*>/g, '') || 'Outline';
+      const content = await api.generateIcalFeed();
+      await api.saveToFileWithDialog(content, `${title}.ics`, 'ics');
+    } catch (e) {
+      console.error('Export iCal failed:', e);
+      showToast('Export failed');
+    }
+  }, [nodes]);
+
   const handleImportOpml = useCallback(async () => {
     try {
       const result = await api.importOpmlFromPicker();
@@ -608,9 +619,10 @@ function App() {
     { label: 'Export OPML', action: handleExportOpml, separator: false },
     { label: 'Export Markdown', action: handleExportMarkdown, separator: false },
     { label: 'Export JSON', action: handleExportJson, separator: false },
+    { label: 'Export iCal', action: handleExportIcal, separator: false },
     { separator: true },
     { label: 'Import OPML...', action: handleImportOpml, separator: false },
-  ], [handleNewDocument, handleSave, handleExportOpml, handleExportMarkdown, handleExportJson, handleImportOpml]);
+  ], [handleNewDocument, handleSave, handleExportOpml, handleExportMarkdown, handleExportJson, handleExportIcal, handleImportOpml]);
 
   // Edit menu items
   const deleteAllCompleted = useOutlineStore(state => state.deleteAllCompleted);
