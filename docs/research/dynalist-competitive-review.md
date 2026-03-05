@@ -19,7 +19,7 @@ Dynalist is the closest competitor to Outline -- both are hierarchical outliners
 | Folders | Yes | Yes | Parity |
 | Drag-and-drop | Yes | Yes | Parity |
 | Undo/redo | Yes | Yes | Parity |
-| Node notes | Yes | Partial | Dynalist has toggle-visible notes per item. Outline has a `note` field in the data model but the UI note editing experience is basic. |
+| Node notes | Yes | Partial | Dynalist notes have three display modes (show/1st-line/hide) configurable globally and per-document, toggled via Shift+Enter. Notes support basic inline markdown (bold, italic, code, links) but not block-level formatting (lists, headers, quotes). Notes are searchable via `in:note` operator. Outline has a `note` field with Shift+Enter editing but lacks the visibility toggle modes. |
 | Numbered lists | Yes | No | Dynalist supports numbered list items as a node type. Outline only has bullet, checkbox, heading. |
 | Multi-select | Yes | Yes | Outline supports multi-select with bulk operations |
 
@@ -30,8 +30,8 @@ Dynalist is the closest competitor to Outline -- both are hierarchical outliners
 | Sidebar file pane | Yes | Yes | Parity |
 | Document search | Yes | Yes | Outline has QuickNavigator (Ctrl+O) |
 | Folders | Yes | Yes | Outline has folder support with drag-and-drop |
-| Document icons/emoji | No | No | Neither supports this |
-| Recent documents | Implicit via file pane | No | Dynalist shows recently accessed docs |
+| Document icons/emoji | No | No | Neither supports this. Outline stores UTF-8 so raw emoji already works in content. Explore `:emoji-word:` to UTF-8 conversion as a TipTap extension. |
+| Recent documents | Implicit via file pane | No | Dynalist shows recently accessed docs. Skipping -- explicit document ordering is preferred. |
 
 ### Formatting
 
@@ -48,7 +48,7 @@ Dynalist is the closest competitor to Outline -- both are hierarchical outliners
 | Inline images | Yes (Pro) | No | Dynalist Pro allows image attachments |
 | File attachments | Yes (Pro) | No | Dynalist Pro allows file uploads |
 
-**Verdict**: Outline's TipTap-based rich text is more polished for everyday formatting. Dynalist has code blocks and LaTeX which matter for technical users but are niche.
+**Verdict**: Outline's TipTap-based rich text is more polished for everyday formatting. Code blocks are worth exploring (TipTap has extensions). LaTeX is not needed.
 
 ### Dates and Tasks
 
@@ -155,7 +155,7 @@ Dynalist is the closest competitor to Outline -- both are hierarchical outliners
 
 | Feature | Dynalist | Outline | Notes |
 |---------|----------|---------|-------|
-| API | Yes (REST) | Tauri commands (local) | Dynalist has a public REST API for external tools. Outline has Tauri IPC commands. |
+| API | Yes (REST) | CLI + Tauri commands | Dynalist has a public REST API. Outline has Tauri IPC commands and a CLI (`outline-cli`) that provides power-user access without a server-based API. |
 | Custom CSS | Yes (Pro) | No | Dynalist Pro lets users inject custom CSS |
 | Custom shortcuts | Yes (Pro) | No | Rebind any keyboard shortcut |
 | Custom mobile toolbar | Yes (Pro) | N/A | Desktop-only app |
@@ -169,7 +169,7 @@ Dynalist is the closest competitor to Outline -- both are hierarchical outliners
 | Theme selection | Multiple themes | No | Dynalist has multiple built-in themes |
 | Font selection | Yes | No | Choose between fonts |
 
-**Verdict**: Dynalist Pro has many polish features. The most impactful for Outline to adopt would be sorting, custom CSS, and density/theme options.
+**Verdict**: Dynalist Pro has many polish features. Sorting and article view are approved for implementation. Custom shortcuts, browser clipper, and font selection are tracked as future directions.
 
 ---
 
@@ -197,58 +197,63 @@ Dynalist is the closest competitor to Outline -- both are hierarchical outliners
 
 ---
 
-## Prioritized Features to Adopt from Dynalist
+## Approved Features to Adopt from Dynalist
 
 ### Priority 1 -- High Impact, Reasonable Effort
 
-| Feature | Rationale | Effort |
-|---------|-----------|--------|
-| **Search operators** (`is:completed`, `has:date`, `color:red`, etc.) | Biggest feature gap. Power users rely on structured search. FTS5 can be extended with custom tokenizers or pre-query parsing. | Medium -- parse operators before FTS5 query, combine with SQL WHERE clauses |
-| **Bookmarks** | Quick access to frequently-used items, docs, and searches. Already has a strategy doc. | Medium -- UI + persistence |
-| **Sorting** (sort children by title, date, updated) | Simple utility feature. Right-click a parent, "Sort children by..." | Small -- reorder positions by sort key |
+| Feature | Rationale | Effort | Status |
+|---------|-----------|--------|--------|
+| **Search operators** (`is:completed`, `has:date`, `color:red`, etc.) | Biggest feature gap. Power users rely on structured search. FTS5 can be extended with custom tokenizers or pre-query parsing. | Medium -- parse operators before FTS5 query, combine with SQL WHERE clauses | Approved |
+| **Bookmarks** | Quick access to frequently-used items, docs, and searches. Already has a strategy doc (`docs/bookmarking-strategy.md`). | Medium -- UI + persistence | Approved |
+| **Sorting** (sort children by title, date, updated) | Simple utility feature. Right-click a parent, "Sort children by..." | Small -- reorder positions by sort key | Approved |
 
 ### Priority 2 -- Medium Impact
 
-| Feature | Rationale | Effort |
-|---------|-----------|--------|
-| **Date ranges** (start + end date) | Useful for events and project timelines. Extends the existing date model. | Small -- add `date_end` field |
-| **Article view** | Render outline as flowing text. Useful for writing/reviewing. | Medium -- alternate CSS/rendering mode |
-| **Navigation history** (back/forward) | After zooming around, users want to retrace their steps. | Small -- maintain a zoom history stack |
-| **Custom CSS** | Power users want to tweak appearance. Simple to implement -- inject a user stylesheet. | Small -- load CSS from config file |
-| **List density options** (cozy/comfortable/compact) | Quick win for visual preference. | Small -- CSS variables |
+| Feature | Rationale | Effort | Status |
+|---------|-----------|--------|--------|
+| **Date ranges** (start + end date) | Useful for events and project timelines. Extends the existing date model. | Small -- add `date_end` field | Approved |
+| **Article view** | Render outline as flowing text. Useful for writing/reviewing. | Medium -- alternate CSS/rendering mode | Approved |
+| **Navigation history** (back/forward) | After zooming around, users want to retrace their steps. | Small -- maintain a zoom history stack | Approved |
+| **Numbered lists** | Useful node type variant alongside bullet, checkbox, heading. | Small | Approved |
+| **Code blocks** | Multi-line code with syntax highlighting. TipTap has extensions for this. | Medium | Approved |
+| **HTML export** | Export outlines as HTML documents. Support both light and dark mode output, light mode by default. | Small | Approved |
+| **Emoji shortcodes** | `:emoji-word:` to UTF-8 conversion in TipTap. Raw emoji already works in content. | Small | Approved |
 
-### Priority 3 -- Lower Impact / Niche
+### Declined
 
-| Feature | Rationale | Effort |
-|---------|-----------|--------|
-| **Numbered lists** | Useful but niche. Could be a node_type variant. | Small |
-| **Code blocks** | Multi-line code with syntax highlighting. TipTap has extensions for this. | Medium |
-| **LaTeX** | Very niche. TipTap has a KaTeX extension. | Medium |
-| **Mind map view** | Cool but rarely used. Even Dynalist's is read-only. | Large |
-| **Custom date format** | Minor polish. | Small |
-| **Theme selection** | Multiple built-in themes beyond light/dark. | Medium |
-| **Font selection** | User preference. | Small |
-| **Browser clipper** | Capture web content. Inbox API already exists -- clipper is a thin UI over it. | Medium |
-| **HTML export** | Useful but Markdown export covers most use cases. | Small |
+| Feature | Decision |
+|---------|----------|
+| Custom CSS | Not needed |
+| List density options | Not needed |
+| LaTeX | Not needed |
+| Mind map view | Not needed |
+| Custom date format | Not needed |
+| Theme selection | Not needed |
+| Recent documents | Skipped -- explicit document ordering preferred |
+| Inline images | Punted |
+| File attachments | Not desired |
+| Real-time collaboration | Not desired -- single-user by design |
+| API (public REST) | Not desired -- CLI provides power-user access |
+| Cloud-hosted option | Counter to self-hosted mission |
 
-### Not Recommended to Adopt
+### Future Directions
 
-| Feature | Reason |
-|---------|--------|
-| Real-time collaboration | Fundamental architecture change. Outline is single-user by design. |
-| Version history | Would require storing operation history. File sync provides implicit backup. |
-| Cloud-hosted option | Counter to self-hosted mission. |
-| File attachments | Adds complexity to the file-sync model. Images could be linked instead. |
-| API (public REST) | Tauri commands serve the same purpose locally. Thin server covers remote capture. |
+See `docs/future-directions.md` for features deferred to future exploration:
+- Custom keyboard shortcuts
+- Browser clipper
+- Font selection
+- Dated backups of all documents
 
 ---
 
 ## Summary
 
-Outline has already achieved feature parity or superiority in the core outlining experience: hierarchy, zoom, navigation, dates, checkboxes, recurrence, and links. The three areas where Dynalist still leads are:
+Outline has already achieved feature parity or superiority in the core outlining experience: hierarchy, zoom, navigation, dates, checkboxes, recurrence, and links. The approved roadmap focuses on:
 
-1. **Search operators** -- structured query language for filtering items
+1. **Search operators** -- structured query language for filtering items (highest priority)
 2. **Bookmarks** -- quick access to pinned items, docs, and searches
-3. **Display polish** -- density, themes, article view, sorting
+3. **Sorting** -- sort children by title, date, updated
+4. **Date ranges, article view, navigation history** -- medium-impact quality-of-life improvements
+5. **Numbered lists, code blocks, HTML export, emoji shortcodes** -- rounding out the feature set
 
-Search operators should be the top priority as they unlock power-user workflows that are currently impossible in Outline. Bookmarks and sorting are quick wins that round out the experience.
+Search operators should be the top priority as they unlock power-user workflows that are currently impossible in Outline.
