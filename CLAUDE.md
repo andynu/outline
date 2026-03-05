@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Outline is a self-hosted Dynalist/Workflowy replacement - a hierarchical outliner with cross-linking, tasks, dates, and calendar integration. The project uses a Tauri 2 + Rust backend with a React 18 frontend.
+Outline is a self-hosted Dynalist/Workflowy replacement - a hierarchical outliner with cross-linking, tasks, dates, and calendar integration. The project uses a Tauri 2 + Rust backend with a React 19 + Zustand frontend.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Desktop App (app/)                           │
-│  ├── React 18 + TipTap frontend (app/src/)                     │
+│  ├── React 19 + TipTap frontend (app/src/)                     │
 │  └── Rust/Tauri backend (app/src-tauri/)                       │
 │      ├── SQLite FTS5 search cache                              │
 │      └── JSONL file I/O                                        │
@@ -24,7 +24,7 @@ Outline is a self-hosted Dynalist/Workflowy replacement - a hierarchical outline
 │  ├── documents/{uuid}/pending.*.jsonl (per-machine ops)        │
 │  └── inbox.jsonl (captured items)                              │
 ├─────────────────────────────────────────────────────────────────┤
-│  Platform Cache (~/Library/Caches/outline/ on macOS)           │
+│  Platform Cache (varies by OS, see below)                      │
 │  └── outline.db (SQLite FTS5 search index, not synced)         │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -48,8 +48,9 @@ cd app
 npm install
 npm run dev          # Vite dev server (http://localhost:5173)
 npm run build        # Production build
-npm run check        # TypeScript/Svelte type checking
+npm run check        # TypeScript type checking
 npm run test         # Playwright E2E tests
+npm run test:ui      # Playwright interactive UI mode
 npm run test:headed  # E2E tests with browser visible
 npm run tauri dev    # Run as Tauri desktop app
 npm run tauri build  # Build Tauri app for distribution
@@ -72,6 +73,20 @@ bundle install
 bundle exec puma -p 9292              # Run dev server
 bundle exec rerun -- puma -p 9292     # Auto-reload dev server
 ```
+
+## Frontend Architecture
+
+**State Management:** Zustand stores in `app/src/lib/`:
+- `outlineStore.ts` - Core document state, node CRUD, navigation, focus management (largest file)
+- `zoomStore.ts` - Zoom/focus mode state
+- `settingsStore.ts` - Application settings
+- `toastStore.ts` - Toast notifications
+
+**Path alias:** `@/*` maps to `src/*` in imports.
+
+**Virtual scrolling:** Uses `@tanstack/react-virtual` for rendering large documents (1500+ items). Combined with the OutlineItem/OutlineItemStatic split, this enables 60fps with large trees.
+
+**No ESLint or Prettier configured.** TypeScript strict mode is the only static analysis. `noUnusedLocals` and `noUnusedParameters` are disabled.
 
 ## Data Format
 
@@ -154,9 +169,20 @@ The app supports offline editing on multiple machines via file sync (Dropbox/Syn
 **Playwright E2E tests are the primary testing strategy for the frontend.** New features should include Playwright tests covering user interactions.
 
 - **E2E tests**: `app/tests/*.spec.ts` using Playwright
-- **Rust tests**: Unit tests in `app/src-tauri/src/` modules
-- Playwright auto-starts dev server for E2E tests
+- **Rust tests**: Unit tests in `app/src-tauri/src/` modules (inline `#[cfg(test)]`)
+- Playwright auto-starts Vite dev server on port 5173 (reuses existing if running)
+- Runs on Chromium only
 - Use `npm run test:headed` to debug tests visually
+
+### Running a Single Test
+
+```bash
+cd app
+npx playwright test tests/wiki-links.spec.ts           # Single file
+npx playwright test -g "creates a wiki link"            # By test name
+npx playwright test tests/wiki-links.spec.ts --headed   # With browser visible
+npx playwright test tests/wiki-links.spec.ts --ui       # Interactive UI mode
+```
 
 ### Test Coverage Areas
 
