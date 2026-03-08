@@ -16,11 +16,13 @@ static DATA_DIR_OVERRIDE: RwLock<Option<PathBuf>> = RwLock::new(None);
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocumentState {
     pub nodes: Vec<Node>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub doc_prefix: Option<String>,
 }
 
 impl DocumentState {
     pub fn new() -> Self {
-        Self { nodes: Vec::new() }
+        Self { nodes: Vec::new(), doc_prefix: None }
     }
 
     /// Build a HashMap for quick node lookup by ID

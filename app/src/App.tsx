@@ -16,6 +16,7 @@ import { QuickMove } from './components/ui/QuickMove';
 import { QuickCaptureModal } from './components/ui/QuickCaptureModal';
 import { ToastContainer } from './components/ui/ToastContainer';
 import { showToast } from './store/toastStore';
+import { useSettingsStore } from './store/settingsStore';
 import { FilterBar } from './components/ui/FilterBar';
 import { ZoomBreadcrumbs } from './components/ui/ZoomBreadcrumbs';
 import { BacklinksPanel } from './components/ui/BacklinksPanel';
@@ -696,11 +697,15 @@ function App() {
   ], [undo, redo, canUndo, canRedo, deleteAllCompleted, hasCompletedItems]);
 
   // View menu items
+  const showShortIds = useSettingsStore(state => state.showShortIds);
+  const updateSettings = useSettingsStore(state => state.updateSettings);
+  const toggleShortIds = useCallback(() => updateSettings({ showShortIds: !showShortIds }), [showShortIds, updateSettings]);
   const viewMenuItems: MenuEntry[] = useMemo(() => [
     { label: 'Toggle Sidebar', shortcut: 'Ctrl+\\', action: toggleSidebar, separator: false },
     { separator: true },
     { label: hideCompleted ? 'Show Completed' : 'Hide Completed', shortcut: 'Ctrl+Shift+H', action: toggleHideCompleted, separator: false },
     { label: hideDeferred ? 'Show Deferred' : 'Hide Deferred', shortcut: 'Ctrl+Shift+D', action: toggleHideDeferred, separator: false },
+    { label: 'Show Short IDs', action: toggleShortIds, checked: showShortIds, separator: false },
     { label: 'Collapse All', shortcut: 'Ctrl+Shift+.', action: collapseAll, separator: false },
     { label: 'Expand All', shortcut: 'Ctrl+Shift+,', action: expandAll, separator: false },
     { label: 'Collapse Siblings', action: () => focusedId && collapseSiblings(focusedId), separator: false },
@@ -715,7 +720,7 @@ function App() {
     { label: 'Reset Zoom', shortcut: 'Ctrl+0', action: resetZoom, separator: false },
     { separator: true },
     { label: isDark ? 'Light Mode' : 'Dark Mode', action: toggleTheme, separator: false },
-  ], [toggleSidebar, toggleTheme, isDark, collapseAll, expandAll, expandToLevel, collapseSiblings, focusedId, hideCompleted, toggleHideCompleted, hideDeferred, toggleHideDeferred, zoomIn, zoomOut, resetZoom]);
+  ], [toggleSidebar, toggleTheme, isDark, collapseAll, expandAll, expandToLevel, collapseSiblings, focusedId, hideCompleted, toggleHideCompleted, hideDeferred, toggleHideDeferred, zoomIn, zoomOut, resetZoom, showShortIds, toggleShortIds]);
 
   // Help menu items
   const helpMenuItems: MenuEntry[] = useMemo(() => [

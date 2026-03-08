@@ -26,6 +26,7 @@ export interface Settings {
 
   // Display
   noteDisplayMode: NoteDisplayMode;  // How notes are shown on unfocused items
+  showShortIds: boolean;  // Show CLI short IDs next to items
 
   // Web Search
   searchEngine: string;  // Search engine preset or 'custom'
@@ -92,6 +93,7 @@ const DEFAULT_SETTINGS: Settings = {
   confirmDelete: true,
   startCollapsed: false,
   noteDisplayMode: 'one-line',
+  showShortIds: false,
   dataDirectory: '~/.outline-data',
   searchEngine: 'duckduckgo',
   searchEngineUrl: '',

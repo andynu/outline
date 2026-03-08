@@ -21,12 +21,14 @@ export interface Node {
   defer_date?: string;
   collapsed: boolean;
   mirror_source_id?: string;
+  short_id?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface DocumentState {
   nodes: Node[];
+  doc_prefix?: string;
 }
 
 export interface NodeChanges {

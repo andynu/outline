@@ -70,6 +70,7 @@ interface OutlineState {
   filterQuery: string | null;  // Hashtag filter, e.g., "#project"
   zoomedNodeId: string | null;  // Subtree zoom - show only this node's children
   draggedId: string | null;  // Currently dragged node ID
+  docPrefix: string | null;  // Document prefix for short IDs (e.g., "inbox")
 
   // Zoom navigation history
   _zoomHistoryBack: (string | null)[];   // Stack of previous zoom targets
@@ -450,6 +451,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   filterQuery: null,
   zoomedNodeId: null,
   draggedId: null,
+  docPrefix: null,
   _zoomHistoryBack: [],
   _zoomHistoryForward: [],
   _undoStack: [],
@@ -474,11 +476,15 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
   updateFromState: (state: DocumentState) => {
     const { nodesById, childrenByParent } = rebuildIndexes(state.nodes);
-    set({
+    const updates: Partial<OutlineState> = {
       nodes: state.nodes,
       _nodesById: nodesById,
-      _childrenByParent: childrenByParent
-    });
+      _childrenByParent: childrenByParent,
+    };
+    if (state.doc_prefix) {
+      updates.docPrefix = state.doc_prefix;
+    }
+    set(updates);
   },
 
   toggleHideCompleted: () => {

@@ -7,6 +7,7 @@ use outline_core::data::{
     move_op, save_config, set_data_dir, update_op, Document, DocumentState, InboxConfig, InboxItem,
     get_inbox_config, set_inbox_config as set_inbox_config_impl, clear_inbox_config as clear_inbox_config_impl,
     Node, NodeChanges, NodeType, Operation, read_inbox, remove_inbox_items,
+    short_ids,
     // Folder management
     Folder, FolderState, load_folders,
     create_folder as create_folder_impl,
@@ -60,7 +61,7 @@ pub fn load_document(
 
     let doc_dir = documents_dir().join(doc_uuid.to_string());
 
-    let doc = if doc_dir.exists() {
+    let mut doc = if doc_dir.exists() {
         Document::load(doc_dir)?
     } else {
         // Create new document with sample data
@@ -69,7 +70,10 @@ pub fn load_document(
         doc
     };
 
-    let doc_state = doc.state.clone();
+    // Ensure all nodes have short IDs and get the document prefix
+    let prefix = short_ids::ensure_short_ids(&mut doc)?;
+    let mut doc_state = doc.state.clone();
+    doc_state.doc_prefix = Some(prefix);
 
     // Index document for search in background (don't block loading)
     let nodes_for_index = doc_state.nodes.clone();

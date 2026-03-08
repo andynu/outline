@@ -28,6 +28,7 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
   const isSelected = useOutlineStore(state => state.selectedIds.has(node.id));
   const isDragging = useOutlineStore(state => state.draggedId === node.id);
   const noteDisplayMode = useSettingsStore(state => state.noteDisplayMode);
+  const showShortIds = useSettingsStore(state => state.showShortIds);
   const staticContentRef = useRef<HTMLDivElement>(null);
   const dropPositionRef = useRef<'before' | 'after' | 'child' | null>(null);
   const itemRef = useRef<HTMLDivElement>(null);
@@ -213,6 +214,7 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
       { label: 'Copy', action: () => navigator.clipboard.writeText((node.content || '').replace(/<[^>]*>/g, '')), shortcut: 'Ctrl+C' },
       { label: 'Copy tree as Markdown', action: () => s.copyTreeAsMarkdown(node.id), shortcut: 'Ctrl+Shift+C', disabled: !hasChildren },
       { label: 'Copy tree as Plain Text', action: () => s.copyTreeAsPlainText(node.id), disabled: !hasChildren },
+      { label: 'Copy Short ID', action: () => { const prefix = useOutlineStore.getState().docPrefix; const sid = node.short_id; if (prefix && sid) navigator.clipboard.writeText(`${prefix}-${sid}`); }, disabled: !node.short_id },
       { separator: true as const },
       { label: node.collapsed ? 'Expand' : 'Collapse', action: () => s.toggleCollapse(node.id), shortcut: 'Ctrl+.', disabled: !hasChildren },
       { separator: true as const },
@@ -306,6 +308,19 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
             </span>
           )}
         </span>
+        {showShortIds && node.short_id && (
+          <span
+            className="short-id-badge"
+            title="Click to copy"
+            onClick={(e) => {
+              e.stopPropagation();
+              const prefix = useOutlineStore.getState().docPrefix;
+              if (prefix) navigator.clipboard.writeText(`${prefix}-${node.short_id}`);
+            }}
+          >
+            {node.short_id}
+          </span>
+        )}
         <div className="editor-wrapper">
           <div ref={staticContentRef} className="static-content" onClick={handleStaticClick} />
         </div>

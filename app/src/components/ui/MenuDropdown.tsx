@@ -6,6 +6,7 @@ interface MenuItem {
   action: () => void;
   separator?: false;
   disabled?: boolean;
+  checked?: boolean;
 }
 
 interface MenuSeparator {
@@ -91,6 +92,7 @@ export function MenuDropdown({ label, items, isOpen, onOpen, onClose }: MenuDrop
                 onClick={() => !item.disabled && handleItemClick(item)}
                 disabled={item.disabled}
               >
+                <span className="item-check">{item.checked != null ? (item.checked ? '✓' : '') : ''}</span>
                 <span className="item-label">{item.label}</span>
                 {item.shortcut && (
                   <span className="item-shortcut">{item.shortcut}</span>

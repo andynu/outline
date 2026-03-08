@@ -104,6 +104,7 @@ export const OutlineItem = memo(function OutlineItem({
   const moveSelectedToBottom = useOutlineStore(state => state.moveSelectedToBottom);
   const copySelectedAsMarkdown = useOutlineStore(state => state.copySelectedAsMarkdown);
   const copySelectedAsPlainText = useOutlineStore(state => state.copySelectedAsPlainText);
+  const showShortIds = useSettingsStore(state => state.showShortIds);
   const exportSelectedToFile = useOutlineStore(state => state.exportSelectedToFile);
   const exportSelectedToFilePlainText = useOutlineStore(state => state.exportSelectedToFilePlainText);
   const deleteSelectedNodes = useOutlineStore(state => state.deleteSelectedNodes);
@@ -1238,6 +1239,17 @@ export const OutlineItem = memo(function OutlineItem({
       disabled: !hasChildren,
     },
     {
+      label: 'Copy Short ID',
+      action: () => {
+        const prefix = useOutlineStore.getState().docPrefix;
+        const sid = node.short_id;
+        if (prefix && sid) {
+          navigator.clipboard.writeText(`${prefix}-${sid}`);
+        }
+      },
+      disabled: !node.short_id,
+    },
+    {
       label: 'Web Search',
       action: webSearch,
       shortcut: 'Ctrl+Shift+G',
@@ -1700,6 +1712,21 @@ export const OutlineItem = memo(function OutlineItem({
             </span>
           )}
         </span>
+
+        {/* Short ID badge */}
+        {showShortIds && node.short_id && (
+          <span
+            className="short-id-badge"
+            title="Click to copy"
+            onClick={(e) => {
+              e.stopPropagation();
+              const prefix = useOutlineStore.getState().docPrefix;
+              if (prefix) navigator.clipboard.writeText(`${prefix}-${node.short_id}`);
+            }}
+          >
+            {node.short_id}
+          </span>
+        )}
 
         {/* Editor or static content */}
         <div className="editor-wrapper">

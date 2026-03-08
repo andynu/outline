@@ -32,6 +32,7 @@ export function SettingsModal({ isOpen, onClose, onOpenShortcuts }: SettingsModa
   const [localAutoSave, setLocalAutoSave] = useState(settings.autoSaveInterval);
   const [localConfirmDelete, setLocalConfirmDelete] = useState(settings.confirmDelete);
   const [localStartCollapsed, setLocalStartCollapsed] = useState(settings.startCollapsed);
+  const [localShowShortIds, setLocalShowShortIds] = useState(settings.showShortIds);
   const [localNoteDisplayMode, setLocalNoteDisplayMode] = useState<NoteDisplayMode>(settings.noteDisplayMode);
   const [localSearchEngine, setLocalSearchEngine] = useState(settings.searchEngine);
   const [localSearchEngineUrl, setLocalSearchEngineUrl] = useState(settings.searchEngineUrl);
@@ -51,6 +52,7 @@ export function SettingsModal({ isOpen, onClose, onOpenShortcuts }: SettingsModa
       setLocalAutoSave(settings.autoSaveInterval);
       setLocalConfirmDelete(settings.confirmDelete);
       setLocalStartCollapsed(settings.startCollapsed);
+      setLocalShowShortIds(settings.showShortIds);
       setLocalNoteDisplayMode(settings.noteDisplayMode);
       setLocalSearchEngine(settings.searchEngine);
       setLocalSearchEngineUrl(settings.searchEngineUrl);
@@ -132,6 +134,11 @@ export function SettingsModal({ isOpen, onClose, onOpenShortcuts }: SettingsModa
   function handleStartCollapsedChange(value: boolean) {
     setLocalStartCollapsed(value);
     updateSettings({ startCollapsed: value });
+  }
+
+  function handleShowShortIdsChange(value: boolean) {
+    setLocalShowShortIds(value);
+    updateSettings({ showShortIds: value });
   }
 
   function handleNoteDisplayModeChange(mode: NoteDisplayMode) {
@@ -304,6 +311,22 @@ export function SettingsModal({ isOpen, onClose, onOpenShortcuts }: SettingsModa
                   className="toggle-input"
                   checked={localStartCollapsed}
                   onChange={(e) => handleStartCollapsedChange(e.target.checked)}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div className="setting-row">
+              <label className="setting-label setting-toggle">
+                <span className="label-content">
+                  <span className="label-text">Show short IDs</span>
+                  <span className="label-hint">Display CLI short IDs next to each item</span>
+                </span>
+                <input
+                  type="checkbox"
+                  className="toggle-input"
+                  checked={localShowShortIds}
+                  onChange={(e) => handleShowShortIdsChange(e.target.checked)}
                 />
                 <span className="toggle-slider"></span>
               </label>
