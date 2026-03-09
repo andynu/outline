@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, useImperativeHandle, forwardRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   listDocuments,
   updateNode,
@@ -694,7 +695,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
       </aside>
 
       {/* Context menu for document actions */}
-      {contextMenuTarget?.type === 'document' && (
+      {contextMenuTarget?.type === 'document' && createPortal(
         <div className="context-menu" style={{ left: contextMenuPosition.x, top: contextMenuPosition.y }}>
           <button className="context-menu-item" onClick={handleRenameDocClick}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -743,11 +744,12 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
             </svg>
             Delete Document
           </button>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Context menu for folder actions */}
-      {contextMenuTarget?.type === 'folder' && (
+      {contextMenuTarget?.type === 'folder' && createPortal(
         <div className="context-menu" style={{ left: contextMenuPosition.x, top: contextMenuPosition.y }}>
           <button className="context-menu-item" onClick={handleRenameFolderClick}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -763,7 +765,8 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
             </svg>
             Delete Folder
           </button>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Rename document modal */}
@@ -785,7 +788,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
       />
 
       {/* Saved search context menu */}
-      {savedSearchContextMenu && (
+      {savedSearchContextMenu && createPortal(
         <div className="context-menu" style={{ left: savedSearchContextMenu.x, top: savedSearchContextMenu.y }}>
           <button
             className="context-menu-item context-menu-item-danger"
@@ -800,7 +803,8 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
             </svg>
             Delete
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

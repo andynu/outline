@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export type ColorOption = {
   name: string;
@@ -254,7 +255,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
     }
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div
       ref={menuRef}
       className="context-menu"
@@ -330,7 +331,8 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
           </button>
         );
       })}
-    </div>
+    </div>,
+    document.body
   );
 }
 
