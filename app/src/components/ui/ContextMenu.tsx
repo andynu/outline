@@ -7,7 +7,7 @@ export type ColorOption = {
   cssColor: string;  // CSS color for the swatch
 };
 
-type MenuItem = {
+type ActionItem = {
   label: string;
   action: () => void;
   disabled?: boolean;
@@ -15,7 +15,10 @@ type MenuItem = {
   shortcut?: string;
   colorPicker?: undefined;
   headingPicker?: undefined;
-} | {
+  submenu?: undefined;
+};
+
+type SeparatorItem = {
   separator: true;
   label?: undefined;
   action?: undefined;
@@ -23,7 +26,10 @@ type MenuItem = {
   shortcut?: undefined;
   colorPicker?: undefined;
   headingPicker?: undefined;
-} | {
+  submenu?: undefined;
+};
+
+type ColorPickerItem = {
   colorPicker: true;
   label: string;
   colors: ColorOption[];
@@ -34,7 +40,10 @@ type MenuItem = {
   disabled?: undefined;
   shortcut?: undefined;
   headingPicker?: undefined;
-} | {
+  submenu?: undefined;
+};
+
+type HeadingPickerItem = {
   headingPicker: true;
   currentLevel: number | null;
   onSelect: (level: number) => void;
@@ -44,7 +53,24 @@ type MenuItem = {
   disabled?: undefined;
   shortcut?: undefined;
   colorPicker?: undefined;
+  submenu?: undefined;
 };
+
+type SubmenuItem = {
+  submenu: true;
+  label: string;
+  children: MenuItem[];
+  disabled?: boolean;
+  separator?: false;
+  action?: undefined;
+  shortcut?: undefined;
+  colorPicker?: undefined;
+  headingPicker?: undefined;
+};
+
+type MenuItem = ActionItem | SeparatorItem | ColorPickerItem | HeadingPickerItem | SubmenuItem;
+
+export type { MenuItem };
 
 interface ContextMenuProps {
   items: MenuItem[];
@@ -58,6 +84,155 @@ export const CLOSE_ALL_CONTEXT_MENUS = 'close-all-context-menus';
 /** Dispatch a close event so all open context menus dismiss themselves. */
 export function closeAllContextMenus() {
   document.dispatchEvent(new CustomEvent(CLOSE_ALL_CONTEXT_MENUS));
+}
+
+/** Submenu flyout component, rendered inline within the parent menu. */
+function SubmenuFlyout({ item, onClose, parentRef, registerFlyout }: { item: SubmenuItem; onClose: () => void; parentRef: React.RefObject<HTMLDivElement | null>; registerFlyout: (el: HTMLElement | null) => void }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const flyoutRef = useRef<HTMLDivElement | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [flyoutStyle, setFlyoutStyle] = useState<React.CSSProperties>({});
+
+  const setFlyoutRef = useCallback((el: HTMLDivElement | null) => {
+    flyoutRef.current = el;
+    registerFlyout(el);
+  }, [registerFlyout]);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openSubmenu = useCallback(() => {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+    setIsOpen(true);
+  }, []);
+
+  const closeSubmenu = useCallback(() => {
+    closeTimer.current = setTimeout(() => setIsOpen(false), 150);
+  }, []);
+
+  const cancelClose = useCallback(() => {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+  }, []);
+
+  // Position the flyout when it opens
+  useEffect(() => {
+    if (!isOpen || !triggerRef.current || !flyoutRef.current) return;
+
+    const trigger = triggerRef.current.getBoundingClientRect();
+    const flyout = flyoutRef.current;
+    const flyoutWidth = flyout.offsetWidth;
+    const flyoutHeight = flyout.scrollHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const pad = 10;
+
+    // Try placing to the right of the parent menu
+    let left: number;
+    if (parentRef.current) {
+      const parentRect = parentRef.current.getBoundingClientRect();
+      const rightSpace = vw - parentRect.right - pad;
+      const leftSpace = parentRect.left - pad;
+
+      if (rightSpace >= flyoutWidth) {
+        left = parentRect.right - 2; // slight overlap for visual continuity
+      } else if (leftSpace >= flyoutWidth) {
+        left = parentRect.left - flyoutWidth + 2;
+      } else {
+        // Neither side fits well, pick the larger side
+        left = rightSpace >= leftSpace
+          ? parentRect.right - 2
+          : parentRect.left - flyoutWidth + 2;
+      }
+    } else {
+      left = trigger.right;
+    }
+
+    // Vertical: align top of flyout with the trigger row
+    let top = trigger.top;
+    if (top + flyoutHeight > vh - pad) {
+      top = Math.max(pad, vh - flyoutHeight - pad);
+    }
+
+    setFlyoutStyle({ left, top, maxHeight: vh - pad * 2 });
+  }, [isOpen, parentRef]);
+
+  useEffect(() => {
+    return () => { if (closeTimer.current) clearTimeout(closeTimer.current); };
+  }, []);
+
+  return (
+    <div
+      className="submenu-wrapper"
+      onMouseEnter={openSubmenu}
+      onMouseLeave={closeSubmenu}
+    >
+      <button
+        ref={triggerRef}
+        className={`menu-item submenu-trigger ${item.disabled ? 'disabled' : ''}`}
+        role="menuitem"
+        aria-haspopup="true"
+        aria-expanded={isOpen}
+        disabled={item.disabled}
+        onClick={openSubmenu}
+      >
+        <span className="label">{item.label}</span>
+        <span className="submenu-arrow">&#x25B8;</span>
+      </button>
+      {isOpen && createPortal(
+        <div
+          ref={setFlyoutRef}
+          className="context-menu submenu-flyout"
+          style={flyoutStyle}
+          role="menu"
+          onMouseEnter={cancelClose}
+          onMouseLeave={closeSubmenu}
+        >
+          {item.children.map((child, ci) => {
+            if (child.separator) {
+              return <div key={ci} className="separator" />;
+            }
+            if ('colorPicker' in child && child.colorPicker) {
+              return (
+                <div key={ci} className="menu-item color-picker-row">
+                  <span className="label">{child.label}</span>
+                  <span className="color-swatches">
+                    {child.colors.map((color) => (
+                      <button
+                        key={color.value}
+                        className={`color-swatch ${child.currentColor === color.value || (!child.currentColor && color.value === '') ? 'active' : ''}`}
+                        style={color.value ? { backgroundColor: color.cssColor } : undefined}
+                        onClick={() => { child.onSelectColor(color.value); onClose(); }}
+                        title={color.name}
+                        aria-label={`Set color: ${color.name}`}
+                      >
+                        {!color.value && <span className="clear-icon">&#x2715;</span>}
+                      </button>
+                    ))}
+                  </span>
+                </div>
+              );
+            }
+            return (
+              <button
+                key={ci}
+                className={`menu-item ${child.disabled ? 'disabled' : ''}`}
+                onClick={() => {
+                  if (!child.separator && child.action && !child.disabled) {
+                    child.action();
+                    onClose();
+                  }
+                }}
+                disabled={child.disabled}
+                role="menuitem"
+              >
+                <span className="label">{child.label}</span>
+                {child.shortcut && <span className="shortcut">{child.shortcut}</span>}
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
 }
 
 export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
@@ -163,10 +338,27 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
     };
   }, [onClose]);
 
+  // Track flyout elements for click-outside detection
+  const flyoutRefs = useRef<Set<HTMLElement>>(new Set());
+  const registerFlyout = useCallback((el: HTMLElement | null) => {
+    if (el) flyoutRefs.current.add(el);
+    else {
+      // Clean up any removed elements
+      flyoutRefs.current.forEach(ref => {
+        if (!ref.isConnected) flyoutRefs.current.delete(ref);
+      });
+    }
+  }, []);
+
   // Close on click outside, right-click outside, and escape
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (menuRef.current && !menuRef.current.contains(target)) {
+        // Also check if click is inside one of this menu's submenu flyouts
+        for (const flyout of flyoutRefs.current) {
+          if (flyout.contains(target)) return;
+        }
         onClose();
       }
     };
@@ -270,6 +462,10 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
       {items.map((item, index) => {
         if (item.separator) {
           return <div key={index} className="separator" />;
+        }
+
+        if ('submenu' in item && item.submenu) {
+          return <SubmenuFlyout key={index} item={item} onClose={onClose} parentRef={menuRef} registerFlyout={registerFlyout} />;
         }
 
         if ('colorPicker' in item && item.colorPicker) {

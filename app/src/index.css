@@ -697,6 +697,52 @@ body {
   border-color: var(--accent-primary);
 }
 
+/* Submenu trigger and flyout */
+.context-menu .submenu-wrapper {
+  position: relative;
+}
+
+.context-menu .submenu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.context-menu .submenu-trigger:hover:not(.disabled),
+.context-menu .submenu-trigger:focus:not(.disabled) {
+  background: var(--accent-primary-lighter);
+  color: var(--accent-primary);
+  outline: none;
+}
+
+.context-menu .submenu-trigger.disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+.context-menu .submenu-arrow {
+  font-size: 10px;
+  margin-left: 8px;
+  color: var(--text-tertiary);
+}
+
+.context-menu .submenu-trigger:hover:not(.disabled) .submenu-arrow {
+  color: var(--accent-primary-light);
+}
+
+.submenu-flyout {
+  position: fixed;
+  overflow-y: auto;
+}
+
 /* Node color indicator - subtle left border */
 .outline-item.has-color {
   border-left: 3px solid transparent;

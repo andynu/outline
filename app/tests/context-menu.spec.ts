@@ -29,9 +29,11 @@ test.describe('Context menu', () => {
     // Check for expected menu items
     await expect(page.locator('.menu-item').filter({ hasText: 'Mark Complete' })).toBeVisible();
     await expect(page.locator('.menu-item').filter({ hasText: 'Convert to Checkbox' })).toBeVisible();
-    await expect(page.locator('.menu-item').filter({ hasText: 'Copy' })).toBeVisible();
     await expect(page.locator('.menu-item').filter({ hasText: 'Indent' })).toBeVisible();
     await expect(page.locator('.menu-item').filter({ hasText: 'Outdent' })).toBeVisible();
+    // Check for submenu triggers
+    await expect(page.locator('.submenu-trigger').filter({ hasText: 'Copy / Export' })).toBeVisible();
+    await expect(page.locator('.submenu-trigger').filter({ hasText: 'Sort children' })).toBeVisible();
     // Check for Delete menu item (not "Delete Completed Children")
     await expect(page.locator('.menu-item .label').filter({ hasText: /^Delete$/ })).toBeVisible();
   });
@@ -44,13 +46,12 @@ test.describe('Context menu', () => {
     const contextMenu = page.locator('.context-menu');
     await expect(contextMenu).toBeVisible();
 
-    // Check for shortcut hints
-    const shortcuts = page.locator('.shortcut');
+    // Check for shortcut hints (visible in top-level menu, not inside submenus)
+    const shortcuts = page.locator('.context-menu:not(.submenu-flyout) .shortcut');
     const shortcutTexts = await shortcuts.allTextContents();
 
     expect(shortcutTexts).toContain('Ctrl+Enter');
     expect(shortcutTexts).toContain('Ctrl+Shift+X');
-    expect(shortcutTexts).toContain('Ctrl+C');
     expect(shortcutTexts).toContain('Tab');
     expect(shortcutTexts).toContain('Shift+Tab');
   });
@@ -223,7 +224,7 @@ test.describe('Context menu', () => {
     await items.nth(0).click({ button: 'right' });
     await page.waitForTimeout(150);
 
-    let contextMenus = page.locator('.context-menu');
+    let contextMenus = page.locator('.context-menu:not(.submenu-flyout)');
     await expect(contextMenus.first()).toBeVisible();
     expect(await contextMenus.count()).toBe(1);
 
@@ -232,13 +233,13 @@ test.describe('Context menu', () => {
     // overlap the second item, causing Playwright's actionability check to fail.
     await page.keyboard.press('Escape');
     await page.waitForTimeout(100);
-    await expect(page.locator('.context-menu')).not.toBeVisible();
+    await expect(page.locator('.context-menu:not(.submenu-flyout)')).not.toBeVisible();
 
     // Right-click the second item
     await items.nth(1).click({ button: 'right' });
     await page.waitForTimeout(150);
 
-    contextMenus = page.locator('.context-menu');
+    contextMenus = page.locator('.context-menu:not(.submenu-flyout)');
     await expect(contextMenus.first()).toBeVisible();
     expect(await contextMenus.count()).toBe(1);
   });
@@ -262,8 +263,8 @@ test.describe('Context menu', () => {
     await items.last().click({ button: 'right', force: true });
     await page.waitForTimeout(150);
 
-    // There should be exactly one context menu visible
-    const contextMenus = page.locator('.context-menu');
+    // There should be exactly one top-level context menu visible (exclude submenu flyouts)
+    const contextMenus = page.locator('.context-menu:not(.submenu-flyout)');
     await expect(contextMenus.first()).toBeVisible();
     expect(await contextMenus.count()).toBe(1);
   });

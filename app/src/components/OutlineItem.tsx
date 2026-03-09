@@ -1196,69 +1196,82 @@ export const OutlineItem = memo(function OutlineItem({
     },
     { separator: true as const },
     {
-      label: node.date ? 'Change Due Date' : 'Set Due Date',
-      action: () => {
-        setDatePickerPosition(contextMenuPosition);
-        setDatePickerMode('due');
-        setShowDatePicker(true);
-      },
-      shortcut: 'Ctrl+D',
-    },
-    {
-      label: node.date_end ? 'Change End Date' : 'Set End Date',
-      action: () => {
-        setDatePickerPosition(contextMenuPosition);
-        setDatePickerMode('end');
-        setShowDatePicker(true);
-      },
-    },
-    {
-      label: node.defer_date ? 'Change Defer Date' : 'Defer Until...',
-      action: () => {
-        setDatePickerPosition(contextMenuPosition);
-        setDatePickerMode('defer');
-        setShowDatePicker(true);
-      },
-      shortcut: 'Ctrl+Shift+D',
+      submenu: true as const,
+      label: 'Dates',
+      children: [
+        {
+          label: node.date ? 'Change Due Date' : 'Set Due Date',
+          action: () => {
+            setDatePickerPosition(contextMenuPosition);
+            setDatePickerMode('due');
+            setShowDatePicker(true);
+          },
+          shortcut: 'Ctrl+D',
+        },
+        {
+          label: node.date_end ? 'Change End Date' : 'Set End Date',
+          action: () => {
+            setDatePickerPosition(contextMenuPosition);
+            setDatePickerMode('end');
+            setShowDatePicker(true);
+          },
+        },
+        {
+          label: node.defer_date ? 'Change Defer Date' : 'Defer Until...',
+          action: () => {
+            setDatePickerPosition(contextMenuPosition);
+            setDatePickerMode('defer');
+            setShowDatePicker(true);
+          },
+          shortcut: 'Ctrl+Shift+D',
+        },
+      ],
     },
     { separator: true as const },
     {
-      label: 'Copy',
-      action: copyToClipboard,
-      shortcut: 'Ctrl+C',
-    },
-    {
-      label: 'Copy tree as Markdown',
-      action: () => useOutlineStore.getState().copyTreeAsMarkdown(node.id),
-      shortcut: 'Ctrl+Shift+C',
-      disabled: !hasChildren,
-    },
-    {
-      label: 'Copy tree as Plain Text',
-      action: () => useOutlineStore.getState().copyTreeAsPlainText(node.id),
-      disabled: !hasChildren,
-    },
-    {
-      label: 'Copy Short ID',
-      action: () => {
-        const prefix = useOutlineStore.getState().docPrefix;
-        const sid = node.short_id;
-        if (prefix && sid) {
-          navigator.clipboard.writeText(`${prefix}-${sid}`);
-        }
-      },
-      disabled: !node.short_id,
+      submenu: true as const,
+      label: 'Copy / Export',
+      children: [
+        {
+          label: 'Copy',
+          action: copyToClipboard,
+          shortcut: 'Ctrl+C',
+        },
+        {
+          label: 'Copy tree as Markdown',
+          action: () => useOutlineStore.getState().copyTreeAsMarkdown(node.id),
+          shortcut: 'Ctrl+Shift+C',
+          disabled: !hasChildren,
+        },
+        {
+          label: 'Copy tree as Plain Text',
+          action: () => useOutlineStore.getState().copyTreeAsPlainText(node.id),
+          disabled: !hasChildren,
+        },
+        {
+          label: 'Copy Short ID',
+          action: () => {
+            const prefix = useOutlineStore.getState().docPrefix;
+            const sid = node.short_id;
+            if (prefix && sid) {
+              navigator.clipboard.writeText(`${prefix}-${sid}`);
+            }
+          },
+          disabled: !node.short_id,
+        },
+        { separator: true as const },
+        {
+          label: 'Export to Markdown',
+          action: () => useOutlineStore.getState().exportSelection(),
+          shortcut: 'Ctrl+Shift+E',
+        },
+      ],
     },
     {
       label: 'Web Search',
       action: webSearch,
       shortcut: 'Ctrl+Shift+G',
       disabled: !plainTextContent.trim(),
-    },
-    {
-      label: 'Export to Markdown',
-      action: () => useOutlineStore.getState().exportSelection(),
-      shortcut: 'Ctrl+Shift+E',
     },
     { separator: true as const },
     {
@@ -1292,44 +1305,54 @@ export const OutlineItem = memo(function OutlineItem({
     },
     { separator: true as const },
     {
-      label: 'Sort children: Title (A-Z)',
-      action: () => useOutlineStore.getState().sortChildrenByTitle(node.id),
+      submenu: true as const,
+      label: 'Sort children',
       disabled: !hasChildren,
-    },
-    {
-      label: 'Sort children: Title (Z-A)',
-      action: () => useOutlineStore.getState().sortChildrenByTitleReverse(node.id),
-      disabled: !hasChildren,
-    },
-    {
-      label: 'Sort children: Date (newest)',
-      action: () => useOutlineStore.getState().sortChildrenByDate(node.id),
-      disabled: !hasChildren,
-    },
-    {
-      label: 'Sort children: Date (oldest)',
-      action: () => useOutlineStore.getState().sortChildrenByDateReverse(node.id),
-      disabled: !hasChildren,
-    },
-    {
-      label: 'Sort children: Updated (newest)',
-      action: () => useOutlineStore.getState().sortChildrenByUpdated(node.id),
-      disabled: !hasChildren,
-    },
-    {
-      label: 'Sort children: Updated (oldest)',
-      action: () => useOutlineStore.getState().sortChildrenByUpdatedReverse(node.id),
-      disabled: !hasChildren,
-    },
-    {
-      label: 'Sort children: Created (newest)',
-      action: () => useOutlineStore.getState().sortChildrenByCreated(node.id),
-      disabled: !hasChildren,
-    },
-    {
-      label: 'Sort children: Created (oldest)',
-      action: () => useOutlineStore.getState().sortChildrenByCreatedReverse(node.id),
-      disabled: !hasChildren,
+      children: [
+        {
+          label: 'Title (A-Z)',
+          action: () => useOutlineStore.getState().sortChildrenByTitle(node.id),
+          disabled: !hasChildren,
+        },
+        {
+          label: 'Title (Z-A)',
+          action: () => useOutlineStore.getState().sortChildrenByTitleReverse(node.id),
+          disabled: !hasChildren,
+        },
+        { separator: true as const },
+        {
+          label: 'Date (newest)',
+          action: () => useOutlineStore.getState().sortChildrenByDate(node.id),
+          disabled: !hasChildren,
+        },
+        {
+          label: 'Date (oldest)',
+          action: () => useOutlineStore.getState().sortChildrenByDateReverse(node.id),
+          disabled: !hasChildren,
+        },
+        { separator: true as const },
+        {
+          label: 'Updated (newest)',
+          action: () => useOutlineStore.getState().sortChildrenByUpdated(node.id),
+          disabled: !hasChildren,
+        },
+        {
+          label: 'Updated (oldest)',
+          action: () => useOutlineStore.getState().sortChildrenByUpdatedReverse(node.id),
+          disabled: !hasChildren,
+        },
+        { separator: true as const },
+        {
+          label: 'Created (newest)',
+          action: () => useOutlineStore.getState().sortChildrenByCreated(node.id),
+          disabled: !hasChildren,
+        },
+        {
+          label: 'Created (oldest)',
+          action: () => useOutlineStore.getState().sortChildrenByCreatedReverse(node.id),
+          disabled: !hasChildren,
+        },
+      ],
     },
     { separator: true as const },
     { colorPicker: true as const, label: 'Color', colors: NODE_COLORS, currentColor: node.color || '', onSelectColor: (color: string) => setNodeColor(node.id, color) },
@@ -1381,47 +1404,60 @@ export const OutlineItem = memo(function OutlineItem({
       },
       { separator: true as const },
       {
-        label: 'Move to...',
-        action: () => onOpenBulkQuickMove?.(),
-        shortcut: 'Ctrl+Shift+M',
-        disabled: !onOpenBulkQuickMove,
+        submenu: true as const,
+        label: 'Move',
+        children: [
+          {
+            label: 'Move to...',
+            action: () => onOpenBulkQuickMove?.(),
+            shortcut: 'Ctrl+Shift+M',
+            disabled: !onOpenBulkQuickMove,
+          },
+          {
+            label: 'Move to top',
+            action: moveSelectedToTop,
+          },
+          {
+            label: 'Move to bottom',
+            action: moveSelectedToBottom,
+          },
+          {
+            label: 'Group under new item',
+            action: groupSelectedUnderNewParent,
+          },
+        ],
       },
       {
-        label: 'Move to top',
-        action: moveSelectedToTop,
-      },
-      {
-        label: 'Move to bottom',
-        action: moveSelectedToBottom,
-      },
-      {
-        label: 'Group under new item',
-        action: groupSelectedUnderNewParent,
-      },
-      { separator: true as const },
-      {
-        label: 'Sort A-Z',
-        action: sortSelectedAlphabetical,
-      },
-      {
-        label: 'Sort Z-A',
-        action: sortSelectedReverseAlphabetical,
-      },
-      {
-        label: 'Sort by date (earliest)',
-        action: sortSelectedByDate,
-      },
-      {
-        label: 'Sort by date (latest)',
-        action: sortSelectedByDateReverse,
-      },
-      {
-        label: 'Sort by completion',
-        action: sortSelectedByCompletion,
-      },
-      {
-        label: 'Reverse order',
-        action: reverseSelectedOrder,
+        submenu: true as const,
+        label: 'Sort',
+        children: [
+          {
+            label: 'A-Z',
+            action: sortSelectedAlphabetical,
+          },
+          {
+            label: 'Z-A',
+            action: sortSelectedReverseAlphabetical,
+          },
+          { separator: true as const },
+          {
+            label: 'By date (earliest)',
+            action: sortSelectedByDate,
+          },
+          {
+            label: 'By date (latest)',
+            action: sortSelectedByDateReverse,
+          },
+          { separator: true as const },
+          {
+            label: 'By completion',
+            action: sortSelectedByCompletion,
+          },
+          {
+            label: 'Reverse order',
+            action: reverseSelectedOrder,
+          },
+        ],
       },
       { separator: true as const },
       {
@@ -1436,21 +1472,28 @@ export const OutlineItem = memo(function OutlineItem({
       },
       { separator: true as const },
       {
-        label: 'Copy as Markdown',
-        action: copySelectedAsMarkdown,
-        shortcut: 'Ctrl+Shift+C',
-      },
-      {
-        label: 'Copy as Plain Text',
-        action: copySelectedAsPlainText,
-      },
-      {
-        label: 'Export selection as Markdown...',
-        action: exportSelectedToFile,
-      },
-      {
-        label: 'Export selection as Plain Text...',
-        action: exportSelectedToFilePlainText,
+        submenu: true as const,
+        label: 'Copy / Export',
+        children: [
+          {
+            label: 'Copy as Markdown',
+            action: copySelectedAsMarkdown,
+            shortcut: 'Ctrl+Shift+C',
+          },
+          {
+            label: 'Copy as Plain Text',
+            action: copySelectedAsPlainText,
+          },
+          { separator: true as const },
+          {
+            label: 'Export as Markdown...',
+            action: exportSelectedToFile,
+          },
+          {
+            label: 'Export as Plain Text...',
+            action: exportSelectedToFilePlainText,
+          },
+        ],
       },
       { separator: true as const },
       { colorPicker: true as const, label: 'Color', colors: NODE_COLORS, currentColor: '', onSelectColor: (color: string) => setSelectedNodesColor(color) },

@@ -380,11 +380,20 @@ test.describe('Bulk operations on multi-selection', () => {
       await items.first().click({ button: 'right' });
       await page.waitForTimeout(100);
 
-      // Context menu should have move options
-      const contextMenu = page.locator('.context-menu');
-      await expect(contextMenu.locator('text=Move to...')).toBeVisible();
-      await expect(contextMenu.locator('text=Move to top')).toBeVisible();
-      await expect(contextMenu.locator('text=Move to bottom')).toBeVisible();
+      // Context menu should have a Move submenu
+      const contextMenu = page.locator('.context-menu:not(.submenu-flyout)');
+      const moveTrigger = contextMenu.locator('.submenu-trigger', { hasText: 'Move' });
+      await expect(moveTrigger).toBeVisible();
+
+      // Hover to open the submenu
+      await moveTrigger.hover();
+      await page.waitForTimeout(200);
+
+      // Submenu should show move options
+      const flyout = page.locator('.submenu-flyout');
+      await expect(flyout.locator('text=Move to...')).toBeVisible();
+      await expect(flyout.locator('text=Move to top')).toBeVisible();
+      await expect(flyout.locator('text=Move to bottom')).toBeVisible();
     });
 
     test('Move to top and bottom are clickable', async ({ page }) => {
@@ -404,9 +413,15 @@ test.describe('Bulk operations on multi-selection', () => {
       await items.first().click({ button: 'right' });
       await page.waitForTimeout(100);
 
+      // Open the Move submenu
+      const contextMenu = page.locator('.context-menu:not(.submenu-flyout)');
+      const moveTrigger = contextMenu.locator('.submenu-trigger', { hasText: 'Move' });
+      await moveTrigger.hover();
+      await page.waitForTimeout(200);
+
       // Verify Move to top is clickable (not disabled)
-      const contextMenu = page.locator('.context-menu');
-      const moveToTop = contextMenu.locator('text=Move to top');
+      const flyout = page.locator('.submenu-flyout');
+      const moveToTop = flyout.locator('text=Move to top');
       await expect(moveToTop).toBeVisible();
       await expect(moveToTop).toBeEnabled();
 
@@ -434,11 +449,19 @@ test.describe('Bulk operations on multi-selection', () => {
       await items.first().click({ button: 'right' });
       await page.waitForTimeout(100);
 
-      // Context menu should have export options
-      const contextMenu = page.locator('.context-menu');
-      await expect(contextMenu.locator('text=Copy as Markdown')).toBeVisible();
-      await expect(contextMenu.locator('text=Copy as Plain Text')).toBeVisible();
-      await expect(contextMenu.locator('text=Export to file...')).toBeVisible();
+      // Context menu should have a Copy / Export submenu
+      const contextMenu = page.locator('.context-menu:not(.submenu-flyout)');
+      const exportTrigger = contextMenu.locator('.submenu-trigger', { hasText: 'Copy / Export' });
+      await expect(exportTrigger).toBeVisible();
+
+      // Hover to open the submenu
+      await exportTrigger.hover();
+      await page.waitForTimeout(200);
+
+      // Submenu should show export options
+      const flyout = page.locator('.submenu-flyout');
+      await expect(flyout.locator('text=Copy as Markdown')).toBeVisible();
+      await expect(flyout.locator('text=Copy as Plain Text')).toBeVisible();
     });
 
     test('Copy as Markdown copies to clipboard', async ({ page, context }) => {
@@ -458,9 +481,12 @@ test.describe('Bulk operations on multi-selection', () => {
       await items.first().click({ button: 'right' });
       await page.waitForTimeout(100);
 
-      // Click "Copy as Markdown"
-      const contextMenu = page.locator('.context-menu');
-      await contextMenu.locator('text=Copy as Markdown').click();
+      // Open the Copy / Export submenu and click "Copy as Markdown"
+      const contextMenu = page.locator('.context-menu:not(.submenu-flyout)');
+      const exportTrigger = contextMenu.locator('.submenu-trigger', { hasText: 'Copy / Export' });
+      await exportTrigger.hover();
+      await page.waitForTimeout(200);
+      await page.locator('.submenu-flyout').locator('text=Copy as Markdown').click();
       await page.waitForTimeout(200);
 
       // Verify clipboard has markdown content
@@ -510,9 +536,12 @@ test.describe('Bulk operations on multi-selection', () => {
       await items.first().click({ button: 'right' });
       await page.waitForTimeout(100);
 
-      // Click "Copy as Plain Text"
-      const contextMenu = page.locator('.context-menu');
-      await contextMenu.locator('text=Copy as Plain Text').click();
+      // Open the Copy / Export submenu and click "Copy as Plain Text"
+      const contextMenu = page.locator('.context-menu:not(.submenu-flyout)');
+      const exportTrigger = contextMenu.locator('.submenu-trigger', { hasText: 'Copy / Export' });
+      await exportTrigger.hover();
+      await page.waitForTimeout(200);
+      await page.locator('.submenu-flyout').locator('text=Copy as Plain Text').click();
       await page.waitForTimeout(200);
 
       // Verify clipboard has plain text (no markdown bullets)
