@@ -1233,7 +1233,7 @@ function App() {
             </svg>
           </button>
           <button
-            className={`toolbar-btn hide-completed-toggle ${hideCompleted ? 'active' : ''}`}
+            className={`toolbar-btn toolbar-collapsible hide-completed-toggle ${hideCompleted ? 'active' : ''}`}
             onClick={toggleHideCompleted}
             title={hideCompleted ? "Show completed items (Ctrl+Shift+H)" : "Hide completed items (Ctrl+Shift+H)"}
             aria-label={hideCompleted ? "Show completed items" : "Hide completed items"}
@@ -1251,7 +1251,7 @@ function App() {
             )}
           </button>
           <button
-            className="toolbar-btn"
+            className="toolbar-btn toolbar-collapsible"
             onClick={collapseAll}
             title="Collapse All (Ctrl+Shift+.)"
             aria-label="Collapse all items"
@@ -1266,7 +1266,7 @@ function App() {
             </svg>
           </button>
           <button
-            className="toolbar-btn"
+            className="toolbar-btn toolbar-collapsible"
             onClick={expandAll}
             title="Expand All (Ctrl+Shift+,)"
             aria-label="Expand all items"
@@ -1280,9 +1280,9 @@ function App() {
               <path d="M12 22l4-4"/>
             </svg>
           </button>
-          <div className="toolbar-separator"></div>
+          <div className="toolbar-separator toolbar-collapsible"></div>
           <button
-            className="toolbar-btn"
+            className="toolbar-btn toolbar-collapsible-narrow"
             onClick={() => setShowKeyboardShortcuts(true)}
             title="Keyboard Shortcuts (?)"
           >
@@ -1293,7 +1293,7 @@ function App() {
             </svg>
           </button>
           <button
-            className="toolbar-btn settings-btn"
+            className="toolbar-btn toolbar-collapsible-narrow settings-btn"
             onClick={() => setShowSettings(true)}
             title="Settings (Ctrl+,)"
           >

@@ -2063,8 +2063,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 12px;
+  gap: 4px;
+  padding: 4px 8px;
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--chrome-border, var(--border-primary));
   flex-shrink: 0;
@@ -2074,7 +2074,7 @@ body {
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 
 .toolbar-btn {
@@ -2082,12 +2082,12 @@ body {
   align-items: center;
   justify-content: center;
   position: relative;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 5px;
   cursor: pointer;
   color: var(--text-secondary);
   transition: all 0.1s;
@@ -2100,8 +2100,8 @@ body {
 }
 
 .toolbar-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .toolbar-btn.saving {
@@ -2141,20 +2141,22 @@ body {
 
 .toolbar-separator {
   width: 1px;
-  height: 24px;
+  height: 20px;
   background: var(--border-primary);
-  margin: 0 4px;
+  margin: 0 2px;
 }
 
 .toolbar-search {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: 6px;
+  padding: 4px 8px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-secondary);
-  border-radius: 6px;
-  width: 200px;
+  border-radius: 5px;
+  width: 180px;
+  min-width: 120px;
+  flex-shrink: 1;
 }
 
 .toolbar-search .search-icon {
@@ -2204,6 +2206,29 @@ body {
   background: var(--accent-primary-lighter, rgba(59, 130, 246, 0.1));
   color: var(--accent-primary, #3b82f6);
   border-color: var(--accent-primary-light, rgba(59, 130, 246, 0.3));
+}
+
+/* Responsive toolbar: hide less-essential buttons at narrow widths */
+/* These features remain accessible via menu bar and keyboard shortcuts */
+@media (max-width: 700px) {
+  .toolbar-collapsible,
+  .toolbar-collapsible-narrow {
+    display: none;
+  }
+  .toolbar-search {
+    width: 140px;
+    min-width: 100px;
+  }
+}
+
+@media (max-width: 550px) {
+  .toolbar-search {
+    width: 100px;
+    min-width: 80px;
+  }
+  .toolbar-search input {
+    display: none;
+  }
 }
 
 .outline-container {
