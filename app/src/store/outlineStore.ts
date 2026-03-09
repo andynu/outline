@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Node, TreeNode, DocumentState, UndoEntry, UndoAction, NodeChanges } from '../lib/types';
 import * as api from '../lib/api';
 import { formatISODate } from '../lib/dateUtils';
+import { parseFilterQuery, nodeMatchesParsedFilter } from '../lib/searchQueryParser';
 
 // Constants
 const MAX_UNDO_STACK_SIZE = 100;
@@ -229,11 +230,16 @@ interface OutlineState {
   sortChildrenByCreatedReverse: (parentId: string) => Promise<boolean>;
 }
 
-// Check if a node matches the filter query
-function nodeMatchesFilter(node: Node, filterQuery: string | null): boolean {
+// Check if a node matches the filter query (supports search operators)
+function nodeMatchesFilter(
+  node: Node,
+  filterQuery: string | null,
+  childrenByParent?: Map<string | null, Node[]>
+): boolean {
   if (!filterQuery) return true;
-  // Check if content contains the hashtag
-  return node.content.toLowerCase().includes(filterQuery.toLowerCase());
+  const parsed = parseFilterQuery(filterQuery);
+  const childCount = childrenByParent ? (childrenByParent.get(node.id) ?? []).length : 0;
+  return nodeMatchesParsedFilter(node, parsed, childCount);
 }
 
 // Check if a node or any of its descendants match the filter
@@ -245,7 +251,7 @@ function hasMatchingDescendant(
 ): boolean {
   const children = childrenByParent.get(nodeId) ?? [];
   for (const child of children) {
-    if (nodeMatchesFilter(child, filterQuery)) return true;
+    if (nodeMatchesFilter(child, filterQuery, childrenByParent)) return true;
     if (hasMatchingDescendant(child.id, childrenByParent, filterQuery, nodesById)) return true;
   }
   return false;
@@ -294,7 +300,7 @@ function buildTree(
   // If filtering, only show nodes that match OR have matching descendants
   if (filterQuery) {
     visibleChildren = visibleChildren.filter(n =>
-      nodeMatchesFilter(n, filterQuery) ||
+      nodeMatchesFilter(n, filterQuery, childrenByParent) ||
       hasMatchingDescendant(n.id, childrenByParent, filterQuery, nodesById)
     );
   }
@@ -310,7 +316,7 @@ function buildTree(
     }
     if (filterQuery) {
       visibleNodeChildren = visibleNodeChildren.filter(n =>
-        nodeMatchesFilter(n, filterQuery) ||
+        nodeMatchesFilter(n, filterQuery, childrenByParent) ||
         hasMatchingDescendant(n.id, childrenByParent, filterQuery, nodesById)
       );
     }
@@ -390,7 +396,7 @@ function flattenTree(
   // If filtering, only show nodes that match OR have matching descendants
   if (filterQuery) {
     visibleChildren = visibleChildren.filter(n =>
-      nodeMatchesFilter(n, filterQuery) ||
+      nodeMatchesFilter(n, filterQuery, childrenByParent) ||
       hasMatchingDescendant(n.id, childrenByParent, filterQuery, nodesById)
     );
   }
@@ -405,7 +411,7 @@ function flattenTree(
     }
     if (filterQuery) {
       visibleNodeChildren = visibleNodeChildren.filter(n =>
-        nodeMatchesFilter(n, filterQuery) ||
+        nodeMatchesFilter(n, filterQuery, childrenByParent) ||
         hasMatchingDescendant(n.id, childrenByParent, filterQuery, nodesById)
       );
     }
@@ -827,7 +833,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     // Filter by search query if active
     if (filterQuery) {
       children = children.filter(n =>
-        nodeMatchesFilter(n, filterQuery) ||
+        nodeMatchesFilter(n, filterQuery, _childrenByParent) ||
         hasMatchingDescendant(n.id, _childrenByParent, filterQuery, _nodesById)
       );
     }
@@ -853,7 +859,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     // Filter by search query if active
     if (filterQuery) {
       siblings = siblings.filter(n =>
-        nodeMatchesFilter(n, filterQuery) ||
+        nodeMatchesFilter(n, filterQuery, _childrenByParent) ||
         hasMatchingDescendant(n.id, _childrenByParent, filterQuery, _nodesById)
       );
     }
@@ -881,7 +887,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     // Filter by search query if active
     if (filterQuery) {
       siblings = siblings.filter(n =>
-        nodeMatchesFilter(n, filterQuery) ||
+        nodeMatchesFilter(n, filterQuery, _childrenByParent) ||
         hasMatchingDescendant(n.id, _childrenByParent, filterQuery, _nodesById)
       );
     }
@@ -1510,7 +1516,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     if (filterQuery) {
       // When filtering, expand all ancestors of matching items
       // This ensures that when the filter is cleared, matching items remain visible
-      const matchingNodes = nodes.filter(n => nodeMatchesFilter(n, filterQuery));
+      const matchingNodes = nodes.filter(n => nodeMatchesFilter(n, filterQuery, _childrenByParent));
       const ancestorIds = new Set<string>();
 
       // Collect all ancestors of matching nodes

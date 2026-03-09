@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as api from '../../lib/api';
 import type { SearchResult } from '../../lib/api';
+import { hasSearchOperators } from '../../lib/searchQueryParser';
 
 type SearchMode = 'navigate' | 'filter';
 
@@ -183,6 +184,8 @@ export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose,
           <div className="results" role="listbox">
             {results.length === 0 && query.trim().length > 0 && !loading ? (
               <div className="no-results">No results found</div>
+            ) : results.length === 0 && query.trim().length === 0 ? (
+              <SearchOperatorHints />
             ) : (
               results.map((result, index) => (
                 <div
@@ -208,10 +211,14 @@ export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose,
             {query.trim() ? (
               <div className="filter-preview-message">
                 Press <kbd>Enter</kbd> to filter outline to items matching "{query.trim()}"
+                {hasSearchOperators(query) && (
+                  <div className="filter-operator-note">Search operators will be applied</div>
+                )}
               </div>
             ) : (
               <div className="filter-preview-message muted">
                 Type a query to filter the outline
+                <SearchOperatorHints />
               </div>
             )}
           </div>
@@ -231,6 +238,28 @@ export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose,
             <kbd>Esc</kbd> Close
           </span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SearchOperatorHints() {
+  return (
+    <div className="search-operator-hints">
+      <div className="operator-hints-title">Search operators</div>
+      <div className="operator-hints-grid">
+        <code>is:completed</code><span>Checked items</span>
+        <code>is:heading</code><span>Heading items</span>
+        <code>has:date</code><span>Items with dates</span>
+        <code>has:note</code><span>Items with notes</span>
+        <code>has:children</code><span>Parent items</span>
+        <code>has:color</code><span>Colored items</span>
+        <code>color:red</code><span>Specific color</span>
+        <code>"exact phrase"</code><span>Exact match</span>
+        <code>-term</code><span>Exclude term</span>
+        <code>A OR B</code><span>Either term</span>
+        <code>edited:today</code><span>Edited today</span>
+        <code>edited:-7d</code><span>Edited last 7 days</span>
       </div>
     </div>
   );

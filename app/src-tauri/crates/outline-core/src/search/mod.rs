@@ -1,11 +1,15 @@
+pub mod query_parser;
+
 use rusqlite::{params, Connection, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use uuid::Uuid;
 
-use crate::data::{data_dir, Node};
+use crate::data::{data_dir, Node, NodeType};
+use query_parser::parse_query;
 
 /// Search result returned to the frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,13 +116,29 @@ impl SearchIndex {
             .prepare("SELECT depth FROM nodes LIMIT 1")
             .is_ok();
         if !has_depth {
-            // Column doesn't exist, add it and rebuild index
             conn.execute("ALTER TABLE nodes ADD COLUMN depth INTEGER NOT NULL DEFAULT 0", [])?;
         }
+
+        // Migration: add columns for search operators
+        Self::migrate_add_column(&conn, "node_type", "TEXT DEFAULT 'bullet'")?;
+        Self::migrate_add_column(&conn, "is_checked", "INTEGER DEFAULT 0")?;
+        Self::migrate_add_column(&conn, "color", "TEXT")?;
+        Self::migrate_add_column(&conn, "date", "TEXT")?;
+        Self::migrate_add_column(&conn, "children_count", "INTEGER DEFAULT 0")?;
 
         Ok(Self {
             conn: Mutex::new(conn),
         })
+    }
+
+    /// Add a column to the nodes table if it doesn't already exist.
+    fn migrate_add_column(conn: &Connection, column: &str, definition: &str) -> SqliteResult<()> {
+        let check_sql = format!("SELECT {} FROM nodes LIMIT 1", column);
+        if conn.prepare(&check_sql).is_err() {
+            let alter_sql = format!("ALTER TABLE nodes ADD COLUMN {} {}", column, definition);
+            conn.execute(&alter_sql, [])?;
+        }
+        Ok(())
     }
 
     /// Index a document's nodes (replaces any existing entries for that document)
@@ -136,16 +156,24 @@ impl SearchIndex {
         )?;
 
         // Build a map of node_id -> node for depth calculation
-        let node_map: std::collections::HashMap<_, _> = nodes
+        let node_map: HashMap<_, _> = nodes
             .iter()
             .map(|n| (n.id, n))
             .collect();
 
+        // Compute children counts
+        let mut children_count: HashMap<Uuid, i32> = HashMap::new();
+        for node in nodes {
+            if let Some(parent_id) = node.parent_id {
+                *children_count.entry(parent_id).or_insert(0) += 1;
+            }
+        }
+
         // Compute depth for a node (memoized via cache)
         fn compute_depth(
             node_id: Uuid,
-            node_map: &std::collections::HashMap<Uuid, &Node>,
-            depth_cache: &mut std::collections::HashMap<Uuid, i32>,
+            node_map: &HashMap<Uuid, &Node>,
+            depth_cache: &mut HashMap<Uuid, i32>,
         ) -> i32 {
             if let Some(&cached) = depth_cache.get(&node_id) {
                 return cached;
@@ -161,14 +189,15 @@ impl SearchIndex {
             depth
         }
 
-        let mut depth_cache = std::collections::HashMap::new();
+        let mut depth_cache = HashMap::new();
 
         // Insert new entries
         {
             let mut stmt = tx.prepare(
                 r#"
-                INSERT INTO nodes (id, document_id, parent_id, depth, content, note, tags, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO nodes (id, document_id, parent_id, depth, content, note, tags,
+                    created_at, updated_at, node_type, is_checked, color, date, children_count)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 "#,
             )?;
 
@@ -180,6 +209,8 @@ impl SearchIndex {
                 };
 
                 let depth = compute_depth(node.id, &node_map, &mut depth_cache);
+                let node_type_str = node_type_to_str(&node.node_type);
+                let child_count = children_count.get(&node.id).copied().unwrap_or(0);
 
                 stmt.execute(params![
                     node.id.to_string(),
@@ -191,6 +222,11 @@ impl SearchIndex {
                     tags_str,
                     node.created_at.to_rfc3339(),
                     node.updated_at.to_rfc3339(),
+                    node_type_str,
+                    node.is_checked as i32,
+                    node.color,
+                    node.date,
+                    child_count,
                 ])?;
             }
         }
@@ -199,7 +235,16 @@ impl SearchIndex {
         Ok(())
     }
 
-    /// Search for nodes matching a query
+    /// Search for nodes matching a query, with support for structured operators.
+    ///
+    /// The query string can contain:
+    /// - Plain text terms (passed to FTS5)
+    /// - `is:completed`, `is:heading`, etc. (structural filters)
+    /// - `has:date`, `has:note`, `has:children`, `has:color` (presence filters)
+    /// - `color:red` (value filters)
+    /// - `in:title`, `in:note` (scope filters)
+    /// - `edited:today`, `created:-7d` (date range filters)
+    /// - `OR`, `-term`, `"exact phrase"` (boolean operators)
     pub fn search(
         &self,
         query: &str,
@@ -208,80 +253,171 @@ impl SearchIndex {
     ) -> SqliteResult<Vec<SearchResult>> {
         let conn = self.conn.lock().unwrap();
 
-        // Escape query for FTS5 (wrap words in quotes for phrase matching)
-        let escaped_query = escape_fts_query(query);
+        let parsed = parse_query(query);
+        let has_text = parsed.has_text();
+        let has_filters = !parsed.filters.is_empty();
 
-        let sql = if document_id.is_some() {
-            r#"
-            SELECT
-                n.id,
-                n.document_id,
-                n.content,
-                n.note,
-                snippet(nodes_fts, 2, '<mark>', '</mark>', '...', 32) as snippet,
-                bm25(nodes_fts) as rank
-            FROM nodes_fts
-            JOIN nodes n ON nodes_fts.id = n.id
-            WHERE nodes_fts MATCH ?
-            AND n.document_id = ?
-            ORDER BY n.depth ASC, rank ASC
-            LIMIT ?
-            "#
+        // If no text and no filters, return empty
+        if !has_text && !has_filters {
+            return Ok(Vec::new());
+        }
+
+        let (filter_clauses, filter_params) = parsed.to_sql_filters();
+
+        // Build the query dynamically
+        let results = if has_text {
+            // FTS search + optional filters
+            let fts_query = parsed.to_fts_query();
+            self.search_with_fts(&conn, &fts_query, &filter_clauses, &filter_params, document_id, limit)?
         } else {
-            r#"
-            SELECT
-                n.id,
-                n.document_id,
-                n.content,
-                n.note,
-                snippet(nodes_fts, 2, '<mark>', '</mark>', '...', 32) as snippet,
-                bm25(nodes_fts) as rank
-            FROM nodes_fts
-            JOIN nodes n ON nodes_fts.id = n.id
-            WHERE nodes_fts MATCH ?
-            ORDER BY n.depth ASC, rank ASC
-            LIMIT ?
-            "#
+            // Filter-only search (no FTS needed)
+            self.search_filters_only(&conn, &filter_clauses, &filter_params, document_id, limit)?
         };
 
+        Ok(results)
+    }
+
+    /// Execute a search that combines FTS5 with SQL filters.
+    fn search_with_fts(
+        &self,
+        conn: &Connection,
+        fts_query: &str,
+        filter_clauses: &[String],
+        filter_params: &[String],
+        document_id: Option<&Uuid>,
+        limit: usize,
+    ) -> SqliteResult<Vec<SearchResult>> {
+        let mut where_parts = vec!["nodes_fts MATCH ?".to_string()];
+        let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        params_vec.push(Box::new(fts_query.to_string()));
+
+        if let Some(doc_id) = document_id {
+            where_parts.push("n.document_id = ?".to_string());
+            params_vec.push(Box::new(doc_id.to_string()));
+        }
+
+        for clause in filter_clauses {
+            where_parts.push(clause.clone());
+        }
+        for param in filter_params {
+            params_vec.push(Box::new(param.clone()));
+        }
+
+        params_vec.push(Box::new(limit as i64));
+
+        let where_clause = where_parts.join(" AND ");
+
+        let sql = format!(
+            r#"
+            SELECT
+                n.id,
+                n.document_id,
+                n.content,
+                n.note,
+                snippet(nodes_fts, 2, '<mark>', '</mark>', '...', 32) as snippet,
+                bm25(nodes_fts) as rank
+            FROM nodes_fts
+            JOIN nodes n ON nodes_fts.id = n.id
+            WHERE {}
+            ORDER BY n.depth ASC, rank ASC
+            LIMIT ?
+            "#,
+            where_clause
+        );
+
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+            params_vec.iter().map(|p| p.as_ref()).collect();
+
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(params_refs.as_slice(), |row| {
+            Ok(SearchResult {
+                node_id: row.get(0)?,
+                document_id: row.get(1)?,
+                content: row.get(2)?,
+                note: row.get(3)?,
+                snippet: row.get(4)?,
+                rank: row.get(5)?,
+            })
+        })?;
+
         let mut results = Vec::new();
-
-        if document_id.is_some() {
-            let doc_id_str = document_id.unwrap().to_string();
-            let mut stmt = conn.prepare(sql)?;
-            let rows = stmt.query_map(params![escaped_query, doc_id_str, limit as i64], |row| {
-                Ok(SearchResult {
-                    node_id: row.get(0)?,
-                    document_id: row.get(1)?,
-                    content: row.get(2)?,
-                    note: row.get(3)?,
-                    snippet: row.get(4)?,
-                    rank: row.get(5)?,
-                })
-            })?;
-
-            for result in rows {
-                if let Ok(r) = result {
-                    results.push(r);
-                }
+        for result in rows {
+            if let Ok(r) = result {
+                results.push(r);
             }
-        } else {
-            let mut stmt = conn.prepare(sql)?;
-            let rows = stmt.query_map(params![escaped_query, limit as i64], |row| {
-                Ok(SearchResult {
-                    node_id: row.get(0)?,
-                    document_id: row.get(1)?,
-                    content: row.get(2)?,
-                    note: row.get(3)?,
-                    snippet: row.get(4)?,
-                    rank: row.get(5)?,
-                })
-            })?;
+        }
 
-            for result in rows {
-                if let Ok(r) = result {
-                    results.push(r);
-                }
+        Ok(results)
+    }
+
+    /// Execute a filter-only search (no FTS text matching).
+    fn search_filters_only(
+        &self,
+        conn: &Connection,
+        filter_clauses: &[String],
+        filter_params: &[String],
+        document_id: Option<&Uuid>,
+        limit: usize,
+    ) -> SqliteResult<Vec<SearchResult>> {
+        let mut where_parts: Vec<String> = Vec::new();
+        let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+        if let Some(doc_id) = document_id {
+            where_parts.push("n.document_id = ?".to_string());
+            params_vec.push(Box::new(doc_id.to_string()));
+        }
+
+        for clause in filter_clauses {
+            where_parts.push(clause.clone());
+        }
+        for param in filter_params {
+            params_vec.push(Box::new(param.clone()));
+        }
+
+        params_vec.push(Box::new(limit as i64));
+
+        let where_clause = if where_parts.is_empty() {
+            "1=1".to_string()
+        } else {
+            where_parts.join(" AND ")
+        };
+
+        let sql = format!(
+            r#"
+            SELECT
+                n.id,
+                n.document_id,
+                n.content,
+                n.note,
+                SUBSTR(n.content, 1, 100) as snippet,
+                0.0 as rank
+            FROM nodes n
+            WHERE {}
+            ORDER BY n.depth ASC, n.updated_at DESC
+            LIMIT ?
+            "#,
+            where_clause
+        );
+
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+            params_vec.iter().map(|p| p.as_ref()).collect();
+
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(params_refs.as_slice(), |row| {
+            Ok(SearchResult {
+                node_id: row.get(0)?,
+                document_id: row.get(1)?,
+                content: row.get(2)?,
+                note: row.get(3)?,
+                snippet: row.get(4)?,
+                rank: row.get(5)?,
+            })
+        })?;
+
+        let mut results = Vec::new();
+        for result in rows {
+            if let Ok(r) = result {
+                results.push(r);
             }
         }
 
@@ -298,10 +434,13 @@ impl SearchIndex {
             Some(node.tags.join(" "))
         };
 
+        let node_type_str = node_type_to_str(&node.node_type);
+
         conn.execute(
             r#"
-            INSERT OR REPLACE INTO nodes (id, document_id, parent_id, content, note, tags, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO nodes (id, document_id, parent_id, content, note, tags,
+                created_at, updated_at, node_type, is_checked, color, date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
             params![
                 node.id.to_string(),
@@ -312,6 +451,10 @@ impl SearchIndex {
                 tags_str,
                 node.created_at.to_rfc3339(),
                 node.updated_at.to_rfc3339(),
+                node_type_str,
+                node.is_checked as i32,
+                node.color,
+                node.date,
             ],
         )?;
 
@@ -489,6 +632,16 @@ pub struct UnlinkedReference {
     pub content: String,
 }
 
+/// Convert a NodeType enum to its string representation for storage.
+fn node_type_to_str(node_type: &NodeType) -> &'static str {
+    match node_type {
+        NodeType::Bullet => "bullet",
+        NodeType::Checkbox => "checkbox",
+        NodeType::Heading => "heading",
+        NodeType::Numbered => "numbered",
+    }
+}
+
 /// Extract wiki-link target IDs from HTML content
 fn extract_wiki_links(html: &str) -> Vec<String> {
     let mut links = Vec::new();
@@ -545,7 +698,8 @@ fn strip_html(html: &str) -> String {
         .replace("&quot;", "\"")
 }
 
-/// Escape a query string for FTS5 matching
+/// Escape a query string for FTS5 matching (legacy, used by tests)
+#[allow(dead_code)]
 fn escape_fts_query(query: &str) -> String {
     // If query contains special FTS5 characters, wrap terms in quotes
     // Otherwise, use prefix matching with *
@@ -588,7 +742,12 @@ mod tests {
                 note TEXT,
                 tags TEXT,
                 created_at TEXT,
-                updated_at TEXT
+                updated_at TEXT,
+                node_type TEXT DEFAULT 'bullet',
+                is_checked INTEGER DEFAULT 0,
+                color TEXT,
+                date TEXT,
+                children_count INTEGER DEFAULT 0
             );
 
             CREATE VIRTUAL TABLE IF NOT EXISTS nodes_fts USING fts5(
@@ -692,5 +851,176 @@ mod tests {
         let results = index.search("apple", Some(&doc1_id), 10).unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].content.contains("pie"));
+    }
+
+    #[test]
+    fn test_search_is_completed() {
+        let (_tmp, index) = setup_test_index();
+        let doc_id = Uuid::new_v4();
+
+        let mut checked_node = Node::new("Buy groceries".to_string());
+        checked_node.node_type = NodeType::Checkbox;
+        checked_node.is_checked = true;
+
+        let mut unchecked_node = Node::new("Clean house".to_string());
+        unchecked_node.node_type = NodeType::Checkbox;
+
+        let plain_node = Node::new("Some note".to_string());
+
+        index.index_document(&doc_id, &[checked_node, unchecked_node, plain_node]).unwrap();
+
+        // is:completed should find only the checked node
+        let results = index.search("is:completed", None, 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].content.contains("groceries"));
+
+        // is:completed + text search
+        let results = index.search("is:completed groceries", None, 10).unwrap();
+        assert_eq!(results.len(), 1);
+
+        // -is:completed should find non-checked nodes
+        let results = index.search("-is:completed house", None, 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].content.contains("house"));
+    }
+
+    #[test]
+    fn test_search_is_heading() {
+        let (_tmp, index) = setup_test_index();
+        let doc_id = Uuid::new_v4();
+
+        let mut heading_node = Node::new("Project Overview".to_string());
+        heading_node.node_type = NodeType::Heading;
+
+        let plain_node = Node::new("Some detail".to_string());
+
+        index.index_document(&doc_id, &[heading_node, plain_node]).unwrap();
+
+        let results = index.search("is:heading", None, 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].content.contains("Overview"));
+    }
+
+    #[test]
+    fn test_search_has_date() {
+        let (_tmp, index) = setup_test_index();
+        let doc_id = Uuid::new_v4();
+
+        let mut dated_node = Node::new("Meeting tomorrow".to_string());
+        dated_node.date = Some("2026-03-10".to_string());
+
+        let plain_node = Node::new("Some thought".to_string());
+
+        index.index_document(&doc_id, &[dated_node, plain_node]).unwrap();
+
+        let results = index.search("has:date", None, 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].content.contains("Meeting"));
+    }
+
+    #[test]
+    fn test_search_has_note() {
+        let (_tmp, index) = setup_test_index();
+        let doc_id = Uuid::new_v4();
+
+        let mut node_with_note = Node::new("Important item".to_string());
+        node_with_note.note = Some("This has details".to_string());
+
+        let plain_node = Node::new("Simple item".to_string());
+
+        index.index_document(&doc_id, &[node_with_note, plain_node]).unwrap();
+
+        let results = index.search("has:note", None, 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].content.contains("Important"));
+    }
+
+    #[test]
+    fn test_search_has_children() {
+        let (_tmp, index) = setup_test_index();
+        let doc_id = Uuid::new_v4();
+
+        let parent_node = Node::new("Parent item".to_string());
+        let child_node = Node::new_child(parent_node.id, 0, "Child item".to_string());
+
+        index.index_document(&doc_id, &[parent_node, child_node]).unwrap();
+
+        let results = index.search("has:children", None, 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].content.contains("Parent"));
+    }
+
+    #[test]
+    fn test_search_color_filter() {
+        let (_tmp, index) = setup_test_index();
+        let doc_id = Uuid::new_v4();
+
+        let mut red_node = Node::new("Urgent task".to_string());
+        red_node.color = Some("red".to_string());
+
+        let mut blue_node = Node::new("Cool task".to_string());
+        blue_node.color = Some("blue".to_string());
+
+        let plain_node = Node::new("Normal task".to_string());
+
+        index.index_document(&doc_id, &[red_node, blue_node, plain_node]).unwrap();
+
+        // has:color should find both colored nodes
+        let results = index.search("has:color", None, 10).unwrap();
+        assert_eq!(results.len(), 2);
+
+        // color:red should find only the red node
+        let results = index.search("color:red", None, 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].content.contains("Urgent"));
+    }
+
+    #[test]
+    fn test_search_combined_filters_and_text() {
+        let (_tmp, index) = setup_test_index();
+        let doc_id = Uuid::new_v4();
+
+        let mut checked_dated = Node::new("Buy milk".to_string());
+        checked_dated.node_type = NodeType::Checkbox;
+        checked_dated.is_checked = true;
+        checked_dated.date = Some("2026-03-10".to_string());
+
+        let mut checked_no_date = Node::new("Buy bread".to_string());
+        checked_no_date.node_type = NodeType::Checkbox;
+        checked_no_date.is_checked = true;
+
+        let unchecked_dated = {
+            let mut n = Node::new("Buy eggs".to_string());
+            n.node_type = NodeType::Checkbox;
+            n.date = Some("2026-03-11".to_string());
+            n
+        };
+
+        index.index_document(&doc_id, &[checked_dated, checked_no_date, unchecked_dated]).unwrap();
+
+        // is:completed + has:date should find only the checked+dated node
+        let results = index.search("is:completed has:date", None, 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].content.contains("milk"));
+
+        // is:completed + text search
+        let results = index.search("is:completed buy", None, 10).unwrap();
+        assert_eq!(results.len(), 2); // milk and bread
+    }
+
+    #[test]
+    fn test_search_exact_phrase() {
+        let (_tmp, index) = setup_test_index();
+        let doc_id = Uuid::new_v4();
+
+        let node1 = Node::new("hello world test".to_string());
+        let node2 = Node::new("world hello different".to_string());
+
+        index.index_document(&doc_id, &[node1, node2]).unwrap();
+
+        // Exact phrase should only match the first node
+        let results = index.search("\"hello world\"", None, 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].content.contains("hello world"));
     }
 }
