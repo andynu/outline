@@ -1015,9 +1015,17 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      // Shift siblings after insertion point
-      for (let i = idx + 1; i < siblings.length; i++) {
-        await api.moveNode(siblings[i].id, node.parent_id, i + 1);
+      // Batch shift siblings after insertion point in a single IPC call
+      const now = new Date().toISOString();
+      const moveOps = siblings.slice(idx + 1).map((s, i) => ({
+        op: 'move' as const,
+        id: s.id,
+        parent_id: node.parent_id,
+        position: idx + 2 + i,
+        updated_at: now,
+      }));
+      if (moveOps.length > 0) {
+        await api.saveOps(moveOps);
       }
 
       const result = await api.createNode(node.parent_id, newPosition, '');
@@ -1054,9 +1062,17 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      // Shift current node and all siblings after it
-      for (let i = idx; i < siblings.length; i++) {
-        await api.moveNode(siblings[i].id, node.parent_id, i + 1);
+      // Batch shift current node and all siblings after it in a single IPC call
+      const now = new Date().toISOString();
+      const moveOps = siblings.slice(idx).map((s, i) => ({
+        op: 'move' as const,
+        id: s.id,
+        parent_id: node.parent_id,
+        position: idx + 1 + i,
+        updated_at: now,
+      }));
+      if (moveOps.length > 0) {
+        await api.saveOps(moveOps);
       }
 
       const result = await api.createNode(node.parent_id, idx, '');
@@ -1097,9 +1113,17 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       // Count top-level items to create
       const topLevelCount = items.filter(i => i.indent === 0).length;
 
-      // Shift siblings after insertion point
-      for (let i = anchorIdx + 1; i < siblings.length; i++) {
-        await api.moveNode(siblings[i].id, anchorNode.parent_id, siblings[i].position + topLevelCount);
+      // Batch shift siblings after insertion point
+      const now = new Date().toISOString();
+      const moveOps = siblings.slice(anchorIdx + 1).map(s => ({
+        op: 'move' as const,
+        id: s.id,
+        parent_id: anchorNode.parent_id,
+        position: s.position + topLevelCount,
+        updated_at: now,
+      }));
+      if (moveOps.length > 0) {
+        await api.saveOps(moveOps);
       }
 
       // Track the most recent node at each indent level
@@ -1188,17 +1212,32 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       // Update current node with "before" content
       await api.updateNode(nodeId, { content: beforeContent });
 
-      // Shift siblings after insertion point
-      for (let i = idx + 1; i < siblings.length; i++) {
-        await api.moveNode(siblings[i].id, node.parent_id, i + 1);
+      // Batch shift siblings after insertion point
+      const now = new Date().toISOString();
+      const siblingMoveOps = siblings.slice(idx + 1).map((s, i) => ({
+        op: 'move' as const,
+        id: s.id,
+        parent_id: node.parent_id,
+        position: idx + 2 + i,
+        updated_at: now,
+      }));
+      if (siblingMoveOps.length > 0) {
+        await api.saveOps(siblingMoveOps);
       }
 
       // Create new node with "after" content
       const result = await api.createNode(node.parent_id, newPosition, afterContent);
 
-      // Move children from original node to new node
-      for (let i = 0; i < children.length; i++) {
-        await api.moveNode(children[i].id, result.id, i);
+      // Batch move children from original node to new node
+      const childMoveOps = children.map((child, i) => ({
+        op: 'move' as const,
+        id: child.id,
+        parent_id: result.id,
+        position: i,
+        updated_at: now,
+      }));
+      if (childMoveOps.length > 0) {
+        await api.saveOps(childMoveOps);
       }
 
       // Reload to get final state after all moves
@@ -1282,11 +1321,19 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       const mergedContent = node.content + nextSibling.content;
       await api.updateNode(nodeId, { content: mergedContent });
 
-      // Move next sibling's children to current node (after current's children)
+      // Batch move next sibling's children to current node (after current's children)
       const currentChildren = childrenOf(nodeId);
       const nextChildren = childrenOf(nextSibling.id);
-      for (let i = 0; i < nextChildren.length; i++) {
-        await api.moveNode(nextChildren[i].id, nodeId, currentChildren.length + i);
+      const now = new Date().toISOString();
+      const childMoveOps = nextChildren.map((child, i) => ({
+        op: 'move' as const,
+        id: child.id,
+        parent_id: nodeId,
+        position: currentChildren.length + i,
+        updated_at: now,
+      }));
+      if (childMoveOps.length > 0) {
+        await api.saveOps(childMoveOps);
       }
 
       // Delete the next sibling (now empty)
@@ -1361,11 +1408,19 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       const mergedContent = prevSibling.content + node.content;
       await api.updateNode(prevSibling.id, { content: mergedContent });
 
-      // Move current node's children to previous sibling (after prev's children)
+      // Batch move current node's children to previous sibling (after prev's children)
       const prevChildren = childrenOf(prevSibling.id);
       const currentChildren = childrenOf(nodeId);
-      for (let i = 0; i < currentChildren.length; i++) {
-        await api.moveNode(currentChildren[i].id, prevSibling.id, prevChildren.length + i);
+      const now = new Date().toISOString();
+      const childMoveOps = currentChildren.map((child, i) => ({
+        op: 'move' as const,
+        id: child.id,
+        parent_id: prevSibling.id,
+        position: prevChildren.length + i,
+        updated_at: now,
+      }));
+      if (childMoveOps.length > 0) {
+        await api.saveOps(childMoveOps);
       }
 
       // Delete the current node (now empty)
@@ -1915,9 +1970,12 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      // Swap positions
-      await api.moveNode(nodeId, node.parent_id, prevNodeOldPosition);
-      const state = await api.moveNode(prevNode.id, prevNode.parent_id, nodeOldPosition);
+      // Swap positions in a single batch IPC call
+      const now = new Date().toISOString();
+      const state = await api.saveOps([
+        { op: 'move', id: nodeId, parent_id: node.parent_id, position: prevNodeOldPosition, updated_at: now },
+        { op: 'move', id: prevNode.id, parent_id: prevNode.parent_id, position: nodeOldPosition, updated_at: now },
+      ]);
       updateFromState(state);
 
       // Push undo entry - undo swaps them back to original positions
@@ -1958,9 +2016,12 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      // Swap positions
-      await api.moveNode(nodeId, node.parent_id, nextNodeOldPosition);
-      const state = await api.moveNode(nextNode.id, nextNode.parent_id, nodeOldPosition);
+      // Swap positions in a single batch IPC call
+      const now = new Date().toISOString();
+      const state = await api.saveOps([
+        { op: 'move', id: nodeId, parent_id: node.parent_id, position: nextNodeOldPosition, updated_at: now },
+        { op: 'move', id: nextNode.id, parent_id: nextNode.parent_id, position: nodeOldPosition, updated_at: now },
+      ]);
       updateFromState(state);
 
       // Push undo entry - undo swaps them back to original positions
@@ -2396,14 +2457,22 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       let newParentId: string | null;
       let newPosition: number;
 
+      const batchNow = new Date().toISOString();
       if (asChild) {
         // Drop as first child of target
         newParentId = targetId;
         newPosition = 0;
-        // Shift existing children down
+        // Batch shift existing children down
         const existingChildren = childrenOf(targetId);
-        for (const child of existingChildren) {
-          await api.moveNode(child.id, newParentId, child.position + 1);
+        const shiftOps = existingChildren.map(child => ({
+          op: 'move' as const,
+          id: child.id,
+          parent_id: newParentId,
+          position: child.position + 1,
+          updated_at: batchNow,
+        }));
+        if (shiftOps.length > 0) {
+          await api.saveOps(shiftOps);
         }
       } else {
         // Drop as sibling after target
@@ -2411,11 +2480,18 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         const siblings = newParentId === null ? rootNodes() : childrenOf(newParentId);
         const targetIdx = siblings.findIndex(n => n.id === targetId);
         newPosition = targetIdx + 1;
-        // Shift siblings after insertion point
-        for (let i = targetIdx + 1; i < siblings.length; i++) {
-          if (siblings[i].id !== nodeIdToDrop) {
-            await api.moveNode(siblings[i].id, newParentId, siblings[i].position + 1);
-          }
+        // Batch shift siblings after insertion point
+        const shiftOps = siblings.slice(targetIdx + 1)
+          .filter(s => s.id !== nodeIdToDrop)
+          .map(s => ({
+            op: 'move' as const,
+            id: s.id,
+            parent_id: newParentId,
+            position: s.position + 1,
+            updated_at: batchNow,
+          }));
+        if (shiftOps.length > 0) {
+          await api.saveOps(shiftOps);
         }
       }
 
@@ -2573,13 +2649,15 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
           return true;
         }
         case 'swap': {
-          // Swap two nodes' positions
+          // Swap two nodes' positions in a single batch
           const node = _nodesById.get(action.id);
           const otherNode = _nodesById.get(action.otherId);
           if (!node || !otherNode) return false;
-          // Move both nodes to their target positions
-          await api.moveNode(action.id, node.parent_id, action.position);
-          const state = await api.moveNode(action.otherId, otherNode.parent_id, action.otherPosition);
+          const now = new Date().toISOString();
+          const state = await api.saveOps([
+            { op: 'move', id: action.id, parent_id: node.parent_id, position: action.position, updated_at: now },
+            { op: 'move', id: action.otherId, parent_id: otherNode.parent_id, position: action.otherPosition, updated_at: now },
+          ]);
           updateFromState(state);
           return true;
         }
@@ -3066,15 +3144,20 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         nodesByParent.get(parentId)!.push(node);
       }
 
-      // Move each group to top of its parent's children
+      // Batch move each group to top of its parent's children
+      const batchNow = new Date().toISOString();
+      const allOps: Array<{ op: 'move'; id: string; parent_id: string | null; position: number; updated_at: string }> = [];
       for (const [parentId, nodes] of nodesByParent) {
         // Sort nodes by their current position to maintain relative order
         nodes.sort((a, b) => a.position - b.position);
 
         // Move each node to top, in reverse order to maintain relative order
         for (let i = nodes.length - 1; i >= 0; i--) {
-          await api.moveNode(nodes[i].id, parentId, 0);
+          allOps.push({ op: 'move', id: nodes[i].id, parent_id: parentId, position: 0, updated_at: batchNow });
         }
+      }
+      if (allOps.length > 0) {
+        await api.saveOps(allOps);
       }
 
       // Reload state
@@ -3116,9 +3199,17 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         const siblings = parentId === null ? rootNodes() : childrenOf(parentId);
         let bottomPosition = siblings.length;
 
-        // Move each node to bottom
-        for (const node of nodes) {
-          await api.moveNode(node.id, parentId, bottomPosition);
+        // Batch move each node to bottom
+        const batchNow = new Date().toISOString();
+        const moveOps = nodes.map((node, i) => ({
+          op: 'move' as const,
+          id: node.id,
+          parent_id: parentId,
+          position: bottomPosition + i,
+          updated_at: batchNow,
+        }));
+        if (moveOps.length > 0) {
+          await api.saveOps(moveOps);
         }
       }
 
@@ -3303,12 +3394,18 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       const { id: newParentId, state: newParentState } = await api.createNode(parentId, firstPosition, '');
       updateFromState(newParentState);
 
-      // 2. Move each selected item under the new parent
-      let lastState = newParentState;
-      for (let i = 0; i < selectedNodes.length; i++) {
-        const node = selectedNodes[i];
-        lastState = await api.moveNode(node.id, newParentId, i);
-      }
+      // 2. Batch move each selected item under the new parent
+      const batchNow = new Date().toISOString();
+      const moveOps = selectedNodes.map((node, i) => ({
+        op: 'move' as const,
+        id: node.id,
+        parent_id: newParentId,
+        position: i,
+        updated_at: batchNow,
+      }));
+      const lastState = moveOps.length > 0
+        ? await api.saveOps(moveOps)
+        : newParentState;
 
       updateFromState(lastState);
 
@@ -3347,18 +3444,21 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      let lastState: DocumentState | null = null;
+      // Batch move nodes to their new positions
+      const batchNow = new Date().toISOString();
+      const moveOps = sortedNodes
+        .map((node, i) => ({ node, newPosition: originalPositions[i] }))
+        .filter(({ node, newPosition }) => node.position !== newPosition)
+        .map(({ node, newPosition }) => ({
+          op: 'move' as const,
+          id: node.id,
+          parent_id: node.parent_id,
+          position: newPosition,
+          updated_at: batchNow,
+        }));
 
-      // Move each node to its new position
-      for (let i = 0; i < sortedNodes.length; i++) {
-        const node = sortedNodes[i];
-        const newPosition = originalPositions[i];
-        if (node.position !== newPosition) {
-          lastState = await api.moveNode(node.id, node.parent_id, newPosition);
-        }
-      }
-
-      if (lastState) {
+      if (moveOps.length > 0) {
+        const lastState = await api.saveOps(moveOps);
         updateFromState(lastState);
       }
       return true;

@@ -128,6 +128,30 @@ pub fn save_op(state: State<AppState>, op: Operation) -> Result<DocumentState, S
     Ok(doc.state.clone())
 }
 
+/// Save multiple operations to the current document in a single batch.
+/// All operations are appended and applied with a single lock acquisition,
+/// avoiding O(n) IPC round-trips for bulk operations like sibling reordering.
+#[tauri::command]
+pub fn save_ops(state: State<AppState>, ops: Vec<Operation>) -> Result<DocumentState, String> {
+    let mut current = state.current_document.lock().unwrap();
+    let doc = current.as_mut().ok_or("No document loaded")?;
+
+    for op in &ops {
+        doc.append_op(op)?;
+        op.apply(&mut doc.state);
+    }
+
+    // Auto-compact if threshold reached (1000 ops or 1MB)
+    if doc.should_auto_compact() {
+        log::info!("Auto-compacting document...");
+        if let Err(e) = doc.compact() {
+            log::error!("Auto-compact failed: {}", e);
+        }
+    }
+
+    Ok(doc.state.clone())
+}
+
 /// Create a new node (convenience command that wraps save_op)
 #[tauri::command]
 pub fn create_node(

@@ -211,6 +211,33 @@ export async function saveOp(op: Operation): Promise<DocumentState> {
   return mockState;
 }
 
+// Save multiple operations in a single batch (avoids O(n) IPC round-trips)
+export async function saveOps(ops: Operation[]): Promise<DocumentState> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('save_ops', { ops }) as Promise<DocumentState>;
+  }
+  // Browser-only mode: apply operations in memory
+  for (const op of ops) {
+    if (op.op === 'move') {
+      mockState.nodes = mockState.nodes.map(n => {
+        if (n.id === op.id) {
+          return { ...n, parent_id: op.parent_id, position: op.position, updated_at: new Date().toISOString() };
+        }
+        return n;
+      });
+    } else if (op.op === 'update' && 'changes' in op) {
+      mockState.nodes = mockState.nodes.map(n => {
+        if (n.id === op.id) {
+          return { ...n, ...op.changes, updated_at: new Date().toISOString() };
+        }
+        return n;
+      });
+    }
+  }
+  return { nodes: [...mockState.nodes] };
+}
+
 // Create a new node
 export async function createNode(
   parentId: string | null,
