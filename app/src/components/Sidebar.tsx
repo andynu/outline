@@ -15,6 +15,7 @@ import {
   type FolderState,
 } from '../lib/api';
 import { RenameModal } from './ui/RenameModal';
+import { useOutlineStore } from '../store/outlineStore';
 import { closeAllContextMenus, CLOSE_ALL_CONTEXT_MENUS } from './ui/ContextMenu';
 import { showToast } from '../store/toastStore';
 import { useSettingsStore } from '../store/settingsStore';
@@ -222,10 +223,16 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
 
   const handleRenameDocClick = useCallback(() => {
     if (contextMenuTarget?.type === 'document') {
-      setRenameDoc(contextMenuTarget.doc);
+      const doc = contextMenuTarget.doc;
       setContextMenuTarget(null);
+      // If renaming the currently-loaded document, focus the title editor instead of opening modal
+      if (doc.id === currentDocumentId) {
+        useOutlineStore.getState().requestTitleFocus();
+      } else {
+        setRenameDoc(doc);
+      }
     }
-  }, [contextMenuTarget]);
+  }, [contextMenuTarget, currentDocumentId]);
 
   const handleRenameFolderClick = useCallback(() => {
     if (contextMenuTarget?.type === 'folder') {
