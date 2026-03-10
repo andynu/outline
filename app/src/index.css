@@ -36,9 +36,32 @@ body {
   z-index: 100;
 }
 
+/* Document title header */
+.document-title-header {
+  padding: 16px 0 4px;
+  position: relative;
+}
+.document-title-editor .ProseMirror,
+.document-title-editor-inner {
+  font-size: 1.4em;
+  font-weight: 600;
+  outline: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+.document-title-editor .ProseMirror:focus,
+.document-title-editor-inner:focus {
+  background: var(--bg-tertiary);
+}
+.document-title-editor .ProseMirror p,
+.document-title-editor-inner p {
+  margin: 0;
+}
+
 /* Outline styles */
 .outline-container {
-  margin-top: 20px;
+  margin-top: 8px;
 }
 
 .outline-item {

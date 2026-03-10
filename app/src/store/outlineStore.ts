@@ -75,6 +75,7 @@ interface OutlineState {
   documentId: string | null;  // Currently loaded document ID
   docPrefix: string | null;  // Document prefix for short IDs (e.g., "inbox")
   keyboardMode: 'edit' | 'navigate';  // edit = TipTap active, navigate = item-level operations
+  titleFocusRequested: boolean;  // Flag to request focus on the document title editor
   _selectionAnchorId: string | null;  // Anchor for Shift+Arrow selection extension
 
   // Zoom navigation history
@@ -114,6 +115,8 @@ interface OutlineState {
   enterNavigateMode: () => void;
   enterEditMode: (nodeId?: string) => void;
   extendSelection: (direction: 'up' | 'down') => void;
+  requestTitleFocus: () => void;
+  clearTitleFocusRequest: () => void;
 
   // Computed
   getTree: () => TreeNode[];
@@ -479,6 +482,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   documentId: null,
   docPrefix: null,
   keyboardMode: 'edit' as const,
+  titleFocusRequested: false,
   _selectionAnchorId: null,
   _zoomHistoryBack: [],
   _zoomHistoryForward: [],
@@ -690,6 +694,14 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     set(updates);
   },
 
+  requestTitleFocus: () => {
+    set({ titleFocusRequested: true, focusedId: null });
+  },
+
+  clearTitleFocusRequest: () => {
+    set({ titleFocusRequested: false });
+  },
+
   extendSelection: (direction: 'up' | 'down') => {
     const { focusedId, _selectionAnchorId, getVisibleNodes } = get();
     if (!focusedId) return;
@@ -760,8 +772,11 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   getVisibleNodes: () => {
+    const { zoomedNodeId } = get();
     const tree = get().getTree();
-    return getVisibleNodesFromTree(tree);
+    // When not zoomed, skip the title node (first root item) since it has its own editor
+    const effectiveTree = !zoomedNodeId && tree.length > 0 ? tree.slice(1) : tree;
+    return getVisibleNodesFromTree(effectiveTree);
   },
 
   getNode: (id) => get()._nodesById.get(id),
@@ -843,6 +858,10 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       const newId = visible[idx - 1].id;
       set({ focusedId: newId });
       return newId;
+    }
+    // At the first visible item — request focus on title editor
+    if (idx === 0) {
+      get().requestTitleFocus();
     }
     return null;
   },

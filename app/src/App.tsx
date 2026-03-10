@@ -24,6 +24,7 @@ import { ZoomBreadcrumbs } from './components/ui/ZoomBreadcrumbs';
 import { BacklinksPanel } from './components/ui/BacklinksPanel';
 import { NoteEditor } from './components/NoteEditor';
 import { ArticleView } from './components/ArticleView';
+import { DocumentTitle } from './components/DocumentTitle';
 import { loadSessionState, saveSessionState } from './lib/sessionState';
 import type { Node, TreeNode } from './lib/types';
 import * as api from './lib/api';
@@ -1533,18 +1534,26 @@ function App() {
                   {isArticleView ? (
                     <ArticleView tree={articleTree} />
                   ) : (
-                    <div className="outline-container">
-                      {tree.map(item => (
-                        <TreeItemRenderer
-                          key={item.node.id}
-                          item={item}
-                          onOpenBulkQuickMove={() => {
-                            setQuickMoveBulkMode(true);
-                            setShowQuickMove(true);
-                          }}
+                    <>
+                      {!zoomedNodeId && tree.length > 0 && (
+                        <DocumentTitle
+                          node={tree[0].node}
+                          onTitleChange={() => sidebarRef.current?.refresh()}
                         />
-                      ))}
-                    </div>
+                      )}
+                      <div className="outline-container">
+                        {(zoomedNodeId ? tree : tree.slice(1)).map(item => (
+                          <TreeItemRenderer
+                            key={item.node.id}
+                            item={item}
+                            onOpenBulkQuickMove={() => {
+                              setQuickMoveBulkMode(true);
+                              setShowQuickMove(true);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </>
                   )}
                   <BacklinksPanel
                     nodeId={focusedId}
