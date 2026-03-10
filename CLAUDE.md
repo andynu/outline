@@ -65,6 +65,55 @@ cargo test           # Run Rust tests
 cargo check          # Type check without building
 ```
 
+### Outline CLI (`otl`)
+
+The `otl` command provides direct access to Outline data without the desktop app. Use it to look up nodes, search, and perform CRUD operations. **When the user references a node by short ID (e.g., "outline-q4jo"), use `otl doc show` to look it up directly.**
+
+```bash
+# Browsing & lookup
+otl doc list                          # List all documents with short IDs
+otl doc show <short-id>               # Show a node and its subtree (e.g., otl doc show outline-q4jo)
+otl doc show <doc-prefix>             # Show entire document tree (e.g., otl doc show outline)
+otl doc show <short-id> --json        # Machine-readable output with full node data
+
+# Search
+otl search "query"                    # FTS5 search across all documents
+otl search "is:completed has:date"    # Search with operators
+otl backlinks <short-id>              # Find nodes linking to this node
+
+# Node CRUD (positional args, not flags)
+otl node create <parent-id> "content" # Create child node under parent
+otl node create <parent-id> "content" --type checkbox  # Create as checkbox
+otl node create <parent-id> "content" --note "extra"   # With note text
+otl node update --check <short-id>    # Check/uncheck a checkbox
+otl node update --content "new" <id>  # Update content
+otl node move <id> <new-parent> <pos> # Move node in hierarchy
+otl node delete <short-id>            # Delete node and descendants
+
+# Capture (direct node creation, bypasses inbox.jsonl)
+otl capture "content"                 # Capture to default target
+otl capture "content" --to <target>   # Capture to named target
+otl capture "content" --note "extra"  # With note text
+otl capture "content" --type checkbox # Create as checkbox
+otl capture "a" "b" "c"              # Multiple items at once
+echo "text" | otl capture --stdin     # Read from stdin
+
+# Capture targets
+otl target list                       # List capture targets
+otl target add <name> --node <id>     # Add target (auto-infers doc)
+otl target remove <name>              # Remove target
+otl target set-default <name>         # Set default target
+
+# Other
+otl inbox list                        # List inbox items
+otl export markdown <doc-id>          # Export document
+otl compact                           # Merge pending ops into state.json
+```
+
+**Short IDs** use `<doc-prefix>-<4char>` format (e.g., `outline-q4jo`). The doc prefix comes from the document name. Use `otl doc show <short-id>` as the primary way to navigate — it shows the node and its full subtree with short IDs on each line.
+
+Add `--json` to any command for machine-readable output (useful for parsing with scripts or piping to jq).
+
 ### Thin Server (server/)
 
 ```bash
