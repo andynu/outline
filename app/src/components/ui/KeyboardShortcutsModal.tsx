@@ -102,6 +102,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
               <li><kbd>Ctrl+]</kbd> Zoom into subtree</li>
               <li><kbd>Ctrl+[</kbd> Zoom out</li>
               <li><kbd>Esc</kbd> Exit zoom</li>
+              <li><kbd>Ctrl+Shift+Enter</kbd> Edit note (full editor)</li>
               <li><kbd>Alt+Left</kbd> Zoom history back</li>
               <li><kbd>Alt+Right</kbd> Zoom history forward</li>
             </ul>

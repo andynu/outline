@@ -247,6 +247,8 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
       { label: 'Zoom In', action: () => s.zoomTo(node.id), shortcut: 'Ctrl+]', disabled: !hasChildren },
       { label: 'Zoom Out', action: () => s.zoomToParent(), shortcut: 'Ctrl+[' },
       { separator: true as const },
+      { label: 'Edit Note', action: () => s.openNoteEditor(node.id), shortcut: 'Ctrl+Shift+Enter' },
+      { separator: true as const },
       { label: 'Indent', action: () => s.indentNode(node.id), shortcut: 'Tab' },
       { label: 'Outdent', action: () => s.outdentNode(node.id), shortcut: 'Shift+Tab' },
       { separator: true as const },

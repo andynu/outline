@@ -87,6 +87,7 @@ export const OutlineItem = memo(function OutlineItem({
   const moveToLast = useOutlineStore(state => state.moveToLast);
   const zoomTo = useOutlineStore(state => state.zoomTo);
   const zoomToParent = useOutlineStore(state => state.zoomToParent);
+  const openNoteEditor = useOutlineStore(state => state.openNoteEditor);
   const selectedIds = useOutlineStore(state => state.selectedIds);
   const toggleSelection = useOutlineStore(state => state.toggleSelection);
   const selectRange = useOutlineStore(state => state.selectRange);
@@ -1294,6 +1295,12 @@ export const OutlineItem = memo(function OutlineItem({
     },
     { separator: true as const },
     {
+      label: 'Edit Note',
+      action: () => openNoteEditor(node.id),
+      shortcut: 'Ctrl+Shift+Enter',
+    },
+    { separator: true as const },
+    {
       label: 'Indent',
       action: () => indentNode(node.id),
       shortcut: 'Tab',
@@ -1362,7 +1369,7 @@ export const OutlineItem = memo(function OutlineItem({
       action: () => deleteNode(node.id),
       shortcut: 'Ctrl+Shift+Backspace',
     },
-  ], [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.date, node.date_end, node.defer_date, node.color, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, setNodeTypeTo, setHeadingLevel, clearHeading, toggleCollapse, zoomTo, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch, contextMenuPosition, setNodeColor]);
+  ], [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.date, node.date_end, node.defer_date, node.color, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, setNodeTypeTo, setHeadingLevel, clearHeading, toggleCollapse, zoomTo, openNoteEditor, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch, contextMenuPosition, setNodeColor]);
 
   // Multi-selection context menu (shown when multiple items are selected)
   const bulkContextMenuItems = useMemo(() => {

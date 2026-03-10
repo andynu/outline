@@ -21,6 +21,7 @@ import { useSettingsStore } from './store/settingsStore';
 import { FilterBar } from './components/ui/FilterBar';
 import { ZoomBreadcrumbs } from './components/ui/ZoomBreadcrumbs';
 import { BacklinksPanel } from './components/ui/BacklinksPanel';
+import { NoteEditor } from './components/NoteEditor';
 import { loadSessionState, saveSessionState } from './lib/sessionState';
 import type { InboxItem } from './lib/api';
 import type { Node, TreeNode } from './lib/types';
@@ -206,6 +207,9 @@ function App() {
   const zoomReset = useOutlineStore(state => state.zoomReset);
   const zoomToParent = useOutlineStore(state => state.zoomToParent);
   const zoomTo = useOutlineStore(state => state.zoomTo);
+  const noteEditorNodeId = useOutlineStore(state => state.noteEditorNodeId);
+  const openNoteEditor = useOutlineStore(state => state.openNoteEditor);
+  const closeNoteEditor = useOutlineStore(state => state.closeNoteEditor);
   const zoomGoBack = useOutlineStore(state => state.zoomGoBack);
   const zoomGoForward = useOutlineStore(state => state.zoomGoForward);
   const canZoomGoBack = useOutlineStore(state => state.canZoomGoBack);
@@ -1093,7 +1097,14 @@ function App() {
         return;
       }
 
-      // Escape clears selection, filter, or exits zoom (when no modal is open)
+      // Ctrl+Shift+Enter : open note editor for focused node
+      if (mod && event.shiftKey && event.key === 'Enter' && focusedId && selectedIds.size === 0) {
+        event.preventDefault();
+        openNoteEditor(focusedId);
+        return;
+      }
+
+      // Escape clears selection, filter, note editor, or exits zoom (when no modal is open)
       if (event.key === 'Escape' && !showSearchModal && !showQuickNavigator && !showQuickMove && !showQuickCapture && !showDateViews && !showTodayPanel && !showTagsPanel && !showInboxPanel && !showKeyboardShortcuts && !showSettings) {
         // First clear selection if any, then filter, then zoom
         if (selectedIds.size > 0) {
@@ -1132,7 +1143,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
@@ -1393,31 +1404,40 @@ function App() {
 
         {/* Main Content Area */}
         <main className="content-area" ref={contentAreaRef}>
-          <ZoomBreadcrumbs />
-          <FilterBar />
-          {loading ? (
-            <div className="loading">Loading...</div>
-          ) : error ? (
-            <div className="error">Error: {error}</div>
+          {noteEditorNodeId ? (
+            <NoteEditor
+              nodeId={noteEditorNodeId}
+              onClose={closeNoteEditor}
+            />
           ) : (
             <>
-              <div className="outline-container">
-                {tree.map(item => (
-                  <TreeItemRenderer
-                    key={item.node.id}
-                    item={item}
-                    onOpenBulkQuickMove={() => {
-                      setQuickMoveBulkMode(true);
-                      setShowQuickMove(true);
-                    }}
+              <ZoomBreadcrumbs />
+              <FilterBar />
+              {loading ? (
+                <div className="loading">Loading...</div>
+              ) : error ? (
+                <div className="error">Error: {error}</div>
+              ) : (
+                <>
+                  <div className="outline-container">
+                    {tree.map(item => (
+                      <TreeItemRenderer
+                        key={item.node.id}
+                        item={item}
+                        onOpenBulkQuickMove={() => {
+                          setQuickMoveBulkMode(true);
+                          setShowQuickMove(true);
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <BacklinksPanel
+                    nodeId={focusedId}
+                    nodeContent={focusedNodeContent}
+                    onNavigate={handleBacklinksNavigate}
                   />
-                ))}
-              </div>
-              <BacklinksPanel
-                nodeId={focusedId}
-                nodeContent={focusedNodeContent}
-                onNavigate={handleBacklinksNavigate}
-              />
+                </>
+              )}
             </>
           )}
         </main>

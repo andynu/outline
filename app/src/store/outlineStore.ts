@@ -70,6 +70,7 @@ interface OutlineState {
   hideDeferred: boolean;
   filterQuery: string | null;  // Hashtag filter, e.g., "#project"
   zoomedNodeId: string | null;  // Subtree zoom - show only this node's children
+  noteEditorNodeId: string | null;  // Node whose note is open in full-screen editor
   draggedId: string | null;  // Currently dragged node ID
   docPrefix: string | null;  // Document prefix for short IDs (e.g., "inbox")
 
@@ -105,6 +106,8 @@ interface OutlineState {
   canZoomGoBack: () => boolean;
   canZoomGoForward: () => boolean;
   getZoomBreadcrumbs: () => { id: string | null; title: string }[];
+  openNoteEditor: (nodeId: string) => void;
+  closeNoteEditor: () => void;
 
   // Computed
   getTree: () => TreeNode[];
@@ -456,6 +459,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     : false,
   filterQuery: null,
   zoomedNodeId: null,
+  noteEditorNodeId: null,
   draggedId: null,
   docPrefix: null,
   _zoomHistoryBack: [],
@@ -643,6 +647,14 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     breadcrumbs.unshift({ id: null, title: 'Home' });
 
     return breadcrumbs;
+  },
+
+  openNoteEditor: (nodeId: string) => {
+    set({ noteEditorNodeId: nodeId });
+  },
+
+  closeNoteEditor: () => {
+    set({ noteEditorNodeId: null });
   },
 
   // === Computed getters ===
