@@ -72,6 +72,7 @@ interface OutlineState {
   zoomedNodeId: string | null;  // Subtree zoom - show only this node's children
   noteEditorNodeId: string | null;  // Node whose note is open in full-screen editor
   draggedId: string | null;  // Currently dragged node ID
+  documentId: string | null;  // Currently loaded document ID
   docPrefix: string | null;  // Document prefix for short IDs (e.g., "inbox")
   keyboardMode: 'edit' | 'navigate';  // edit = TipTap active, navigate = item-level operations
   _selectionAnchorId: string | null;  // Anchor for Shift+Arrow selection extension
@@ -469,6 +470,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   zoomedNodeId: null,
   noteEditorNodeId: null,
   draggedId: null,
+  documentId: null,
   docPrefix: null,
   keyboardMode: 'edit' as const,
   _selectionAnchorId: null,
@@ -501,6 +503,9 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       _nodesById: nodesById,
       _childrenByParent: childrenByParent,
     };
+    if (state.doc_id) {
+      updates.documentId = state.doc_id;
+    }
     if (state.doc_prefix) {
       updates.docPrefix = state.doc_prefix;
     }

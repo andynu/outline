@@ -27,6 +27,7 @@ import { RecurrencePicker, type RecurrenceMode } from './ui/RecurrencePicker';
 import { formatDateRelative, formatDateRange } from '../lib/dateUtils';
 import { looksLikeMarkdownList, parseMarkdownList } from '../lib/markdownPaste';
 import { NODE_COLORS, getColorCss } from '../lib/colorPalette';
+import { useBookmarkStore } from '../store/bookmarkStore';
 
 interface OutlineItemProps {
   item: TreeNode;
@@ -1160,6 +1161,9 @@ export const OutlineItem = memo(function OutlineItem({
     }
   }, [node.content]);
 
+  const documentId = useOutlineStore(state => state.documentId);
+  const isBookmarked = useBookmarkStore(state => state.isBookmarked(node.id));
+
   const contextMenuItems = useMemo(() => [
     {
       label: node.is_checked ? 'Mark Incomplete' : 'Mark Complete',
@@ -1352,11 +1356,23 @@ export const OutlineItem = memo(function OutlineItem({
     { colorPicker: true as const, label: 'Color', colors: NODE_COLORS, currentColor: node.color || '', onSelectColor: (color: string) => setNodeColor(node.id, color) },
     { separator: true as const },
     {
+      label: isBookmarked ? 'Remove Bookmark' : 'Bookmark',
+      action: () => {
+        if (isBookmarked) {
+          useBookmarkStore.getState().remove(node.id);
+        } else {
+          const label = (node.content || '').replace(/<[^>]*>/g, '').trim() || 'Untitled';
+          useBookmarkStore.getState().add(node.id, documentId ?? '', label);
+        }
+      },
+    },
+    { separator: true as const },
+    {
       label: 'Delete',
       action: () => deleteNode(node.id),
       shortcut: 'Ctrl+Shift+Backspace',
     },
-  ], [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.date, node.date_end, node.defer_date, node.color, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, setNodeTypeTo, setHeadingLevel, clearHeading, toggleCollapse, zoomTo, openNoteEditor, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch, contextMenuPosition, setNodeColor]);
+  ], [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.date, node.date_end, node.defer_date, node.color, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, setNodeTypeTo, setHeadingLevel, clearHeading, toggleCollapse, zoomTo, openNoteEditor, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch, contextMenuPosition, setNodeColor, isBookmarked, documentId]);
 
   // Multi-selection context menu (shown when multiple items are selected)
   const bulkContextMenuItems = useMemo(() => {

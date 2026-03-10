@@ -28,6 +28,7 @@ export interface Node {
 
 export interface DocumentState {
   nodes: Node[];
+  doc_id?: string;
   doc_prefix?: string;
 }
 

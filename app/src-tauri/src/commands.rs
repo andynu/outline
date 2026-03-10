@@ -79,6 +79,7 @@ pub fn load_document(
     // Ensure all nodes have short IDs and get the document prefix
     let prefix = short_ids::ensure_short_ids(&mut doc)?;
     let mut doc_state = doc.state.clone();
+    doc_state.doc_id = Some(doc_uuid.to_string());
     doc_state.doc_prefix = Some(prefix);
 
     // Index document for search in background (don't block loading)

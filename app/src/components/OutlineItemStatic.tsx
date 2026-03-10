@@ -6,6 +6,7 @@ import { ContextMenu, closeAllContextMenus } from './ui/ContextMenu';
 import { processStaticContentElement, handleStaticContentClick } from '../lib/renderStaticContent';
 import { formatDateRelative, formatDateRange } from '../lib/dateUtils';
 import { NODE_COLORS, getColorCss } from '../lib/colorPalette';
+import { useBookmarkStore } from '../store/bookmarkStore';
 import DOMPurify from 'dompurify';
 
 interface OutlineItemStaticProps {
@@ -162,6 +163,8 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
   // Get selected nodes info for bulk menu
   const selectedIds = useOutlineStore(state => state.selectedIds);
   const getSelectedNodes = useOutlineStore(state => state.getSelectedNodes);
+  const documentId = useOutlineStore(state => state.documentId);
+  const isBookmarked = useBookmarkStore(state => state.isBookmarked(node.id));
 
   // Context menu items - simplified for static items
   const contextMenuItems = useMemo(() => {
@@ -281,9 +284,21 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
       { separator: true as const },
       { colorPicker: true as const, label: 'Color', colors: NODE_COLORS, currentColor: node.color || '', onSelectColor: (color: string) => s.setNodeColor(node.id, color) },
       { separator: true as const },
+      {
+        label: isBookmarked ? 'Remove Bookmark' : 'Bookmark',
+        action: () => {
+          if (isBookmarked) {
+            useBookmarkStore.getState().remove(node.id);
+          } else {
+            const label = (node.content || '').replace(/<[^>]*>/g, '').trim() || 'Untitled';
+            useBookmarkStore.getState().add(node.id, documentId ?? '', label);
+          }
+        },
+      },
+      { separator: true as const },
       { label: 'Delete', action: () => s.deleteNode(node.id), shortcut: 'Ctrl+Shift+Backspace' },
     ];
-  }, [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.content, node.color, hasChildren, selectedIds, getSelectedNodes]);
+  }, [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.content, node.color, hasChildren, selectedIds, getSelectedNodes, isBookmarked, documentId]);
 
   // Compute numbered index for numbered items
   const numberedIndex = useMemo(() => {
