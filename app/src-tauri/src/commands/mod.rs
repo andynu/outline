@@ -1,6 +1,7 @@
 mod bookmarks;
 mod calendar;
 mod document;
+mod emoji;
 mod folders;
 mod import_export;
 mod node;
@@ -92,6 +93,7 @@ pub fn save_ops(state: State<AppState>, ops: Vec<Operation>) -> Result<DocumentS
 pub use bookmarks::*;
 pub use calendar::*;
 pub use document::*;
+pub use emoji::*;
 pub use folders::*;
 pub use import_export::*;
 pub use node::*;
