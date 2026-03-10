@@ -145,6 +145,7 @@ interface OutlineState {
   load: (docId?: string) => Promise<void>;
   addSiblingAfter: (nodeId: string) => Promise<string | null>;
   addSiblingBefore: (nodeId: string) => Promise<string | null>;
+  createFirstChild: (parentId: string) => Promise<string | null>;
   splitNode: (nodeId: string, beforeContent: string, afterContent: string) => Promise<string | null>;
   mergeWithNextSibling: (nodeId: string) => Promise<{ cursorPos: number } | null>;
   mergeWithPreviousSibling: (nodeId: string) => Promise<{ cursorPos: number; newFocusId: string } | null>;
@@ -1033,6 +1034,48 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     }
   },
 
+  createFirstChild: async (parentId: string) => {
+    const { childrenOf, updateFromState, _pushUndo } = get();
+    const children = childrenOf(parentId);
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      // Shift all existing children down by 1
+      const now = new Date().toISOString();
+      const moveOps = children.map((c, i) => ({
+        op: 'move' as const,
+        id: c.id,
+        parent_id: parentId,
+        position: i + 1,
+        updated_at: now,
+      }));
+      if (moveOps.length > 0) {
+        await api.saveOps(moveOps);
+      }
+
+      const result = await api.createNode(parentId, 0, '');
+      updateFromState(result.state);
+      set({ focusedId: result.id, keyboardMode: 'edit' });
+
+      const newNode = get()._nodesById.get(result.id);
+      if (newNode) {
+        _pushUndo({
+          description: 'Create item',
+          undo: { type: 'delete', id: result.id },
+          redo: { type: 'create', node: { ...newNode } },
+          timestamp: Date.now(),
+        });
+      }
+
+      return result.id;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return null;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
   createItemsFromMarkdown: async (afterNodeId: string, items: Array<{ content: string; nodeType: 'bullet' | 'checkbox' | 'numbered'; isChecked: boolean; indent: number }>) => {
     if (items.length === 0) return null;
 
@@ -1574,7 +1617,17 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
     const wasCollapsed = node.collapsed;
 
-    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    // Optimistic update - reflect collapse state immediately so keyboard
+    // handlers (e.g., Enter key) see the correct state without waiting for API
+    set((state) => {
+      const nodes = state.nodes.map(n =>
+        n.id === nodeId ? { ...n, collapsed: !wasCollapsed } : n
+      );
+      const nodesById = new Map(state._nodesById);
+      const updated = nodes.find(n => n.id === nodeId);
+      if (updated) nodesById.set(nodeId, updated);
+      return { nodes, _nodesById: nodesById, pendingOperations: state.pendingOperations + 1 };
+    });
     try {
       const state = await api.updateNode(nodeId, { collapsed: !wasCollapsed });
       updateFromState(state);

@@ -140,27 +140,29 @@ test.describe('Basic editing', () => {
   });
 
   test('Enter at end of line creates item immediately after current item', async ({ page }) => {
-    // Create a clean hierarchy to test position
-    const firstEditor = page.locator('.editor-wrapper').first();
-    await firstEditor.click();
+    // Start from the last leaf item to avoid children/expansion issues
+    // Navigate to last visible item and create fresh items from there
+    const editors = page.locator('.editor-wrapper');
+    const lastIdx = await editors.count() - 1;
+    await editors.nth(lastIdx).click();
     await page.waitForTimeout(100);
 
-    // Clear the first item and add known content
-    await page.keyboard.press('Control+a');
+    // Create three fresh items by pressing Enter at end
+    await page.keyboard.press('End');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
     await page.keyboard.type('Item A');
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(200);
 
-    // Create Item B as sibling after A
     await page.keyboard.press('Enter');
     await page.waitForTimeout(100);
     await page.keyboard.type('Item B');
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(200);
 
-    // Create Item C as sibling after B
     await page.keyboard.press('Enter');
     await page.waitForTimeout(100);
     await page.keyboard.type('Item C');
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(200);
 
     // Now go back to Item A
     await page.keyboard.press('ArrowUp');
@@ -206,84 +208,44 @@ test.describe('Basic editing', () => {
     expect(thirdAfterA).toBe('Item C');
   });
 
-  test('Enter on item with children creates sibling after item in tree order', async ({ page }) => {
-    // Create a parent with children
+  test('Enter on expanded item with children creates first child (Workflowy behavior)', async ({ page }) => {
+    // Use the existing "Getting Started" item which already has children
+    // Welcome doc structure: Getting Started > [Press Enter..., Press Tab..., Press Shift+Tab...]
     const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(100);
 
-    // Clear the first item and add known content
-    await page.keyboard.press('Control+a');
-    await page.keyboard.type('Parent');
-    await page.waitForTimeout(100);
-
-    // Create Child 1 (Enter + Tab)
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(100);
-    await page.keyboard.type('Child 1');
-    await page.keyboard.press('Tab');
-    await page.waitForTimeout(100);
-
-    // Create Child 2
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(100);
-    await page.keyboard.type('Child 2');
-    await page.waitForTimeout(100);
-
-    // Now go back to Parent
-    await page.keyboard.press('ArrowUp');
-    await page.waitForTimeout(50);
-    await page.keyboard.press('ArrowUp');
-    await page.waitForTimeout(100);
-
-    // Verify we're on Parent
+    // Verify we're on "Getting Started" (expanded, has children)
     const parentContent = await page.locator('.outline-item.focused .outline-editor').textContent();
-    expect(parentContent).toBe('Parent');
+    expect(parentContent).toBe('Getting Started');
 
-    // Press Enter at end of Parent to create new sibling
+    // Remember the first child's content
+    const firstChildBefore = await page.locator('.editor-wrapper').nth(1).textContent();
+
+    // Press Enter at end — Workflowy behavior: creates first child
     await page.keyboard.press('End');
     await page.waitForTimeout(50);
     await page.keyboard.press('Enter');
     await page.waitForTimeout(200);
 
-    // Type content
-    await page.keyboard.type('New Sibling');
+    // Type content for the new first child
+    await page.keyboard.type('New First Child');
     await page.waitForTimeout(100);
 
-    // The new sibling is created at position after Parent in the tree
-    // (i.e., as Parent's next sibling, not as a child)
-    // Visually: Parent -> Child 1 -> Child 2 -> New Sibling
-    // In tree terms: New Sibling is sibling of Parent, comes after Parent
-
-    // Navigate up - should go to Child 2 (previous visible item)
+    // Navigate up - should go to "Getting Started" (direct parent)
     await page.keyboard.press('ArrowUp');
     await page.waitForTimeout(50);
     const aboveNew = await page.locator('.outline-item.focused .outline-editor').textContent();
-    expect(aboveNew).toBe('Child 2');
+    expect(aboveNew).toBe('Getting Started');
 
-    // Navigate up again - should go to Child 1
-    await page.keyboard.press('ArrowUp');
-    await page.waitForTimeout(50);
-    const aboveChild2 = await page.locator('.outline-item.focused .outline-editor').textContent();
-    expect(aboveChild2).toBe('Child 1');
-
-    // Navigate up again - should go to Parent
-    await page.keyboard.press('ArrowUp');
-    await page.waitForTimeout(50);
-    const aboveChild1 = await page.locator('.outline-item.focused .outline-editor').textContent();
-    expect(aboveChild1).toBe('Parent');
-
-    // Navigate down from Parent - goes through children then to sibling
+    // Navigate down - should be "New First Child" (new first child)
     await page.keyboard.press('ArrowDown');
     await page.waitForTimeout(50);
-    expect(await page.locator('.outline-item.focused .outline-editor').textContent()).toBe('Child 1');
+    expect(await page.locator('.outline-item.focused .outline-editor').textContent()).toBe('New First Child');
 
+    // Navigate down again - should be the original first child
     await page.keyboard.press('ArrowDown');
     await page.waitForTimeout(50);
-    expect(await page.locator('.outline-item.focused .outline-editor').textContent()).toBe('Child 2');
-
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(50);
-    expect(await page.locator('.outline-item.focused .outline-editor').textContent()).toBe('New Sibling');
+    expect(await page.locator('.outline-item.focused .outline-editor').textContent()).toBe(firstChildBefore);
   });
 });

@@ -521,8 +521,16 @@ export const OutlineItem = memo(function OutlineItem({
               const isAtEnd = to >= docSize - 1;
 
               if (isAtEnd) {
-                // At end - just create new empty sibling
-                store.addSiblingAfter(nodeId);
+                // Workflowy behavior: if item has visible children, create first child;
+                // otherwise create sibling after
+                const currentNode = useOutlineStore.getState().getNode(nodeId);
+                const nodeChildren = useOutlineStore.getState().childrenOf(nodeId);
+                if (nodeChildren.length > 0 && !currentNode?.collapsed) {
+                  // Create as first child of this expanded node
+                  useOutlineStore.getState().createFirstChild(nodeId);
+                } else {
+                  store.addSiblingAfter(nodeId);
+                }
               } else {
                 // In the middle - split the content
                 // Get HTML content before and after cursor
