@@ -111,6 +111,7 @@ interface OutlineState {
 
   // Computed
   getTree: () => TreeNode[];
+  getArticleTree: () => TreeNode[];  // Like getTree but ignores collapsed state
   getFlatList: () => FlatItem[];
   getVisibleNodes: () => Node[];
   getNode: (id: string) => Node | undefined;
@@ -276,7 +277,8 @@ function buildTree(
   filterQuery: string | null = null,
   nodesById: Map<string, Node> = new Map(),
   zoomedNodeId: string | null = null,
-  hideDeferred: boolean = false
+  hideDeferred: boolean = false,
+  ignoreCollapsed: boolean = false
 ): TreeNode[] {
   // When zoomed, start from the zoomed node's children (only at root level)
   let effectiveParentId = parentId;
@@ -329,9 +331,9 @@ function buildTree(
       node,
       depth,
       hasChildren,
-      // When filtering, expand all nodes to show matches
-      children: hasChildren && (!node.collapsed || filterQuery)
-        ? buildTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById, null, hideDeferred)
+      // When filtering or in article view, expand all nodes to show matches
+      children: hasChildren && (!node.collapsed || filterQuery || ignoreCollapsed)
+        ? buildTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById, null, hideDeferred, ignoreCollapsed)
         : []
     };
   });
@@ -677,6 +679,11 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     }
 
     return buildTree(_childrenByParent, null, 0, hideCompleted, filterQuery, _nodesById, zoomedNodeId, hideDeferred);
+  },
+
+  getArticleTree: () => {
+    const { _childrenByParent, _nodesById, hideCompleted, hideDeferred, filterQuery, zoomedNodeId } = get();
+    return buildTree(_childrenByParent, null, 0, hideCompleted, filterQuery, _nodesById, zoomedNodeId, hideDeferred, true);
   },
 
   getFlatList: () => {

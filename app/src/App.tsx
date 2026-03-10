@@ -22,6 +22,7 @@ import { FilterBar } from './components/ui/FilterBar';
 import { ZoomBreadcrumbs } from './components/ui/ZoomBreadcrumbs';
 import { BacklinksPanel } from './components/ui/BacklinksPanel';
 import { NoteEditor } from './components/NoteEditor';
+import { ArticleView } from './components/ArticleView';
 import { loadSessionState, saveSessionState } from './lib/sessionState';
 import type { InboxItem } from './lib/api';
 import type { Node, TreeNode } from './lib/types';
@@ -222,6 +223,7 @@ function App() {
   });
   const setFocusedId = useOutlineStore(state => state.setFocusedId);
   const getTree = useOutlineStore(state => state.getTree);
+  const getArticleTree = useOutlineStore(state => state.getArticleTree);
   // Vim-style navigation
   const moveToParent = useOutlineStore(state => state.moveToParent);
   const moveToFirstChild = useOutlineStore(state => state.moveToFirstChild);
@@ -716,29 +718,33 @@ function App() {
 
   // View menu items
   const showShortIds = useSettingsStore(state => state.showShortIds);
+  const viewMode = useSettingsStore(state => state.viewMode);
   const updateSettings = useSettingsStore(state => state.updateSettings);
   const toggleShortIds = useCallback(() => updateSettings({ showShortIds: !showShortIds }), [showShortIds, updateSettings]);
+  const toggleViewMode = useCallback(() => updateSettings({ viewMode: viewMode === 'outline' ? 'article' : 'outline' }), [viewMode, updateSettings]);
+  const isArticleView = viewMode === 'article';
   const viewMenuItems: MenuEntry[] = useMemo(() => [
     { label: 'Toggle Sidebar', shortcut: 'Ctrl+\\', action: toggleSidebar, separator: false },
     { separator: true },
+    { label: 'Article View', shortcut: 'Ctrl+Shift+R', action: toggleViewMode, checked: isArticleView, separator: false },
     { label: hideCompleted ? 'Show Completed' : 'Hide Completed', shortcut: 'Ctrl+Shift+H', action: toggleHideCompleted, separator: false },
     { label: hideDeferred ? 'Show Deferred' : 'Hide Deferred', shortcut: 'Ctrl+Shift+D', action: toggleHideDeferred, separator: false },
     { label: 'Show Short IDs', action: toggleShortIds, checked: showShortIds, separator: false },
-    { label: 'Collapse All', shortcut: 'Ctrl+Shift+.', action: collapseAll, separator: false },
-    { label: 'Expand All', shortcut: 'Ctrl+Shift+,', action: expandAll, separator: false },
-    { label: 'Collapse Siblings', action: () => focusedId && collapseSiblings(focusedId), separator: false },
+    { label: 'Collapse All', shortcut: 'Ctrl+Shift+.', action: collapseAll, disabled: isArticleView, separator: false },
+    { label: 'Expand All', shortcut: 'Ctrl+Shift+,', action: expandAll, disabled: isArticleView, separator: false },
+    { label: 'Collapse Siblings', action: () => focusedId && collapseSiblings(focusedId), disabled: isArticleView, separator: false },
     { separator: true },
-    { label: 'Expand to Level 1', action: () => expandToLevel(1), separator: false },
-    { label: 'Expand to Level 2', action: () => expandToLevel(2), separator: false },
-    { label: 'Expand to Level 3', action: () => expandToLevel(3), separator: false },
-    { label: 'Expand to Level 4', action: () => expandToLevel(4), separator: false },
+    { label: 'Expand to Level 1', action: () => expandToLevel(1), disabled: isArticleView, separator: false },
+    { label: 'Expand to Level 2', action: () => expandToLevel(2), disabled: isArticleView, separator: false },
+    { label: 'Expand to Level 3', action: () => expandToLevel(3), disabled: isArticleView, separator: false },
+    { label: 'Expand to Level 4', action: () => expandToLevel(4), disabled: isArticleView, separator: false },
     { separator: true },
     { label: 'Zoom In', shortcut: 'Ctrl++', action: zoomIn, separator: false },
     { label: 'Zoom Out', shortcut: 'Ctrl+-', action: zoomOut, separator: false },
     { label: 'Reset Zoom', shortcut: 'Ctrl+0', action: resetZoom, separator: false },
     { separator: true },
     { label: isDark ? 'Light Mode' : 'Dark Mode', action: toggleTheme, separator: false },
-  ], [toggleSidebar, toggleTheme, isDark, collapseAll, expandAll, expandToLevel, collapseSiblings, focusedId, hideCompleted, toggleHideCompleted, hideDeferred, toggleHideDeferred, zoomIn, zoomOut, resetZoom, showShortIds, toggleShortIds]);
+  ], [toggleSidebar, toggleTheme, isDark, collapseAll, expandAll, expandToLevel, collapseSiblings, focusedId, hideCompleted, toggleHideCompleted, hideDeferred, toggleHideDeferred, zoomIn, zoomOut, resetZoom, showShortIds, toggleShortIds, toggleViewMode, isArticleView]);
 
   // Help menu items
   const helpMenuItems: MenuEntry[] = useMemo(() => [
@@ -952,6 +958,13 @@ function App() {
         return;
       }
 
+      // Toggle Article View (Ctrl+Shift+R)
+      if (mod && event.shiftKey && event.key === 'R') {
+        event.preventDefault();
+        toggleViewMode();
+        return;
+      }
+
       // Hide Completed (Ctrl+Shift+H)
       if (mod && event.shiftKey && event.key === 'H') {
         event.preventDefault();
@@ -1143,13 +1156,19 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
   const rawTree = useMemo(() => getTree(), [getTree, nodes, hideCompleted, hideDeferred, filterQuery, zoomedNodeId]);
+  // Article tree ignores collapsed state so all content is visible as prose
+  const rawArticleTree = useMemo(
+    () => isArticleView ? getArticleTree() : [],
+    [getArticleTree, nodes, hideCompleted, hideDeferred, filterQuery, zoomedNodeId, isArticleView]
+  );
   // Defer tree updates to keep UI responsive during large changes (expand/collapse)
   const tree = useDeferredValue(rawTree);
+  const articleTree = useDeferredValue(rawArticleTree);
   const visibleCount = useMemo(() => {
     function count(items: TreeNode[]): number {
       return items.reduce((sum, item) => sum + 1 + count(item.children), 0);
@@ -1419,18 +1438,22 @@ function App() {
                 <div className="error">Error: {error}</div>
               ) : (
                 <>
-                  <div className="outline-container">
-                    {tree.map(item => (
-                      <TreeItemRenderer
-                        key={item.node.id}
-                        item={item}
-                        onOpenBulkQuickMove={() => {
-                          setQuickMoveBulkMode(true);
-                          setShowQuickMove(true);
-                        }}
-                      />
-                    ))}
-                  </div>
+                  {isArticleView ? (
+                    <ArticleView tree={articleTree} />
+                  ) : (
+                    <div className="outline-container">
+                      {tree.map(item => (
+                        <TreeItemRenderer
+                          key={item.node.id}
+                          item={item}
+                          onOpenBulkQuickMove={() => {
+                            setQuickMoveBulkMode(true);
+                            setShowQuickMove(true);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
                   <BacklinksPanel
                     nodeId={focusedId}
                     nodeContent={focusedNodeContent}

@@ -4652,3 +4652,109 @@ body {
 .note-editor-body .tiptap {
   outline: none;
 }
+
+/* ========================================
+   Article View - flowing prose rendering
+   ======================================== */
+.article-view {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
+.article-view .article-heading {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+
+.article-view h1.article-heading {
+  font-size: 2em;
+  font-weight: 700;
+  margin-top: 0;
+  border-bottom: 1px solid var(--border-primary);
+  padding-bottom: 0.3em;
+}
+
+.article-view h2.article-heading {
+  font-size: 1.5em;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border-secondary, var(--border-primary));
+  padding-bottom: 0.2em;
+}
+
+.article-view h3.article-heading {
+  font-size: 1.25em;
+  font-weight: 600;
+}
+
+.article-view h4.article-heading {
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+.article-view h5.article-heading,
+.article-view h6.article-heading {
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.article-view .article-item {
+  margin: 0.5em 0;
+  line-height: 1.7;
+}
+
+.article-view .article-checkbox {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25em;
+}
+
+.article-view .article-checkbox-marker {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  font-size: 1.1em;
+}
+
+.article-view .article-checked {
+  color: var(--text-tertiary);
+  text-decoration: line-through;
+}
+
+.article-view .article-checked .article-checkbox-marker {
+  color: var(--checkbox-checked-bg);
+}
+
+.article-view .article-note {
+  margin: 0.25em 0 0.75em;
+  padding: 0.5em 1em;
+  border-left: 3px solid var(--accent-primary);
+  color: var(--text-secondary);
+  font-size: 0.95em;
+  background: var(--bg-secondary);
+  border-radius: 0 4px 4px 0;
+}
+
+/* Wiki links in article view */
+.article-view a[data-wiki-link] {
+  color: var(--accent-primary);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent-primary);
+}
+
+.article-view a[data-wiki-link]:hover {
+  border-bottom-style: solid;
+}
+
+/* Inline code in article view */
+.article-view code {
+  background: var(--bg-tertiary);
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+}

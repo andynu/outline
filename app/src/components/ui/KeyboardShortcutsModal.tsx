@@ -96,6 +96,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
           <div className="shortcut-group">
             <h4>View</h4>
             <ul>
+              <li><kbd>Ctrl+Shift+R</kbd> Toggle article view</li>
               <li><kbd>Ctrl+.</kbd> Toggle collapse</li>
               <li><kbd>Ctrl+Shift+.</kbd> Collapse all</li>
               <li><kbd>Ctrl+Shift+,</kbd> Expand all</li>

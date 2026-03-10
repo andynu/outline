@@ -9,6 +9,7 @@ import { create } from 'zustand';
 // Types
 export type Theme = 'light' | 'dark' | 'system' | 'gruvbox-dark' | 'gruvbox-light';
 export type NoteDisplayMode = 'none' | 'one-line' | 'full';
+export type ViewMode = 'outline' | 'article';
 
 export interface Settings {
   // Appearance
@@ -27,6 +28,9 @@ export interface Settings {
   // Display
   noteDisplayMode: NoteDisplayMode;  // How notes are shown on unfocused items
   showShortIds: boolean;  // Show CLI short IDs next to items
+
+  // View
+  viewMode: ViewMode;  // 'outline' (default) or 'article' (flowing prose)
 
   // Web Search
   searchEngine: string;  // Search engine preset or 'custom'
@@ -94,6 +98,7 @@ const DEFAULT_SETTINGS: Settings = {
   startCollapsed: false,
   noteDisplayMode: 'one-line',
   showShortIds: false,
+  viewMode: 'outline',
   dataDirectory: '~/.outline-data',
   searchEngine: 'duckduckgo',
   searchEngineUrl: '',
