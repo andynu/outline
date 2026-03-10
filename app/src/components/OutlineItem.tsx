@@ -4,6 +4,7 @@ import { DOMSerializer } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
 import type { TreeNode } from '../lib/types';
 import { useOutlineStore } from '../store/outlineStore';
+import { useSelectionStore } from '../store/selectionStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { ContextMenu, closeAllContextMenus } from './ui/ContextMenu';
 import { processStaticContentElement, handleStaticContentClick } from '../lib/renderStaticContent';
@@ -91,37 +92,37 @@ export const OutlineItem = memo(function OutlineItem({
   const zoomTo = useOutlineStore(state => state.zoomTo);
   const zoomToParent = useOutlineStore(state => state.zoomToParent);
   const openNoteEditor = useOutlineStore(state => state.openNoteEditor);
-  const selectedIds = useOutlineStore(state => state.selectedIds);
-  const toggleSelection = useOutlineStore(state => state.toggleSelection);
-  const selectRange = useOutlineStore(state => state.selectRange);
-  const clearSelection = useOutlineStore(state => state.clearSelection);
-  const toggleSelectedCheckboxes = useOutlineStore(state => state.toggleSelectedCheckboxes);
-  const completeSelectedNodes = useOutlineStore(state => state.completeSelectedNodes);
-  const uncompleteSelectedNodes = useOutlineStore(state => state.uncompleteSelectedNodes);
-  const convertSelectedToCheckbox = useOutlineStore(state => state.convertSelectedToCheckbox);
-  const convertSelectedToBullet = useOutlineStore(state => state.convertSelectedToBullet);
-  const convertSelectedToNumbered = useOutlineStore(state => state.convertSelectedToNumbered);
+  const selectedIds = useSelectionStore(state => state.selectedIds);
+  const toggleSelection = useSelectionStore(state => state.toggleSelection);
+  const selectRange = useSelectionStore(state => state.selectRange);
+  const clearSelection = useSelectionStore(state => state.clearSelection);
+  const toggleSelectedCheckboxes = useSelectionStore(state => state.toggleSelectedCheckboxes);
+  const completeSelectedNodes = useSelectionStore(state => state.completeSelectedNodes);
+  const uncompleteSelectedNodes = useSelectionStore(state => state.uncompleteSelectedNodes);
+  const convertSelectedToCheckbox = useSelectionStore(state => state.convertSelectedToCheckbox);
+  const convertSelectedToBullet = useSelectionStore(state => state.convertSelectedToBullet);
+  const convertSelectedToNumbered = useSelectionStore(state => state.convertSelectedToNumbered);
   const setNodeTypeTo = useOutlineStore(state => state.setNodeTypeTo);
-  const indentSelectedNodes = useOutlineStore(state => state.indentSelectedNodes);
-  const outdentSelectedNodes = useOutlineStore(state => state.outdentSelectedNodes);
-  const moveSelectedToTop = useOutlineStore(state => state.moveSelectedToTop);
-  const moveSelectedToBottom = useOutlineStore(state => state.moveSelectedToBottom);
-  const copySelectedAsMarkdown = useOutlineStore(state => state.copySelectedAsMarkdown);
-  const copySelectedAsPlainText = useOutlineStore(state => state.copySelectedAsPlainText);
+  const indentSelectedNodes = useSelectionStore(state => state.indentSelectedNodes);
+  const outdentSelectedNodes = useSelectionStore(state => state.outdentSelectedNodes);
+  const moveSelectedToTop = useSelectionStore(state => state.moveSelectedToTop);
+  const moveSelectedToBottom = useSelectionStore(state => state.moveSelectedToBottom);
+  const copySelectedAsMarkdown = useSelectionStore(state => state.copySelectedAsMarkdown);
+  const copySelectedAsPlainText = useSelectionStore(state => state.copySelectedAsPlainText);
   const showShortIds = useSettingsStore(state => state.showShortIds);
-  const exportSelectedToFile = useOutlineStore(state => state.exportSelectedToFile);
-  const exportSelectedToFilePlainText = useOutlineStore(state => state.exportSelectedToFilePlainText);
-  const deleteSelectedNodes = useOutlineStore(state => state.deleteSelectedNodes);
-  const getSelectedNodes = useOutlineStore(state => state.getSelectedNodes);
-  const groupSelectedUnderNewParent = useOutlineStore(state => state.groupSelectedUnderNewParent);
-  const sortSelectedAlphabetical = useOutlineStore(state => state.sortSelectedAlphabetical);
-  const sortSelectedReverseAlphabetical = useOutlineStore(state => state.sortSelectedReverseAlphabetical);
-  const sortSelectedByDate = useOutlineStore(state => state.sortSelectedByDate);
-  const sortSelectedByDateReverse = useOutlineStore(state => state.sortSelectedByDateReverse);
-  const sortSelectedByCompletion = useOutlineStore(state => state.sortSelectedByCompletion);
-  const reverseSelectedOrder = useOutlineStore(state => state.reverseSelectedOrder);
+  const exportSelectedToFile = useSelectionStore(state => state.exportSelectedToFile);
+  const exportSelectedToFilePlainText = useSelectionStore(state => state.exportSelectedToFilePlainText);
+  const deleteSelectedNodes = useSelectionStore(state => state.deleteSelectedNodes);
+  const getSelectedNodes = useSelectionStore(state => state.getSelectedNodes);
+  const groupSelectedUnderNewParent = useSelectionStore(state => state.groupSelectedUnderNewParent);
+  const sortSelectedAlphabetical = useSelectionStore(state => state.sortSelectedAlphabetical);
+  const sortSelectedReverseAlphabetical = useSelectionStore(state => state.sortSelectedReverseAlphabetical);
+  const sortSelectedByDate = useSelectionStore(state => state.sortSelectedByDate);
+  const sortSelectedByDateReverse = useSelectionStore(state => state.sortSelectedByDateReverse);
+  const sortSelectedByCompletion = useSelectionStore(state => state.sortSelectedByCompletion);
+  const reverseSelectedOrder = useSelectionStore(state => state.reverseSelectedOrder);
   const setNodeColor = useOutlineStore(state => state.setNodeColor);
-  const setSelectedNodesColor = useOutlineStore(state => state.setSelectedNodesColor);
+  const setSelectedNodesColor = useSelectionStore(state => state.setSelectedNodesColor);
   const draggedId = useOutlineStore(state => state.draggedId);
   const startDrag = useOutlineStore(state => state.startDrag);
   const endDrag = useOutlineStore(state => state.endDrag);
@@ -687,9 +688,8 @@ export const OutlineItem = memo(function OutlineItem({
 
             // === COMPLETION ===
             if (event.key === 'Enter' && mod && !event.shiftKey) {
-              const currentState = useOutlineStore.getState();
               // If multi-selection, let App.tsx handle it to avoid double-firing
-              if (currentState.selectedIds.size > 0) {
+              if (useSelectionStore.getState().selectedIds.size > 0) {
                 return false; // Don't handle, let it bubble to App.tsx
               }
               // Single item - toggle just this node
@@ -723,7 +723,7 @@ export const OutlineItem = memo(function OutlineItem({
             // Ctrl+Shift+E : export selection/focused node to markdown in clipboard
             if (event.key.toLowerCase() === 'e' && mod && event.shiftKey) {
               event.preventDefault();
-              useOutlineStore.getState().exportSelection();
+              useSelectionStore.getState().exportSelection();
               return true;
             }
 
@@ -1310,13 +1310,13 @@ export const OutlineItem = memo(function OutlineItem({
         },
         {
           label: 'Copy tree as Markdown',
-          action: () => useOutlineStore.getState().copyTreeAsMarkdown(node.id),
+          action: () => useSelectionStore.getState().copyTreeAsMarkdown(node.id),
           shortcut: 'Ctrl+Shift+C',
           disabled: !hasChildren,
         },
         {
           label: 'Copy tree as Plain Text',
-          action: () => useOutlineStore.getState().copyTreeAsPlainText(node.id),
+          action: () => useSelectionStore.getState().copyTreeAsPlainText(node.id),
           disabled: !hasChildren,
         },
         {
@@ -1333,7 +1333,7 @@ export const OutlineItem = memo(function OutlineItem({
         { separator: true as const },
         {
           label: 'Export to Markdown',
-          action: () => useOutlineStore.getState().exportSelection(),
+          action: () => useSelectionStore.getState().exportSelection(),
           shortcut: 'Ctrl+Shift+E',
         },
       ],
@@ -1388,45 +1388,45 @@ export const OutlineItem = memo(function OutlineItem({
       children: [
         {
           label: 'Title (A-Z)',
-          action: () => useOutlineStore.getState().sortChildrenByTitle(node.id),
+          action: () => useSelectionStore.getState().sortChildrenByTitle(node.id),
           disabled: !hasChildren,
         },
         {
           label: 'Title (Z-A)',
-          action: () => useOutlineStore.getState().sortChildrenByTitleReverse(node.id),
+          action: () => useSelectionStore.getState().sortChildrenByTitleReverse(node.id),
           disabled: !hasChildren,
         },
         { separator: true as const },
         {
           label: 'Date (newest)',
-          action: () => useOutlineStore.getState().sortChildrenByDate(node.id),
+          action: () => useSelectionStore.getState().sortChildrenByDate(node.id),
           disabled: !hasChildren,
         },
         {
           label: 'Date (oldest)',
-          action: () => useOutlineStore.getState().sortChildrenByDateReverse(node.id),
+          action: () => useSelectionStore.getState().sortChildrenByDateReverse(node.id),
           disabled: !hasChildren,
         },
         { separator: true as const },
         {
           label: 'Updated (newest)',
-          action: () => useOutlineStore.getState().sortChildrenByUpdated(node.id),
+          action: () => useSelectionStore.getState().sortChildrenByUpdated(node.id),
           disabled: !hasChildren,
         },
         {
           label: 'Updated (oldest)',
-          action: () => useOutlineStore.getState().sortChildrenByUpdatedReverse(node.id),
+          action: () => useSelectionStore.getState().sortChildrenByUpdatedReverse(node.id),
           disabled: !hasChildren,
         },
         { separator: true as const },
         {
           label: 'Created (newest)',
-          action: () => useOutlineStore.getState().sortChildrenByCreated(node.id),
+          action: () => useSelectionStore.getState().sortChildrenByCreated(node.id),
           disabled: !hasChildren,
         },
         {
           label: 'Created (oldest)',
-          action: () => useOutlineStore.getState().sortChildrenByCreatedReverse(node.id),
+          action: () => useSelectionStore.getState().sortChildrenByCreatedReverse(node.id),
           disabled: !hasChildren,
         },
       ],

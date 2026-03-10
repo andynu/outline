@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useOutlineStore } from '../../store/outlineStore';
+import { useSelectionStore } from '../../store/selectionStore';
 import { showToast } from '../../store/toastStore';
 import { buildAncestryIndex, searchAncestryIndex } from '../../lib/ancestrySearch';
 import type { AncestrySearchResult } from '../../lib/ancestrySearch';
@@ -23,9 +24,9 @@ export function QuickMove({ isOpen, onClose, bulkMode = false }: QuickMoveProps)
   const nodes = useOutlineStore(state => state.nodes);
   const getNode = useOutlineStore(state => state.getNode);
   const moveNodeTo = useOutlineStore(state => state.moveNodeTo);
-  const getSelectedNodes = useOutlineStore(state => state.getSelectedNodes);
-  const selectedIds = useOutlineStore(state => state.selectedIds);
-  const clearSelection = useOutlineStore(state => state.clearSelection);
+  const getSelectedNodes = useSelectionStore(state => state.getSelectedNodes);
+  const selectedIds = useSelectionStore(state => state.selectedIds);
+  const clearSelection = useSelectionStore(state => state.clearSelection);
 
   // Build ancestry index once when modal opens or nodes change while open
   const ancestryIndex = useMemo(() => {

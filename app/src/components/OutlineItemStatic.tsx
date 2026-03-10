@@ -1,6 +1,7 @@
 import React, { memo, useRef, useEffect, useState, useMemo, DragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import type { TreeNode } from '../lib/types';
 import { useOutlineStore } from '../store/outlineStore';
+import { useSelectionStore } from '../store/selectionStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { ContextMenu, closeAllContextMenus } from './ui/ContextMenu';
 import { processStaticContentElement, handleStaticContentClick } from '../lib/renderStaticContent';
@@ -27,7 +28,7 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
 }: OutlineItemStaticProps) {
   const { node, depth, hasChildren } = item;
   // Use separate selectors with primitive returns for stable memoization
-  const isSelected = useOutlineStore(state => state.selectedIds.has(node.id));
+  const isSelected = useSelectionStore(state => state.selectedIds.has(node.id));
   const isDragging = useOutlineStore(state => state.draggedId === node.id);
   const isNavigateFocused = useOutlineStore(state => state.focusedId === node.id && state.keyboardMode === 'navigate');
   const noteDisplayMode = useSettingsStore(state => state.noteDisplayMode);
@@ -76,10 +77,11 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
   const handleRowClick = (e: ReactMouseEvent) => {
     const target = e.target as HTMLElement;
     const s = store();
-    if (e.ctrlKey || e.metaKey) { e.preventDefault(); s.toggleSelection(node.id); return; }
-    if (e.shiftKey) { e.preventDefault(); s.selectRange(node.id); return; }
+    const sel = useSelectionStore.getState();
+    if (e.ctrlKey || e.metaKey) { e.preventDefault(); sel.toggleSelection(node.id); return; }
+    if (e.shiftKey) { e.preventDefault(); sel.selectRange(node.id); return; }
     if (target.closest('.drag-handle')) return;
-    s.clearSelection();
+    sel.clearSelection();
     s.setFocusedId(node.id);
   };
 
@@ -93,9 +95,10 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
     });
     if (handled) return;
     const s = store();
-    if (e.ctrlKey || e.metaKey) { e.preventDefault(); s.toggleSelection(node.id); }
-    else if (e.shiftKey) { e.preventDefault(); s.selectRange(node.id); }
-    else { s.clearSelection(); s.setFocusedId(node.id); }
+    const sel = useSelectionStore.getState();
+    if (e.ctrlKey || e.metaKey) { e.preventDefault(); sel.toggleSelection(node.id); }
+    else if (e.shiftKey) { e.preventDefault(); sel.selectRange(node.id); }
+    else { sel.clearSelection(); s.setFocusedId(node.id); }
   };
 
   const handleDragStart = (e: DragEvent<HTMLSpanElement>) => {
@@ -163,14 +166,15 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
   };
 
   // Get selected nodes info for bulk menu
-  const selectedIds = useOutlineStore(state => state.selectedIds);
-  const getSelectedNodes = useOutlineStore(state => state.getSelectedNodes);
+  const selectedIds = useSelectionStore(state => state.selectedIds);
+  const getSelectedNodes = useSelectionStore(state => state.getSelectedNodes);
   const documentId = useOutlineStore(state => state.documentId);
   const isBookmarked = useBookmarkStore(state => state.isBookmarked(node.id));
 
   // Context menu items - simplified for static items
   const contextMenuItems = useMemo(() => {
     const s = store();
+    const sel = useSelectionStore.getState();
     const selected = getSelectedNodes();
     const isBulkMode = selectedIds.size > 1;
 
@@ -183,56 +187,56 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
       const hasAnyNonNumbered = selected.some(n => n.node_type !== 'numbered');
 
       return [
-        { label: `Complete all (${selectionCount})`, action: () => s.completeSelectedNodes(), shortcut: 'Ctrl+Enter', disabled: !hasAnyUnchecked },
-        { label: `Uncomplete all (${selectionCount})`, action: () => s.uncompleteSelectedNodes(), disabled: !hasAnyChecked },
+        { label: `Complete all (${selectionCount})`, action: () => sel.completeSelectedNodes(), shortcut: 'Ctrl+Enter', disabled: !hasAnyUnchecked },
+        { label: `Uncomplete all (${selectionCount})`, action: () => sel.uncompleteSelectedNodes(), disabled: !hasAnyChecked },
         { separator: true as const },
-        { label: 'Convert to checkbox', action: () => s.convertSelectedToCheckbox(), disabled: !hasAnyBullet && !hasAnyNonNumbered },
-        { label: 'Convert to bullet', action: () => s.convertSelectedToBullet(), disabled: !hasAnyCheckbox && !hasAnyNonNumbered },
-        { label: 'Convert to numbered', action: () => s.convertSelectedToNumbered(), disabled: !hasAnyNonNumbered },
+        { label: 'Convert to checkbox', action: () => sel.convertSelectedToCheckbox(), disabled: !hasAnyBullet && !hasAnyNonNumbered },
+        { label: 'Convert to bullet', action: () => sel.convertSelectedToBullet(), disabled: !hasAnyCheckbox && !hasAnyNonNumbered },
+        { label: 'Convert to numbered', action: () => sel.convertSelectedToNumbered(), disabled: !hasAnyNonNumbered },
         { separator: true as const },
         {
           submenu: true as const,
           label: 'Move',
           children: [
             { label: 'Move to...', action: () => onOpenBulkQuickMove?.(), shortcut: 'Ctrl+Shift+M', disabled: !onOpenBulkQuickMove },
-            { label: 'Move to top', action: () => s.moveSelectedToTop() },
-            { label: 'Move to bottom', action: () => s.moveSelectedToBottom() },
-            { label: 'Group under new item', action: () => s.groupSelectedUnderNewParent() },
+            { label: 'Move to top', action: () => sel.moveSelectedToTop() },
+            { label: 'Move to bottom', action: () => sel.moveSelectedToBottom() },
+            { label: 'Group under new item', action: () => sel.groupSelectedUnderNewParent() },
           ],
         },
         {
           submenu: true as const,
           label: 'Sort',
           children: [
-            { label: 'A-Z', action: () => s.sortSelectedAlphabetical() },
-            { label: 'Z-A', action: () => s.sortSelectedReverseAlphabetical() },
+            { label: 'A-Z', action: () => sel.sortSelectedAlphabetical() },
+            { label: 'Z-A', action: () => sel.sortSelectedReverseAlphabetical() },
             { separator: true as const },
-            { label: 'By date (earliest)', action: () => s.sortSelectedByDate() },
-            { label: 'By date (latest)', action: () => s.sortSelectedByDateReverse() },
+            { label: 'By date (earliest)', action: () => sel.sortSelectedByDate() },
+            { label: 'By date (latest)', action: () => sel.sortSelectedByDateReverse() },
             { separator: true as const },
-            { label: 'By completion', action: () => s.sortSelectedByCompletion() },
-            { label: 'Reverse order', action: () => s.reverseSelectedOrder() },
+            { label: 'By completion', action: () => sel.sortSelectedByCompletion() },
+            { label: 'Reverse order', action: () => sel.reverseSelectedOrder() },
           ],
         },
         { separator: true as const },
-        { label: 'Indent', action: () => s.indentSelectedNodes(), shortcut: 'Tab' },
-        { label: 'Outdent', action: () => s.outdentSelectedNodes(), shortcut: 'Shift+Tab' },
+        { label: 'Indent', action: () => sel.indentSelectedNodes(), shortcut: 'Tab' },
+        { label: 'Outdent', action: () => sel.outdentSelectedNodes(), shortcut: 'Shift+Tab' },
         { separator: true as const },
         {
           submenu: true as const,
           label: 'Copy / Export',
           children: [
-            { label: 'Copy as Markdown', action: () => s.copySelectedAsMarkdown(), shortcut: 'Ctrl+Shift+C' },
-            { label: 'Copy as Plain Text', action: () => s.copySelectedAsPlainText() },
+            { label: 'Copy as Markdown', action: () => sel.copySelectedAsMarkdown(), shortcut: 'Ctrl+Shift+C' },
+            { label: 'Copy as Plain Text', action: () => sel.copySelectedAsPlainText() },
             { separator: true as const },
-            { label: 'Export as Markdown...', action: () => s.exportSelectedToFile() },
-            { label: 'Export as Plain Text...', action: () => s.exportSelectedToFilePlainText() },
+            { label: 'Export as Markdown...', action: () => sel.exportSelectedToFile() },
+            { label: 'Export as Plain Text...', action: () => sel.exportSelectedToFilePlainText() },
           ],
         },
         { separator: true as const },
-        { colorPicker: true as const, label: 'Color', colors: NODE_COLORS, currentColor: '', onSelectColor: (color: string) => s.setSelectedNodesColor(color) },
+        { colorPicker: true as const, label: 'Color', colors: NODE_COLORS, currentColor: '', onSelectColor: (color: string) => sel.setSelectedNodesColor(color) },
         { separator: true as const },
-        { label: `Delete selected (${selectionCount})`, action: () => s.deleteSelectedNodes(), shortcut: 'Ctrl+Shift+Backspace' },
+        { label: `Delete selected (${selectionCount})`, action: () => sel.deleteSelectedNodes(), shortcut: 'Ctrl+Shift+Backspace' },
       ];
     }
 
@@ -249,8 +253,8 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
         label: 'Copy / Export',
         children: [
           { label: 'Copy', action: () => navigator.clipboard.writeText((node.content || '').replace(/<[^>]*>/g, '')), shortcut: 'Ctrl+C' },
-          { label: 'Copy tree as Markdown', action: () => s.copyTreeAsMarkdown(node.id), shortcut: 'Ctrl+Shift+C', disabled: !hasChildren },
-          { label: 'Copy tree as Plain Text', action: () => s.copyTreeAsPlainText(node.id), disabled: !hasChildren },
+          { label: 'Copy tree as Markdown', action: () => sel.copyTreeAsMarkdown(node.id), shortcut: 'Ctrl+Shift+C', disabled: !hasChildren },
+          { label: 'Copy tree as Plain Text', action: () => sel.copyTreeAsPlainText(node.id), disabled: !hasChildren },
           { label: 'Copy Short ID', action: () => { const prefix = useOutlineStore.getState().docPrefix; const sid = node.short_id; if (prefix && sid) navigator.clipboard.writeText(`${prefix}-${sid}`); }, disabled: !node.short_id },
         ],
       },
@@ -270,17 +274,17 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
         label: 'Sort children',
         disabled: !hasChildren,
         children: [
-          { label: 'Title (A-Z)', action: () => s.sortChildrenByTitle(node.id), disabled: !hasChildren },
-          { label: 'Title (Z-A)', action: () => s.sortChildrenByTitleReverse(node.id), disabled: !hasChildren },
+          { label: 'Title (A-Z)', action: () => sel.sortChildrenByTitle(node.id), disabled: !hasChildren },
+          { label: 'Title (Z-A)', action: () => sel.sortChildrenByTitleReverse(node.id), disabled: !hasChildren },
           { separator: true as const },
-          { label: 'Date (newest)', action: () => s.sortChildrenByDate(node.id), disabled: !hasChildren },
-          { label: 'Date (oldest)', action: () => s.sortChildrenByDateReverse(node.id), disabled: !hasChildren },
+          { label: 'Date (newest)', action: () => sel.sortChildrenByDate(node.id), disabled: !hasChildren },
+          { label: 'Date (oldest)', action: () => sel.sortChildrenByDateReverse(node.id), disabled: !hasChildren },
           { separator: true as const },
-          { label: 'Updated (newest)', action: () => s.sortChildrenByUpdated(node.id), disabled: !hasChildren },
-          { label: 'Updated (oldest)', action: () => s.sortChildrenByUpdatedReverse(node.id), disabled: !hasChildren },
+          { label: 'Updated (newest)', action: () => sel.sortChildrenByUpdated(node.id), disabled: !hasChildren },
+          { label: 'Updated (oldest)', action: () => sel.sortChildrenByUpdatedReverse(node.id), disabled: !hasChildren },
           { separator: true as const },
-          { label: 'Created (newest)', action: () => s.sortChildrenByCreated(node.id), disabled: !hasChildren },
-          { label: 'Created (oldest)', action: () => s.sortChildrenByCreatedReverse(node.id), disabled: !hasChildren },
+          { label: 'Created (newest)', action: () => sel.sortChildrenByCreated(node.id), disabled: !hasChildren },
+          { label: 'Created (oldest)', action: () => sel.sortChildrenByCreatedReverse(node.id), disabled: !hasChildren },
         ],
       },
       { separator: true as const },
