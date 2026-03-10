@@ -92,6 +92,7 @@ function SubmenuFlyout({ item, onClose, parentRef, registerFlyout }: { item: Sub
   const flyoutRef = useRef<HTMLDivElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [flyoutStyle, setFlyoutStyle] = useState<React.CSSProperties>({});
+  const [isPositioned, setIsPositioned] = useState(false);
 
   const setFlyoutRef = useCallback((el: HTMLDivElement | null) => {
     flyoutRef.current = el;
@@ -101,6 +102,7 @@ function SubmenuFlyout({ item, onClose, parentRef, registerFlyout }: { item: Sub
 
   const openSubmenu = useCallback(() => {
     if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+    setIsPositioned(false);
     setIsOpen(true);
   }, []);
 
@@ -152,6 +154,7 @@ function SubmenuFlyout({ item, onClose, parentRef, registerFlyout }: { item: Sub
     }
 
     setFlyoutStyle({ left, top, maxHeight: vh - pad * 2 });
+    setIsPositioned(true);
   }, [isOpen, parentRef]);
 
   useEffect(() => {
@@ -180,7 +183,12 @@ function SubmenuFlyout({ item, onClose, parentRef, registerFlyout }: { item: Sub
         <div
           ref={setFlyoutRef}
           className="context-menu submenu-flyout"
-          style={flyoutStyle}
+          style={{
+            ...flyoutStyle,
+            left: isPositioned ? flyoutStyle.left : -9999,
+            top: isPositioned ? flyoutStyle.top : -9999,
+            visibility: isPositioned ? 'visible' : 'hidden',
+          }}
           role="menu"
           onMouseEnter={cancelClose}
           onMouseLeave={closeSubmenu}
