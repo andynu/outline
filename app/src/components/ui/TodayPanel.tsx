@@ -1,25 +1,16 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { getDateStatus, formatDateRelative, formatISODate, type DateStatus } from '../../lib/dateUtils';
+import { getDateStatus, formatISODate } from '../../lib/dateUtils';
 import { DateBadge } from './DateBadge';
 import { getAllDatedNodes, updateNodeInDocument } from '../../lib/api';
+import { stripHtml } from '../../lib/utils';
 import type { DatedNodeInfo } from '../../lib/types';
+import { useOutlineStore } from '../../store/outlineStore';
 
 interface TodayPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigate: (nodeId: string, documentId: string) => void;
   currentDocumentId?: string;
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .trim();
 }
 
 /**
@@ -66,35 +57,30 @@ export function TodayPanel({ isOpen, onClose, onNavigate, currentDocumentId }: T
     };
   }, [isOpen, loadNodes]);
 
-  // Filter to today and overdue items (not deferred, not completed)
-  const todayItems = useMemo(() => {
-    return allDatedNodes
-      .filter(node => {
-        const status = getDateStatus(node.date, node.is_checked);
-        if (status === 'completed') return false;
-        if (isDeferred(node)) return false;
-        return status === 'today' || status === 'overdue';
-      })
-      .sort((a, b) => {
-        // Overdue first, then today
-        const aStatus = getDateStatus(a.date, a.is_checked);
-        const bStatus = getDateStatus(b.date, b.is_checked);
-        if (aStatus === 'overdue' && bStatus !== 'overdue') return -1;
-        if (bStatus === 'overdue' && aStatus !== 'overdue') return 1;
-        return a.date.localeCompare(b.date);
-      });
+  // Filter to today and overdue items (not deferred, not completed).
+  // Pre-compute status once per item to avoid redundant getDateStatus calls.
+  type StatusdItem = { node: DatedNodeInfo; status: string };
+  const { overdueItems, dueTodayItems } = useMemo(() => {
+    const overdue: StatusdItem[] = [];
+    const today: StatusdItem[] = [];
+    for (const node of allDatedNodes) {
+      const status = getDateStatus(node.date, node.is_checked);
+      if (status === 'completed') continue;
+      if (isDeferred(node)) continue;
+      if (status === 'overdue') overdue.push({ node, status });
+      else if (status === 'today') today.push({ node, status });
+    }
+    overdue.sort((a, b) => a.node.date.localeCompare(b.node.date));
+    today.sort((a, b) => a.node.date.localeCompare(b.node.date));
+    return { overdueItems: overdue, dueTodayItems: today };
   }, [allDatedNodes]);
 
-  const overdueCount = useMemo(() => {
-    return todayItems.filter(n => getDateStatus(n.date, n.is_checked) === 'overdue').length;
-  }, [todayItems]);
-
-  const todayCount = useMemo(() => {
-    return todayItems.filter(n => getDateStatus(n.date, n.is_checked) === 'today').length;
-  }, [todayItems]);
+  const todayItems = useMemo(() => [...overdueItems, ...dueTodayItems], [overdueItems, dueTodayItems]);
+  const overdueCount = overdueItems.length;
+  const todayCount = dueTodayItems.length;
 
   const hasMultipleDocuments = useMemo(() => {
-    const docIds = new Set(todayItems.map(n => n.document_id));
+    const docIds = new Set(todayItems.map(i => i.node.document_id));
     return docIds.size > 1;
   }, [todayItems]);
 
@@ -105,9 +91,15 @@ export function TodayPanel({ isOpen, onClose, onNavigate, currentDocumentId }: T
     setCheckingNodes(prev => new Set(prev).add(node.id));
 
     try {
-      await updateNodeInDocument(node.id, node.document_id, { is_checked: true });
+      const updatedState = await updateNodeInDocument(node.id, node.document_id, { is_checked: true });
 
-      // Optimistically update local state
+      // If the checked-off node belongs to the currently loaded document,
+      // update the outline store so the main view reflects the change.
+      if (updatedState) {
+        useOutlineStore.getState().updateFromState(updatedState);
+      }
+
+      // Update local panel state
       setAllDatedNodes(prev => prev.map(n =>
         n.id === node.id ? { ...n, is_checked: true } : n
       ));
@@ -184,18 +176,16 @@ export function TodayPanel({ isOpen, onClose, onNavigate, currentDocumentId }: T
                   Overdue
                   <span className="today-panel-section-count">{overdueCount}</span>
                 </div>
-                {todayItems
-                  .filter(n => getDateStatus(n.date, n.is_checked) === 'overdue')
-                  .map(node => (
-                    <TodayPanelItem
-                      key={`${node.document_id}-${node.id}`}
-                      node={node}
-                      checking={checkingNodes.has(node.id)}
-                      showDocument={hasMultipleDocuments}
-                      onCheckOff={handleCheckOff}
-                      onClick={handleItemClick}
-                    />
-                  ))}
+                {overdueItems.map(({ node }) => (
+                  <TodayPanelItem
+                    key={`${node.document_id}-${node.id}`}
+                    node={node}
+                    checking={checkingNodes.has(node.id)}
+                    showDocument={hasMultipleDocuments}
+                    onCheckOff={handleCheckOff}
+                    onClick={handleItemClick}
+                  />
+                ))}
               </div>
             )}
             {todayCount > 0 && (
@@ -206,18 +196,16 @@ export function TodayPanel({ isOpen, onClose, onNavigate, currentDocumentId }: T
                     <span className="today-panel-section-count">{todayCount}</span>
                   </div>
                 )}
-                {todayItems
-                  .filter(n => getDateStatus(n.date, n.is_checked) === 'today')
-                  .map(node => (
-                    <TodayPanelItem
-                      key={`${node.document_id}-${node.id}`}
-                      node={node}
-                      checking={checkingNodes.has(node.id)}
-                      showDocument={hasMultipleDocuments}
-                      onCheckOff={handleCheckOff}
-                      onClick={handleItemClick}
-                    />
-                  ))}
+                {dueTodayItems.map(({ node }) => (
+                  <TodayPanelItem
+                    key={`${node.document_id}-${node.id}`}
+                    node={node}
+                    checking={checkingNodes.has(node.id)}
+                    showDocument={hasMultipleDocuments}
+                    onCheckOff={handleCheckOff}
+                    onClick={handleItemClick}
+                  />
+                ))}
               </div>
             )}
           </>

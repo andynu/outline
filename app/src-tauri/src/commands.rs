@@ -212,15 +212,16 @@ pub fn update_node(
 }
 
 /// Update a node in a specific document (for cross-document operations like Today panel check-off).
-/// If the target document is the currently loaded one, delegates to save_op.
-/// Otherwise loads the document, applies the operation, and saves directly.
+/// If the target document is the currently loaded one, delegates to save_op and returns the
+/// updated DocumentState so the frontend can refresh its view.
+/// Otherwise loads the document, applies the operation, saves directly, and returns None.
 #[tauri::command]
 pub fn update_node_in_document(
     state: State<AppState>,
     node_id: String,
     document_id: String,
     changes: NodeChanges,
-) -> Result<(), String> {
+) -> Result<Option<DocumentState>, String> {
     let node_uuid = parse_uuid(&node_id)?;
     let doc_uuid = parse_uuid(&document_id)?;
 
@@ -232,8 +233,8 @@ pub fn update_node_in_document(
 
     if is_current {
         let op = update_op(node_uuid, changes);
-        save_op(state, op)?;
-        return Ok(());
+        let doc_state = save_op(state, op)?;
+        return Ok(Some(doc_state));
     }
 
     // Load the target document, apply changes, save
@@ -253,7 +254,7 @@ pub fn update_node_in_document(
         }
     }
 
-    Ok(())
+    Ok(None)
 }
 
 /// Move a node (convenience command that wraps save_op)
