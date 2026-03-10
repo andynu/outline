@@ -226,6 +226,10 @@ function App() {
   const swapWithPrevious = useOutlineStore(state => state.swapWithPrevious);
   const swapWithNext = useOutlineStore(state => state.swapWithNext);
   const extendSelection = useOutlineStore(state => state.extendSelection);
+  const deleteNode = useOutlineStore(state => state.deleteNode);
+  const toggleCheckbox = useOutlineStore(state => state.toggleCheckbox);
+  const indentNode = useOutlineStore(state => state.indentNode);
+  const outdentNode = useOutlineStore(state => state.outdentNode);
   const focusedNodeContent = useOutlineStore(state => {
     if (!state.focusedId) return '';
     const node = state.nodes.find(n => n.id === state.focusedId);
@@ -1169,6 +1173,42 @@ function App() {
         }
       }
 
+      // Navigate mode: Delete/Backspace deletes focused item or all selected
+      if (keyboardMode === 'navigate' && focusedId && !mod && (event.key === 'Delete' || event.key === 'Backspace')) {
+        event.preventDefault();
+        if (selectedIds.size > 0) {
+          deleteSelectedNodes();
+        } else {
+          deleteNode(focusedId);
+        }
+        return;
+      }
+
+      // Navigate mode: Space toggles checkbox on focused/selected items
+      if (keyboardMode === 'navigate' && focusedId && event.key === ' ') {
+        event.preventDefault();
+        if (selectedIds.size > 0) {
+          toggleSelectedCheckboxes();
+        } else {
+          toggleCheckbox(focusedId);
+        }
+        return;
+      }
+
+      // Navigate mode: Tab/Shift+Tab indent/outdent focused item (when no selection)
+      if (keyboardMode === 'navigate' && focusedId && selectedIds.size === 0) {
+        if (event.key === 'Tab' && !event.shiftKey) {
+          event.preventDefault();
+          indentNode(focusedId);
+          return;
+        }
+        if (event.key === 'Tab' && event.shiftKey) {
+          event.preventDefault();
+          outdentNode(focusedId);
+          return;
+        }
+      }
+
       // Navigate mode keys
       if (keyboardMode === 'navigate' && focusedId && !mod && !event.shiftKey) {
         // Arrow keys: move focus between items (stay in navigate mode)
@@ -1244,7 +1284,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode, enterEditMode, addSiblingAfter, addSiblingBefore, swapWithPrevious, swapWithNext, extendSelection]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode, enterEditMode, addSiblingAfter, addSiblingBefore, swapWithPrevious, swapWithNext, extendSelection, deleteNode, toggleCheckbox, indentNode, outdentNode]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
