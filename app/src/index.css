@@ -849,6 +849,29 @@ body {
   background: var(--hashtag-bg);
 }
 
+/* Emoji suggestion styles */
+.suggestion-popup.emoji-suggestion {
+  width: 260px;
+}
+
+.emoji-suggestion .emoji-preview {
+  font-size: 18px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.emoji-suggestion .emoji-shortcode {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.emoji-suggestion .suggestion-item {
+  justify-content: flex-start;
+}
+
 /* Due date suggestion styles */
 .due-date-suggestion .date-label {
   font-size: 13px;

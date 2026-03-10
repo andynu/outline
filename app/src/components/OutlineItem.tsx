@@ -22,6 +22,7 @@ import { EmojiShortcode } from '../lib/EmojiShortcode';
 import { WikiLinkSuggestion } from './ui/WikiLinkSuggestion';
 import { HashtagSuggestion } from './ui/HashtagSuggestion';
 import { DueDateSuggestion } from './ui/DueDateSuggestion';
+import { EmojiSuggestion } from './ui/EmojiSuggestion';
 import { DatePicker, type DatePickerMode } from './ui/DatePicker';
 import { RecurrencePicker, type RecurrenceMode } from './ui/RecurrencePicker';
 import { formatDateRelative, formatDateRange } from '../lib/dateUtils';
@@ -171,6 +172,14 @@ export const OutlineItem = memo(function OutlineItem({
   const [dueDatePosition, setDueDatePosition] = useState({ x: 0, y: 0 });
   const dueDateActiveRef = useRef(false);
   const dueDateRangeRef = useRef<{ from: number; to: number } | null>(null);
+
+  // Emoji suggestion state
+  const [showEmojiSuggestion, setShowEmojiSuggestion] = useState(false);
+  const [emojiQuery, setEmojiQuery] = useState('');
+  const [emojiRange, setEmojiRange] = useState<{ from: number; to: number } | null>(null);
+  const [emojiPosition, setEmojiPosition] = useState({ x: 0, y: 0 });
+  const emojiActiveRef = useRef(false);
+  const emojiRangeRef = useRef<{ from: number; to: number } | null>(null);
 
   // Compute existing hashtags from all nodes for suggestion popup
   const existingTags = useMemo(() => {
@@ -405,6 +414,41 @@ export const OutlineItem = memo(function OutlineItem({
               return false;
             }
 
+            // Detect : trigger for emoji shortcodes (at start or after whitespace)
+            if (text === ':' && !emojiActiveRef.current &&
+                (prevChar === '' || prevChar === ' ' || prevChar === '\t' || from === 1)) {
+              const coords = view.coordsAtPos(from);
+              emojiActiveRef.current = true;
+              emojiRangeRef.current = { from: from, to: from + 1 };
+              setShowEmojiSuggestion(true);
+              setEmojiQuery('');
+              setEmojiRange({ from: from, to: from + 1 });
+              setEmojiPosition({ x: coords.left, y: coords.bottom + 5 });
+              return false;
+            }
+
+            // If emoji suggestion is active, update query
+            if (emojiActiveRef.current && emojiRangeRef.current) {
+              const range = emojiRangeRef.current;
+              const queryStart = range.from + 1; // After the :
+              const currentQuery = state.doc.textBetween(queryStart, from) + text;
+
+              // Close on space, closing colon, or invalid characters
+              if (text === ' ' || text === '\t' || text === '\n' || text === ':') {
+                emojiActiveRef.current = false;
+                emojiRangeRef.current = null;
+                setShowEmojiSuggestion(false);
+                setEmojiRange(null);
+                return false;
+              }
+
+              const newRange = { from: range.from, to: from + text.length + 1 };
+              emojiRangeRef.current = newRange;
+              setEmojiQuery(currentQuery);
+              setEmojiRange(newRange);
+              return false;
+            }
+
             // Auto-convert [ ] or [x] to checkbox when followed by space
             if (text === ' ') {
               // Get text content before the cursor
@@ -430,9 +474,9 @@ export const OutlineItem = memo(function OutlineItem({
             const mod = event.ctrlKey || event.metaKey;
             const store = storeRef.current;
 
-            // When wiki link, hashtag, or due date suggestion is active, let Enter/Tab/Arrow keys
+            // When wiki link, hashtag, due date, or emoji suggestion is active, let Enter/Tab/Arrow keys
             // pass through to the suggestion popup's keyboard handler
-            if (wikiLinkActiveRef.current || hashtagActiveRef.current || dueDateActiveRef.current) {
+            if (wikiLinkActiveRef.current || hashtagActiveRef.current || dueDateActiveRef.current || emojiActiveRef.current) {
               if (event.key === 'Enter' || event.key === 'Tab' ||
                   event.key === 'ArrowUp' || event.key === 'ArrowDown') {
                 // Don't handle - let the suggestion popup component handle it
@@ -759,6 +803,28 @@ export const OutlineItem = memo(function OutlineItem({
                   dueDateRangeRef.current = null;
                   setShowDueDateSuggestion(false);
                   setDueDateRange(null);
+                }
+              }
+            }
+
+            // === EMOJI SUGGESTION HANDLING ===
+            if (emojiActiveRef.current) {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                emojiActiveRef.current = false;
+                emojiRangeRef.current = null;
+                setShowEmojiSuggestion(false);
+                setEmojiRange(null);
+                return true;
+              }
+              if (event.key === 'Backspace' && emojiRangeRef.current) {
+                const { from } = view.state.selection;
+                // If backspacing to before start of trigger, close suggestion
+                if (from <= emojiRangeRef.current.from + 1) {
+                  emojiActiveRef.current = false;
+                  emojiRangeRef.current = null;
+                  setShowEmojiSuggestion(false);
+                  setEmojiRange(null);
                 }
               }
             }
@@ -1607,6 +1673,33 @@ export const OutlineItem = memo(function OutlineItem({
     setDueDateRange(null);
   }, []);
 
+  // Emoji suggestion handlers
+  const handleEmojiSelect = useCallback((_shortcode: string, emoji: string) => {
+    const editor = editorRef.current;
+    const range = emojiRangeRef.current;
+    if (!editor || !range) return;
+
+    // Delete the :query text and insert the emoji character
+    editor
+      .chain()
+      .focus()
+      .deleteRange(range)
+      .insertContent(emoji)
+      .run();
+
+    emojiActiveRef.current = false;
+    emojiRangeRef.current = null;
+    setShowEmojiSuggestion(false);
+    setEmojiRange(null);
+  }, []);
+
+  const handleEmojiClose = useCallback(() => {
+    emojiActiveRef.current = false;
+    emojiRangeRef.current = null;
+    setShowEmojiSuggestion(false);
+    setEmojiRange(null);
+  }, []);
+
   // Date picker handlers
   const handleDateSelect = useCallback(async (date: string | null, pickerMode: DatePickerMode) => {
     setShowDatePicker(false);
@@ -1908,6 +2001,16 @@ export const OutlineItem = memo(function OutlineItem({
           position={dueDatePosition}
           onSelect={handleDueDateSelect}
           onClose={handleDueDateClose}
+        />
+      )}
+
+      {/* Emoji suggestion popup */}
+      {showEmojiSuggestion && (
+        <EmojiSuggestion
+          query={emojiQuery}
+          position={emojiPosition}
+          onSelect={handleEmojiSelect}
+          onClose={handleEmojiClose}
         />
       )}
 
