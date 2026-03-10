@@ -554,20 +554,7 @@ export const OutlineItem = memo(function OutlineItem({
               return true;
             }
 
-            // Swap position with Shift+Arrow (move item up/down in list)
-            if (event.key === 'ArrowUp' && event.shiftKey && !mod) {
-              event.preventDefault();
-              store.swapWithPrevious(nodeId);
-              return true;
-            }
-
-            if (event.key === 'ArrowDown' && event.shiftKey && !mod) {
-              event.preventDefault();
-              store.swapWithNext(nodeId);
-              return true;
-            }
-
-            // Swap position with Ctrl+Arrow (alternative shortcut)
+            // Move item with Ctrl+Arrow (Shift+Arrow reserved for selection)
             if (event.key === 'ArrowUp' && mod) {
               event.preventDefault();
               store.swapWithPrevious(nodeId);

@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Move item with Shift+Arrow keys', () => {
+test.describe('Move item with Ctrl+Arrow keys', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('.outline-item', { timeout: 10000 });
   });
 
-  test('Shift+Down moves item down one position', async ({ page }) => {
+  test('Ctrl+Down moves item down one position', async ({ page }) => {
     // Click on "Welcome to Outline" (first root item)
     const editor = page.locator('.editor-wrapper').filter({ hasText: /^Welcome to Outline$/ });
     await editor.click();
@@ -16,8 +16,8 @@ test.describe('Move item with Shift+Arrow keys', () => {
     const focusedItem = page.locator('.outline-item.focused');
     await expect(focusedItem).toBeVisible();
 
-    // Press Shift+Down to move the first item down
-    await page.keyboard.press('Shift+ArrowDown');
+    // Press Ctrl+Down to move the first item down
+    await page.keyboard.press('Control+ArrowDown');
     await page.waitForTimeout(200);
 
     // The second root item should now be "Welcome to Outline"
@@ -26,14 +26,14 @@ test.describe('Move item with Shift+Arrow keys', () => {
     await expect(firstEditor).toHaveText('Getting Started');
   });
 
-  test('Shift+Down works multiple times consecutively', async ({ page }) => {
+  test('Ctrl+Down works multiple times consecutively', async ({ page }) => {
     // Click on "Welcome to Outline" (first root item)
     const editor = page.locator('.editor-wrapper').filter({ hasText: /^Welcome to Outline$/ });
     await editor.click();
     await page.waitForTimeout(100);
 
-    // Press Shift+Down to move down once
-    await page.keyboard.press('Shift+ArrowDown');
+    // Press Ctrl+Down to move down once
+    await page.keyboard.press('Control+ArrowDown');
     await page.waitForTimeout(200);
 
     // "Welcome to Outline" should now be at second position (Getting Started is first)
@@ -41,8 +41,8 @@ test.describe('Move item with Shift+Arrow keys', () => {
     const secondEditor = secondRootItem.locator('.editor-wrapper').first();
     await expect(secondEditor).toHaveText('Welcome to Outline');
 
-    // Press Shift+Down again to move down again
-    await page.keyboard.press('Shift+ArrowDown');
+    // Press Ctrl+Down again to move down again
+    await page.keyboard.press('Control+ArrowDown');
     await page.waitForTimeout(200);
 
     // "Welcome to Outline" should now be at third position
@@ -51,7 +51,7 @@ test.describe('Move item with Shift+Arrow keys', () => {
     await expect(thirdEditor).toHaveText('Welcome to Outline');
   });
 
-  test('Shift+Up moves item up one position', async ({ page }) => {
+  test('Ctrl+Up moves item up one position', async ({ page }) => {
     // Click on "Getting Started" (second root item)
     const editor = page.locator('.editor-wrapper').filter({ hasText: /^Getting Started$/ });
     await editor.click();
@@ -61,8 +61,8 @@ test.describe('Move item with Shift+Arrow keys', () => {
     const focusedItem = page.locator('.outline-item.focused');
     await expect(focusedItem).toBeVisible();
 
-    // Press Shift+Up to move the second item up
-    await page.keyboard.press('Shift+ArrowUp');
+    // Press Ctrl+Up to move the second item up
+    await page.keyboard.press('Control+ArrowUp');
     await page.waitForTimeout(200);
 
     // "Getting Started" should now be first
@@ -70,14 +70,14 @@ test.describe('Move item with Shift+Arrow keys', () => {
     await expect(firstEditor).toHaveText('Getting Started');
   });
 
-  test('Shift+Up works multiple times consecutively', async ({ page }) => {
+  test('Ctrl+Up works multiple times consecutively', async ({ page }) => {
     // Click on "Features" (third root item)
     const editor = page.locator('.editor-wrapper').filter({ hasText: /^Features$/ });
     await editor.click();
     await page.waitForTimeout(100);
 
-    // Press Shift+Up to move up once
-    await page.keyboard.press('Shift+ArrowUp');
+    // Press Ctrl+Up to move up once
+    await page.keyboard.press('Control+ArrowUp');
     await page.waitForTimeout(200);
 
     // "Features" should now be at second position
@@ -85,8 +85,8 @@ test.describe('Move item with Shift+Arrow keys', () => {
     const secondEditor = secondRootItem.locator('.editor-wrapper').first();
     await expect(secondEditor).toHaveText('Features');
 
-    // Press Shift+Up again to move up again
-    await page.keyboard.press('Shift+ArrowUp');
+    // Press Ctrl+Up again to move up again
+    await page.keyboard.press('Control+ArrowUp');
     await page.waitForTimeout(200);
 
     // "Features" should now be at first position
