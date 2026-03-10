@@ -54,11 +54,6 @@ enum Commands {
         /// Node ID to find backlinks for
         node_id: String,
     },
-    /// Inbox operations
-    Inbox {
-        #[command(subcommand)]
-        command: InboxCommand,
-    },
     /// Folder operations
     Folder {
         #[command(subcommand)]
@@ -190,19 +185,6 @@ enum NodeCommand {
         /// Skip confirmation
         #[arg(long)]
         force: bool,
-    },
-}
-
-#[derive(Subcommand)]
-enum InboxCommand {
-    /// List pending inbox items
-    List,
-    /// Import inbox items to configured destination
-    Import,
-    /// Remove specific inbox items by ID
-    Clear {
-        /// Item IDs to remove
-        ids: Vec<String>,
     },
 }
 
@@ -341,11 +323,6 @@ fn run(cli: Cli, out: &OutputMode) -> Result<(), String> {
         },
         Commands::Search { query, doc, limit } => cmd_search(out, &query, doc.as_deref(), limit),
         Commands::Backlinks { node_id } => cmd_backlinks(out, &node_id),
-        Commands::Inbox { command } => match command {
-            InboxCommand::List => cmd_inbox_list(out),
-            InboxCommand::Import => cmd_inbox_import(out),
-            InboxCommand::Clear { ids } => cmd_inbox_clear(out, &ids),
-        },
         Commands::Folder { command } => match command {
             FolderCommand::List => cmd_folder_list(out),
             FolderCommand::Create { name } => cmd_folder_create(out, &name),
@@ -852,39 +829,6 @@ fn cmd_backlinks(out: &OutputMode, node_id: &str) -> Result<(), String> {
         }
     }
 
-    Ok(())
-}
-
-// -- Inbox commands --
-
-fn cmd_inbox_list(out: &OutputMode) -> Result<(), String> {
-    let items = outline_core::data::read_inbox()?;
-
-    if out.is_json() {
-        out.print_json(&serde_json::json!(items));
-    } else {
-        if items.is_empty() {
-            println!("Inbox is empty.");
-        } else {
-            for item in &items {
-                println!("[{}] {} ({})", item.id, item.content, item.captured_at);
-                if let Some(ref note) = item.note {
-                    println!("  Note: {}", note);
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn cmd_inbox_import(_out: &OutputMode) -> Result<(), String> {
-    Err("inbox import not yet implemented".to_string())
-}
-
-fn cmd_inbox_clear(_out: &OutputMode, ids: &[String]) -> Result<(), String> {
-    outline_core::data::remove_inbox_items(ids)?;
-    eprintln!("Cleared {} inbox items.", ids.len());
     Ok(())
 }
 

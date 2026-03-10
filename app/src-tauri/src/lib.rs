@@ -61,9 +61,6 @@ pub fn run() {
             commands::convert_mention_to_link,
             commands::get_next_occurrence,
             commands::generate_ical_feed,
-            commands::get_inbox,
-            commands::get_inbox_count,
-            commands::clear_inbox_items,
             commands::import_opml,
             commands::import_opml_as_document,
             commands::import_dynalist_backup,
@@ -85,11 +82,8 @@ pub fn run() {
             commands::delete_folder,
             commands::move_document_to_folder,
             commands::reorder_folders,
-            // Inbox configuration
-            commands::get_inbox_setting,
-            commands::set_inbox_setting,
-            commands::clear_inbox_setting,
-            commands::import_inbox_items,
+            // Capture target
+            commands::get_default_capture_target,
             // Watcher commands
             commands::start_documents_watcher,
             commands::stop_documents_watcher,

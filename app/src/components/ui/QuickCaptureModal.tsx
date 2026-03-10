@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useOutlineStore } from '../../store/outlineStore';
 import * as api from '../../lib/api';
-import type { InboxSetting } from '../../lib/api';
+import type { CaptureTarget } from '../../lib/api';
 
 interface QuickCaptureModalProps {
   isOpen: boolean;
@@ -11,8 +11,8 @@ interface QuickCaptureModalProps {
 
 export function QuickCaptureModal({ isOpen, onClose, currentDocumentId }: QuickCaptureModalProps) {
   const [content, setContent] = useState('');
-  const [inboxSetting, setInboxSetting] = useState<InboxSetting | null>(null);
-  const [inboxNodeName, setInboxNodeName] = useState<string>('');
+  const [captureTarget, setCaptureTarget] = useState<CaptureTarget | null>(null);
+  const [targetNodeName, setTargetNodeName] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -23,12 +23,12 @@ export function QuickCaptureModal({ isOpen, onClose, currentDocumentId }: QuickC
   const getNode = useOutlineStore(state => state.getNode);
   const nodes = useOutlineStore(state => state.nodes);
 
-  // Load inbox setting when modal opens
+  // Load capture target when modal opens
   useEffect(() => {
     if (isOpen) {
       setContent('');
       setError(null);
-      loadInboxInfo();
+      loadCaptureTarget();
       // Focus input after a brief delay
       setTimeout(() => {
         inputRef.current?.focus();
@@ -36,53 +36,53 @@ export function QuickCaptureModal({ isOpen, onClose, currentDocumentId }: QuickC
     }
   }, [isOpen]);
 
-  // Update inbox node name when we have the setting and nodes
+  // Update target node name when we have the setting and nodes
   useEffect(() => {
-    if (inboxSetting && nodes.length > 0) {
-      const node = getNode(inboxSetting.node_id);
+    if (captureTarget && nodes.length > 0) {
+      const node = getNode(captureTarget.node_id);
       if (node) {
         // Strip HTML tags for display
         const text = node.content.replace(/<[^>]*>/g, '').trim();
-        setInboxNodeName(text || 'Inbox');
+        setTargetNodeName(text || 'Capture Target');
       }
     }
-  }, [inboxSetting, nodes, getNode]);
+  }, [captureTarget, nodes, getNode]);
 
-  async function loadInboxInfo() {
+  async function loadCaptureTarget() {
     setLoading(true);
     try {
-      const setting = await api.getInboxSetting();
-      setInboxSetting(setting);
-      if (!setting) {
-        setError('No inbox configured. Right-click an item and select "Set as Inbox" to configure.');
+      const target = await api.getDefaultCaptureTarget();
+      setCaptureTarget(target);
+      if (!target) {
+        setError('No capture target configured. Use "otl target add" to set one up.');
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load inbox settings');
+      setError(e instanceof Error ? e.message : 'Failed to load capture target');
     } finally {
       setLoading(false);
     }
   }
 
   const handleSubmit = useCallback(async () => {
-    if (!content.trim() || !inboxSetting) return;
+    if (!content.trim() || !captureTarget) return;
 
     setSubmitting(true);
     setError(null);
 
     try {
       // Check if we need to switch documents
-      if (currentDocumentId !== inboxSetting.document_id) {
-        await load(inboxSetting.document_id);
+      if (currentDocumentId !== captureTarget.document_id) {
+        await load(captureTarget.document_id);
       }
 
-      // Get the inbox node to find max position among children
+      // Get the target node to find max position among children
       const store = useOutlineStore.getState();
-      const inboxChildren = store.nodes.filter(n => n.parent_id === inboxSetting.node_id);
-      const maxPosition = inboxChildren.reduce((max, n) => Math.max(max, n.position), -1);
+      const targetChildren = store.nodes.filter(n => n.parent_id === captureTarget.node_id);
+      const maxPosition = targetChildren.reduce((max, n) => Math.max(max, n.position), -1);
       const newPosition = maxPosition + 1;
 
-      // Create the node as a child of the inbox node
-      const result = await api.createNode(inboxSetting.node_id, newPosition, content.trim());
+      // Create the node as a child of the capture target node
+      const result = await api.createNode(captureTarget.node_id, newPosition, content.trim());
 
       if (result) {
         store.updateFromState(result.state);
@@ -94,7 +94,7 @@ export function QuickCaptureModal({ isOpen, onClose, currentDocumentId }: QuickC
     } finally {
       setSubmitting(false);
     }
-  }, [content, inboxSetting, currentDocumentId, load, onClose]);
+  }, [content, captureTarget, currentDocumentId, load, onClose]);
 
   // Handle keyboard events
   useEffect(() => {
@@ -150,12 +150,9 @@ export function QuickCaptureModal({ isOpen, onClose, currentDocumentId }: QuickC
         <div className="modal-content">
           {loading ? (
             <div className="loading">Loading...</div>
-          ) : error && !inboxSetting ? (
+          ) : error && !captureTarget ? (
             <div className="error-state">
               <p className="error-message">{error}</p>
-              <p className="error-hint">
-                Open Settings (Ctrl+,) to view inbox configuration.
-              </p>
             </div>
           ) : (
             <>
@@ -174,18 +171,18 @@ export function QuickCaptureModal({ isOpen, onClose, currentDocumentId }: QuickC
         </div>
 
         <div className="modal-footer">
-          {inboxSetting && (
+          {captureTarget && (
             <span className="inbox-destination">
               <span className="inbox-icon">📥</span>
-              <span className="inbox-name" title={`Document: ${inboxSetting.document_id}`}>
-                {inboxNodeName || 'Inbox'}
+              <span className="inbox-name" title={`Document: ${captureTarget.document_id}`}>
+                {targetNodeName || 'Capture Target'}
               </span>
             </span>
           )}
           <button
             className="capture-btn"
             onClick={handleSubmit}
-            disabled={!content.trim() || !inboxSetting || submitting}
+            disabled={!content.trim() || !captureTarget || submitting}
           >
             {submitting ? 'Capturing...' : 'Capture'}
           </button>

@@ -11,7 +11,6 @@ import { SearchModal } from './components/ui/SearchModal';
 import { DateViewsPanel } from './components/ui/DateViewsPanel';
 import { TodayPanel } from './components/ui/TodayPanel';
 import { TagsPanel } from './components/ui/TagsPanel';
-import { InboxPanel } from './components/ui/InboxPanel';
 import { QuickNavigator } from './components/ui/QuickNavigator';
 import { QuickMove } from './components/ui/QuickMove';
 import { QuickCaptureModal } from './components/ui/QuickCaptureModal';
@@ -24,7 +23,6 @@ import { BacklinksPanel } from './components/ui/BacklinksPanel';
 import { NoteEditor } from './components/NoteEditor';
 import { ArticleView } from './components/ArticleView';
 import { loadSessionState, saveSessionState } from './lib/sessionState';
-import type { InboxItem } from './lib/api';
 import type { Node, TreeNode } from './lib/types';
 import * as api from './lib/api';
 import React from 'react';
@@ -162,8 +160,6 @@ function App() {
   const [showDateViews, setShowDateViews] = useState(false);
   const [showTodayPanel, setShowTodayPanel] = useState(false);
   const [showTagsPanel, setShowTagsPanel] = useState(false);
-  const [showInboxPanel, setShowInboxPanel] = useState(false);
-  const [inboxCount, setInboxCount] = useState(0);
   const [showQuickNavigator, setShowQuickNavigator] = useState(false);
   const [quickNavigatorMode, setQuickNavigatorMode] = useState<'files' | 'items'>('files');
   const [showQuickMove, setShowQuickMove] = useState(false);
@@ -539,37 +535,6 @@ function App() {
     setShowTagsPanel(false);
   }, [setFilterQuery]);
 
-  // Load inbox count
-  const loadInboxCount = useCallback(async () => {
-    try {
-      const count = await api.getInboxCount();
-      setInboxCount(count);
-    } catch (e) {
-      console.error('Failed to load inbox count:', e);
-    }
-  }, []);
-
-  // Load inbox count on mount and periodically
-  useEffect(() => {
-    loadInboxCount();
-    const interval = setInterval(loadInboxCount, 30000); // Every 30 seconds
-    return () => clearInterval(interval);
-  }, [loadInboxCount]);
-
-  // Reload inbox count when panel closes
-  const handleInboxClose = useCallback(() => {
-    setShowInboxPanel(false);
-    loadInboxCount();
-  }, [loadInboxCount]);
-
-  // Handle inbox item processing
-  const handleInboxProcess = useCallback((item: InboxItem) => {
-    // TODO: Implement QuickMove integration
-    // For now, just close the panel
-    console.log('Process inbox item:', item);
-    setShowInboxPanel(false);
-  }, []);
-
   // Handle quick navigator navigation
   const handleQuickNavigate = useCallback((nodeId: string, documentId: string) => {
     if (documentId && documentId !== currentDocumentId) {
@@ -920,13 +885,6 @@ function App() {
         return;
       }
 
-      // Inbox (Ctrl+Shift+I) - use Shift to avoid conflict with italic
-      if (mod && event.shiftKey && event.key === 'I') {
-        event.preventDefault();
-        setShowInboxPanel(true);
-        return;
-      }
-
       // Quick Navigator - Files (Ctrl+O)
       if (mod && !event.shiftKey && event.key === 'o') {
         event.preventDefault();
@@ -951,8 +909,8 @@ function App() {
         return;
       }
 
-      // Quick Capture (Ctrl+Shift+Q)
-      if (mod && event.shiftKey && event.key === 'Q') {
+      // Quick Capture (Ctrl+Shift+Q or Ctrl+Shift+I)
+      if (mod && event.shiftKey && (event.key === 'Q' || event.key === 'I')) {
         event.preventDefault();
         setShowQuickCapture(true);
         return;
@@ -1132,7 +1090,7 @@ function App() {
       }
 
       // Escape: edit mode → navigate mode → clear selection → clear filter → exit zoom
-      if (event.key === 'Escape' && !showSearchModal && !showQuickNavigator && !showQuickMove && !showQuickCapture && !showDateViews && !showTodayPanel && !showTagsPanel && !showInboxPanel && !showKeyboardShortcuts && !showSettings) {
+      if (event.key === 'Escape' && !showSearchModal && !showQuickNavigator && !showQuickMove && !showQuickCapture && !showDateViews && !showTodayPanel && !showTagsPanel && !showKeyboardShortcuts && !showSettings) {
         // First exit edit mode into navigate mode (only when focus is in the outline area, not in modals/note editors)
         const eventTarget = event.target as HTMLElement;
         const targetInNonOutlineArea = eventTarget?.closest('.modal, .sidebar, .note-input');
@@ -1284,7 +1242,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode, enterEditMode, addSiblingAfter, addSiblingBefore, swapWithPrevious, swapWithNext, extendSelection, deleteNode, toggleCheckbox, indentNode, outdentNode]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode, enterEditMode, addSiblingAfter, addSiblingBefore, swapWithPrevious, swapWithNext, extendSelection, deleteNode, toggleCheckbox, indentNode, outdentNode]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
@@ -1377,17 +1335,6 @@ function App() {
                 <polyline points="7 3 7 8 15 8"/>
               </svg>
             )}
-          </button>
-          <button
-            className="toolbar-btn"
-            onClick={() => setShowInboxPanel(true)}
-            title="Inbox (Ctrl+Shift+I)"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
-              <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
-            </svg>
-            {inboxCount > 0 && <span className="toolbar-badge">{inboxCount}</span>}
           </button>
           <button
             className={`toolbar-btn ${showTodayPanel ? 'active' : ''}`}
@@ -1680,12 +1627,6 @@ function App() {
         onClose={() => setShowTagsPanel(false)}
         onNavigate={handleTagsNavigate}
         onTagSearch={handleTagSearch}
-      />
-
-      <InboxPanel
-        isOpen={showInboxPanel}
-        onClose={handleInboxClose}
-        onProcess={handleInboxProcess}
       />
 
       <QuickNavigator

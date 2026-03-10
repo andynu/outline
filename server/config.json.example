@@ -1,7 +1,10 @@
 {
-  "data_dir": "/path/to/synced/.outline",
+  "data_dir": "/path/to/synced/.outline-data",
   "calendar_tokens": [
-    "generate-a-uuid-here",
-    "another-token-if-needed"
-  ]
+    "generate-a-uuid-here"
+  ],
+  "capture_target": {
+    "document_id": "your-document-uuid",
+    "node_id": "your-target-node-uuid"
+  }
 }

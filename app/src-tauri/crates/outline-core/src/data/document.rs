@@ -313,13 +313,6 @@ fn config_path() -> PathBuf {
         .join("config.json")
 }
 
-/// Inbox configuration - which node should receive quick capture items
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InboxConfig {
-    pub document_id: String,
-    pub node_id: String,
-}
-
 /// A named capture target — a specific document + node location for quick capture
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CaptureTarget {
@@ -334,30 +327,17 @@ pub struct CaptureTarget {
 pub struct AppConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data_directory: Option<String>,
-    /// Legacy single inbox field (migrated to capture_targets on first load)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub inbox: Option<InboxConfig>,
     /// Named capture targets
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub capture_targets: HashMap<String, CaptureTarget>,
 }
 
-/// Load app configuration from disk, migrating legacy inbox if needed
+/// Load app configuration from disk
 pub fn load_config() -> AppConfig {
     let path = config_path();
     if path.exists() {
         if let Ok(content) = fs::read_to_string(&path) {
-            if let Ok(mut config) = serde_json::from_str::<AppConfig>(&content) {
-                // Migrate legacy inbox to capture_targets
-                if config.capture_targets.is_empty() {
-                    if let Some(ref inbox) = config.inbox {
-                        config.capture_targets.insert("inbox".to_string(), CaptureTarget {
-                            document_id: inbox.document_id.clone(),
-                            node_id: inbox.node_id.clone(),
-                            default: true,
-                        });
-                    }
-                }
+            if let Ok(config) = serde_json::from_str::<AppConfig>(&content) {
                 return config;
             }
         }
@@ -388,57 +368,7 @@ pub fn init_data_dir_from_config() {
     }
 }
 
-/// Get the current inbox configuration (uses default capture target for backward compatibility)
-pub fn get_inbox_config() -> Option<InboxConfig> {
-    let config = load_config();
-
-    // Try capture targets first (new system)
-    if let Some(target) = get_default_target_from(&config) {
-        return Some(InboxConfig {
-            document_id: target.document_id.clone(),
-            node_id: target.node_id.clone(),
-        });
-    }
-
-    // Fall back to legacy inbox field
-    config.inbox
-}
-
-/// Set the inbox configuration (updates both legacy inbox and default capture target)
-pub fn set_inbox_config(document_id: String, node_id: String) -> Result<(), String> {
-    let mut config = load_config();
-    config.inbox = Some(InboxConfig {
-        document_id: document_id.clone(),
-        node_id: node_id.clone(),
-    });
-
-    // Also update default capture target
-    // Clear old default
-    for target in config.capture_targets.values_mut() {
-        target.default = false;
-    }
-    config.capture_targets.insert("inbox".to_string(), CaptureTarget {
-        document_id,
-        node_id,
-        default: true,
-    });
-
-    save_config(&config)
-}
-
-/// Clear the inbox configuration
-pub fn clear_inbox_config() -> Result<(), String> {
-    let mut config = load_config();
-    config.inbox = None;
-    save_config(&config)
-}
-
 // -- Capture target management --
-
-/// Get the default capture target from a config
-fn get_default_target_from(config: &AppConfig) -> Option<&CaptureTarget> {
-    config.capture_targets.values().find(|t| t.default)
-}
 
 /// Get all capture targets
 pub fn get_capture_targets() -> HashMap<String, CaptureTarget> {
@@ -544,79 +474,6 @@ pub fn list_documents() -> Result<Vec<Uuid>, String> {
     }
 
     Ok(ids)
-}
-
-/// An inbox item captured from mobile/web
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InboxItem {
-    pub id: String,
-    pub content: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub note: Option<String>,
-    pub capture_date: String,
-    pub captured_at: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<String>,
-}
-
-/// Get the inbox file path
-pub fn inbox_path() -> PathBuf {
-    data_dir().join("inbox.jsonl")
-}
-
-/// Read all inbox items
-pub fn read_inbox() -> Result<Vec<InboxItem>, String> {
-    let path = inbox_path();
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-
-    let file = File::open(&path).map_err(|e| format!("Open inbox.jsonl: {}", e))?;
-    let reader = BufReader::new(file);
-    let mut items = Vec::new();
-
-    for line in reader.lines() {
-        let line = line.map_err(|e| format!("Read line: {}", e))?;
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        match serde_json::from_str::<InboxItem>(trimmed) {
-            Ok(item) => items.push(item),
-            Err(e) => log::warn!("Skip malformed inbox item: {}", e),
-        }
-    }
-
-    Ok(items)
-}
-
-/// Remove processed inbox items by their IDs
-pub fn remove_inbox_items(ids: &[String]) -> Result<(), String> {
-    let path = inbox_path();
-    if !path.exists() {
-        return Ok(());
-    }
-
-    // Read all items, filter out the ones to remove, write back
-    let items = read_inbox()?;
-    let remaining: Vec<_> = items.into_iter()
-        .filter(|item| !ids.contains(&item.id))
-        .collect();
-
-    // Write back (or delete file if empty)
-    if remaining.is_empty() {
-        if path.exists() {
-            fs::remove_file(&path).map_err(|e| format!("Remove inbox.jsonl: {}", e))?;
-        }
-    } else {
-        let mut file = File::create(&path).map_err(|e| format!("Create inbox.jsonl: {}", e))?;
-        for item in remaining {
-            let json = serde_json::to_string(&item).map_err(|e| format!("Serialize item: {}", e))?;
-            writeln!(file, "{}", json).map_err(|e| format!("Write item: {}", e))?;
-        }
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'sinatra/base'
+require 'fileutils'
 require 'json'
 require 'securerandom'
 require 'time'
@@ -35,10 +36,6 @@ class OutlineServer < Sinatra::Base
       calendar_tokens.include?(token)
     end
 
-    def inbox_path
-      File.join(data_dir, 'inbox.jsonl')
-    end
-
     def documents_dir
       File.join(data_dir, 'documents')
     end
@@ -56,16 +53,47 @@ class OutlineServer < Sinatra::Base
       Time.now.strftime('%Y-%m-%d')
     end
 
-    def build_inbox_entry(content:, note: nil, source: 'web')
-      now = Time.now
-      {
-        id: SecureRandom.uuid,
+    def capture_target
+      settings.outline_config[:capture_target]
+    end
+
+    # Build a pending operation to create a node as a child of the capture target
+    def build_capture_op(content:, note: nil)
+      node_id = SecureRandom.uuid
+      now = Time.now.utc.strftime('%Y-%m-%dT%H:%M:%S.%6NZ')
+      # Position is set high to append at the end; the app will normalize on load
+      ops = [{
+        op: 'create',
+        id: node_id,
+        parent_id: capture_target[:node_id],
+        position: 999999,
         content: content,
-        note: note,
-        capture_date: now.strftime('%Y-%m-%d'),
-        captured_at: now.iso8601,
-        source: source
-      }.compact
+        node_type: 'bullet',
+        updated_at: now
+      }]
+
+      if note && !note.empty?
+        ops << {
+          op: 'update',
+          id: node_id,
+          changes: { note: note },
+          updated_at: now
+        }
+      end
+
+      ops
+    end
+
+    # Append operations to pending.server.jsonl in the capture target's document directory
+    def append_to_pending(ops)
+      target = capture_target
+      doc_dir = File.join(documents_dir, target[:document_id])
+      FileUtils.mkdir_p(doc_dir)
+      pending_path = File.join(doc_dir, 'pending.server.jsonl')
+
+      File.open(pending_path, 'a') do |f|
+        ops.each { |op| f.puts(op.to_json) }
+      end
     end
   end
 
@@ -75,7 +103,7 @@ class OutlineServer < Sinatra::Base
     {
       status: 'ok',
       data_dir_exists: File.directory?(data_dir),
-      inbox_writable: File.writable?(File.dirname(inbox_path)),
+      capture_configured: !capture_target.nil?,
       timestamp: Time.now.iso8601
     }.to_json
   end
@@ -149,11 +177,18 @@ class OutlineServer < Sinatra::Base
 
   # Mobile capture form
   get '/outline/capture' do
+    unless capture_target
+      halt 503, 'Capture target not configured. Add capture_target to server config.'
+    end
     erb :capture
   end
 
   # Handle capture submission
   post '/outline/capture' do
+    unless capture_target
+      halt 503, 'Capture target not configured'
+    end
+
     content = params[:content]&.strip
 
     if content.nil? || content.empty?
@@ -161,23 +196,22 @@ class OutlineServer < Sinatra::Base
       return erb(:capture)
     end
 
-    entry = build_inbox_entry(
+    ops = build_capture_op(
       content: content,
-      note: params[:note]&.strip,
-      source: 'web'
+      note: params[:note]&.strip
     )
-
-    # Append to inbox.jsonl
-    File.open(inbox_path, 'a') do |f|
-      f.puts(entry.to_json)
-    end
+    append_to_pending(ops)
 
     @success = true
     erb :capture
   end
 
   # API endpoint for programmatic capture (shortcuts, automation)
-  post '/outline/api/inbox' do
+  post '/outline/api/capture' do
+    unless capture_target
+      json_response({ error: 'Capture target not configured' }, status: 503)
+    end
+
     request.body.rewind
     body = request.body.read
 
@@ -193,45 +227,12 @@ class OutlineServer < Sinatra::Base
       json_response({ error: 'Content is required' }, status: 400)
     end
 
-    entry = build_inbox_entry(
+    ops = build_capture_op(
       content: content,
-      note: data[:note]&.strip,
-      source: data[:source] || 'api'
+      note: data[:note]&.strip
     )
+    append_to_pending(ops)
 
-    # Append to inbox.jsonl
-    File.open(inbox_path, 'a') do |f|
-      f.puts(entry.to_json)
-    end
-
-    json_response({ success: true, id: entry[:id] }, status: 201)
-  end
-
-  # Get inbox items (for desktop to poll, or viewer to display)
-  # Returns items grouped by capture_date if ?grouped=true
-  get '/outline/api/inbox' do
-    unless File.exist?(inbox_path)
-      json_response(params[:grouped] ? {} : [])
-    end
-
-    items = File.readlines(inbox_path).filter_map do |line|
-      line = line.strip
-      next if line.empty?
-      JSON.parse(line, symbolize_names: true)
-    rescue JSON::ParserError
-      nil
-    end
-
-    content_type :json
-
-    if params[:grouped]
-      # Group by capture_date for organized display
-      grouped = items.group_by { |item| item[:capture_date] || 'unknown' }
-      # Sort dates descending (newest first)
-      sorted = grouped.sort_by { |date, _| date }.reverse.to_h
-      sorted.to_json
-    else
-      items.to_json
-    end
+    json_response({ success: true, node_id: ops.first[:id] }, status: 201)
   end
 end

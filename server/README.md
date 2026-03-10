@@ -4,8 +4,8 @@ Minimal Ruby/Sinatra server for mobile capture and calendar serving.
 
 ## Features
 
-- **Mobile Capture**: Simple form at `/outline/capture` to add items to inbox
-- **API Capture**: `POST /outline/api/inbox` for shortcuts/automation
+- **Mobile Capture**: Simple form at `/outline/capture` to add items directly to a document
+- **API Capture**: `POST /outline/api/capture` for shortcuts/automation
 - **Calendar Feed**: `GET /calendar/{token}/feed.ics` for calendar subscriptions
 - **Read-Only Viewer**: Serve document data for static SPA viewer
 
@@ -17,7 +17,7 @@ bundle install
 
 # Copy and edit config
 cp config.json.example config.json
-# Edit config.json with your data_dir and calendar tokens
+# Edit config.json with your data_dir, calendar tokens, and capture target
 
 # Run development server
 bundle exec puma -p 9292
@@ -32,15 +32,21 @@ Create `config.json`:
 
 ```json
 {
-  "data_dir": "/path/to/synced/.outline",
-  "calendar_tokens": ["your-secret-uuid-here"]
+  "data_dir": "/path/to/synced/.outline-data",
+  "calendar_tokens": ["your-secret-uuid-here"],
+  "capture_target": {
+    "document_id": "your-document-uuid",
+    "node_id": "your-target-node-uuid"
+  }
 }
 ```
+
+The `capture_target` specifies which document and node captured items are added to. Items are written as pending operations (`pending.server.jsonl`) and merged automatically when the desktop app loads.
 
 Or use environment variables:
 
 ```bash
-OUTLINE_DATA_DIR=/path/to/.outline
+OUTLINE_DATA_DIR=/path/to/.outline-data
 OUTLINE_CALENDAR_TOKENS=token1,token2
 ```
 
@@ -52,8 +58,7 @@ OUTLINE_CALENDAR_TOKENS=token1,token2
 | `GET /calendar/{token}/feed.ics` | Token in URL | Calendar feed |
 | `GET /outline/capture` | Basic Auth | Mobile capture form |
 | `POST /outline/capture` | Basic Auth | Submit captured item |
-| `POST /outline/api/inbox` | Basic Auth | API capture endpoint |
-| `GET /outline/api/inbox` | Basic Auth | List inbox items |
+| `POST /outline/api/capture` | Basic Auth | API capture endpoint |
 | `GET /outline/data/:id/state.json` | Basic Auth | Document data |
 | `GET /outline/data/documents.json` | Basic Auth | List documents |
 

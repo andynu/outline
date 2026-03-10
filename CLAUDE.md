@@ -21,8 +21,7 @@ Outline is a self-hosted Dynalist/Workflowy replacement - a hierarchical outline
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Local File Storage (~/.outline-data/)        │
 │  ├── documents/{uuid}/state.json      (merged state)           │
-│  ├── documents/{uuid}/pending.*.jsonl (per-machine ops)        │
-│  └── inbox.jsonl (captured items)                              │
+│  └── documents/{uuid}/pending.*.jsonl (per-machine ops)        │
 ├─────────────────────────────────────────────────────────────────┤
 │  Platform Cache (varies by OS, see below)                      │
 │  └── outline.db (SQLite FTS5 search index, not synced)         │
@@ -35,7 +34,7 @@ Outline is a self-hosted Dynalist/Workflowy replacement - a hierarchical outline
 │  ├── Ruby/Sinatra                                              │
 │  ├── /calendar/{token}/feed.ics   (iCal feed)                  │
 │  ├── /outline/capture             (mobile capture form)        │
-│  └── /outline/api/inbox           (capture API)                │
+│  └── /outline/api/capture         (capture API)                │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -90,7 +89,7 @@ otl node update --content "new" <id>  # Update content
 otl node move <id> --parent <parent-id> --position <pos>  # Move node in hierarchy
 otl node delete <short-id>            # Delete node and descendants
 
-# Capture (direct node creation, bypasses inbox.jsonl)
+# Capture (creates node directly in target document)
 otl capture "content"                 # Capture to default target
 otl capture "content" --to <target>   # Capture to named target
 otl capture "content" --note "extra"  # With note text
@@ -105,7 +104,6 @@ otl target remove <name>              # Remove target
 otl target set-default <name>         # Set default target
 
 # Other
-otl inbox list                        # List inbox items
 otl export markdown <doc-id>          # Export document
 otl compact                           # Merge pending ops into state.json
 ```
