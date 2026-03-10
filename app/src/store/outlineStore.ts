@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { Node, TreeNode, DocumentState, UndoEntry, UndoAction, NodeChanges } from '../lib/types';
 import * as api from '../lib/api';
 import { formatISODate } from '../lib/dateUtils';
-import { parseFilterQuery, nodeMatchesParsedFilter } from '../lib/searchQueryParser';
+import { parseFilterQuery, nodeMatchesParsedFilter, type ParsedFilter } from '../lib/searchQueryParser';
 
 // Constants
 const MAX_UNDO_STACK_SIZE = 100;
@@ -241,14 +241,12 @@ interface OutlineState {
   sortChildrenByCreatedReverse: (parentId: string) => Promise<boolean>;
 }
 
-// Check if a node matches the filter query (supports search operators)
+// Check if a node matches a pre-parsed filter
 function nodeMatchesFilter(
   node: Node,
-  filterQuery: string | null,
+  parsed: ParsedFilter,
   childrenByParent?: Map<string | null, Node[]>
 ): boolean {
-  if (!filterQuery) return true;
-  const parsed = parseFilterQuery(filterQuery);
   const childCount = childrenByParent ? (childrenByParent.get(node.id) ?? []).length : 0;
   return nodeMatchesParsedFilter(node, parsed, childCount);
 }
@@ -257,13 +255,13 @@ function nodeMatchesFilter(
 function hasMatchingDescendant(
   nodeId: string,
   childrenByParent: Map<string | null, Node[]>,
-  filterQuery: string | null,
+  parsed: ParsedFilter,
   nodesById: Map<string, Node>
 ): boolean {
   const children = childrenByParent.get(nodeId) ?? [];
   for (const child of children) {
-    if (nodeMatchesFilter(child, filterQuery, childrenByParent)) return true;
-    if (hasMatchingDescendant(child.id, childrenByParent, filterQuery, nodesById)) return true;
+    if (nodeMatchesFilter(child, parsed, childrenByParent)) return true;
+    if (hasMatchingDescendant(child.id, childrenByParent, parsed, nodesById)) return true;
   }
   return false;
 }
@@ -285,8 +283,12 @@ function buildTree(
   nodesById: Map<string, Node> = new Map(),
   zoomedNodeId: string | null = null,
   hideDeferred: boolean = false,
-  ignoreCollapsed: boolean = false
+  ignoreCollapsed: boolean = false,
+  _parsedFilter?: ParsedFilter | null
 ): TreeNode[] {
+  // Parse the filter query once at the top level, reuse on recursive calls
+  const parsed = _parsedFilter !== undefined ? _parsedFilter : (filterQuery ? parseFilterQuery(filterQuery) : null);
+
   // When zoomed, start from the zoomed node's children (only at root level)
   let effectiveParentId = parentId;
   if (depth === 0 && zoomedNodeId) {
@@ -310,10 +312,10 @@ function buildTree(
   }
 
   // If filtering, only show nodes that match OR have matching descendants
-  if (filterQuery) {
+  if (parsed) {
     visibleChildren = visibleChildren.filter(n =>
-      nodeMatchesFilter(n, filterQuery, childrenByParent) ||
-      hasMatchingDescendant(n.id, childrenByParent, filterQuery, nodesById)
+      nodeMatchesFilter(n, parsed, childrenByParent) ||
+      hasMatchingDescendant(n.id, childrenByParent, parsed, nodesById)
     );
   }
 
@@ -326,10 +328,10 @@ function buildTree(
     if (hideDeferred) {
       visibleNodeChildren = visibleNodeChildren.filter(n => !isNodeDeferred(n));
     }
-    if (filterQuery) {
+    if (parsed) {
       visibleNodeChildren = visibleNodeChildren.filter(n =>
-        nodeMatchesFilter(n, filterQuery, childrenByParent) ||
-        hasMatchingDescendant(n.id, childrenByParent, filterQuery, nodesById)
+        nodeMatchesFilter(n, parsed, childrenByParent) ||
+        hasMatchingDescendant(n.id, childrenByParent, parsed, nodesById)
       );
     }
     const hasChildren = visibleNodeChildren.length > 0;
@@ -340,7 +342,7 @@ function buildTree(
       hasChildren,
       // When filtering or in article view, expand all nodes to show matches
       children: hasChildren && (!node.collapsed || filterQuery || ignoreCollapsed)
-        ? buildTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById, null, hideDeferred, ignoreCollapsed)
+        ? buildTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById, null, hideDeferred, ignoreCollapsed, parsed)
         : []
     };
   });
@@ -382,8 +384,12 @@ function flattenTree(
   filterQuery: string | null = null,
   nodesById: Map<string, Node> = new Map(),
   zoomedNodeId: string | null = null,
-  hideDeferred: boolean = false
+  hideDeferred: boolean = false,
+  _parsedFilter?: ParsedFilter | null
 ): FlatItem[] {
+  // Parse the filter query once at the top level, reuse on recursive calls
+  const parsed = _parsedFilter !== undefined ? _parsedFilter : (filterQuery ? parseFilterQuery(filterQuery) : null);
+
   // When zoomed, start from the zoomed node's children (only at root level)
   let effectiveParentId = parentId;
   if (depth === 0 && zoomedNodeId) {
@@ -406,10 +412,10 @@ function flattenTree(
   }
 
   // If filtering, only show nodes that match OR have matching descendants
-  if (filterQuery) {
+  if (parsed) {
     visibleChildren = visibleChildren.filter(n =>
-      nodeMatchesFilter(n, filterQuery, childrenByParent) ||
-      hasMatchingDescendant(n.id, childrenByParent, filterQuery, nodesById)
+      nodeMatchesFilter(n, parsed, childrenByParent) ||
+      hasMatchingDescendant(n.id, childrenByParent, parsed, nodesById)
     );
   }
 
@@ -421,10 +427,10 @@ function flattenTree(
     if (hideDeferred) {
       visibleNodeChildren = visibleNodeChildren.filter(n => !isNodeDeferred(n));
     }
-    if (filterQuery) {
+    if (parsed) {
       visibleNodeChildren = visibleNodeChildren.filter(n =>
-        nodeMatchesFilter(n, filterQuery, childrenByParent) ||
-        hasMatchingDescendant(n.id, childrenByParent, filterQuery, nodesById)
+        nodeMatchesFilter(n, parsed, childrenByParent) ||
+        hasMatchingDescendant(n.id, childrenByParent, parsed, nodesById)
       );
     }
     const hasChildren = visibleNodeChildren.length > 0;
@@ -433,7 +439,7 @@ function flattenTree(
 
     // Recursively add children if not collapsed (always expand when filtering)
     if (hasChildren && (!node.collapsed || filterQuery)) {
-      result.push(...flattenTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById, null, hideDeferred));
+      result.push(...flattenTree(childrenByParent, node.id, depth + 1, hideCompleted, filterQuery, nodesById, null, hideDeferred, parsed));
     }
   }
 
@@ -913,9 +919,10 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     }
     // Filter by search query if active
     if (filterQuery) {
+      const parsed = parseFilterQuery(filterQuery);
       children = children.filter(n =>
-        nodeMatchesFilter(n, filterQuery, _childrenByParent) ||
-        hasMatchingDescendant(n.id, _childrenByParent, filterQuery, _nodesById)
+        nodeMatchesFilter(n, parsed, _childrenByParent) ||
+        hasMatchingDescendant(n.id, _childrenByParent, parsed, _nodesById)
       );
     }
     if (children.length > 0) {
@@ -939,9 +946,10 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     }
     // Filter by search query if active
     if (filterQuery) {
+      const parsed = parseFilterQuery(filterQuery);
       siblings = siblings.filter(n =>
-        nodeMatchesFilter(n, filterQuery, _childrenByParent) ||
-        hasMatchingDescendant(n.id, _childrenByParent, filterQuery, _nodesById)
+        nodeMatchesFilter(n, parsed, _childrenByParent) ||
+        hasMatchingDescendant(n.id, _childrenByParent, parsed, _nodesById)
       );
     }
     const idx = siblings.findIndex(n => n.id === focusedId);
@@ -967,9 +975,10 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     }
     // Filter by search query if active
     if (filterQuery) {
+      const parsed = parseFilterQuery(filterQuery);
       siblings = siblings.filter(n =>
-        nodeMatchesFilter(n, filterQuery, _childrenByParent) ||
-        hasMatchingDescendant(n.id, _childrenByParent, filterQuery, _nodesById)
+        nodeMatchesFilter(n, parsed, _childrenByParent) ||
+        hasMatchingDescendant(n.id, _childrenByParent, parsed, _nodesById)
       );
     }
     const idx = siblings.findIndex(n => n.id === focusedId);
@@ -1690,7 +1699,8 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     if (filterQuery) {
       // When filtering, expand all ancestors of matching items
       // This ensures that when the filter is cleared, matching items remain visible
-      const matchingNodes = nodes.filter(n => nodeMatchesFilter(n, filterQuery, _childrenByParent));
+      const parsed = parseFilterQuery(filterQuery);
+      const matchingNodes = nodes.filter(n => nodeMatchesFilter(n, parsed, _childrenByParent));
       const ancestorIds = new Set<string>();
 
       // Collect all ancestors of matching nodes
