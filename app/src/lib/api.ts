@@ -308,6 +308,24 @@ export async function updateNode(id: string, changes: NodeChanges): Promise<Docu
   return { nodes: [...mockState.nodes] };
 }
 
+// Update a node in a specific document (cross-document operations)
+export async function updateNodeInDocument(nodeId: string, documentId: string, changes: NodeChanges): Promise<void> {
+  await initTauri();
+  if (tauriInvoke) {
+    console.log('[API] update_node_in_document via Tauri:', nodeId, documentId, changes);
+    try {
+      await tauriInvoke('update_node_in_document', { nodeId, documentId, changes });
+      console.log('[API] update_node_in_document success');
+    } catch (e) {
+      console.error('[API] update_node_in_document ERROR:', e);
+      throw e;
+    }
+    return;
+  }
+  // Browser-only mode: no-op (mock doesn't support cross-document)
+  console.log('[API] update_node_in_document via mock (no-op):', nodeId, documentId, changes);
+}
+
 // Move a node to new parent/position
 export async function moveNode(
   id: string,

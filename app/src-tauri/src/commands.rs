@@ -180,6 +180,51 @@ pub fn update_node(
     save_op(state, op)
 }
 
+/// Update a node in a specific document (for cross-document operations like Today panel check-off).
+/// If the target document is the currently loaded one, delegates to save_op.
+/// Otherwise loads the document, applies the operation, and saves directly.
+#[tauri::command]
+pub fn update_node_in_document(
+    state: State<AppState>,
+    node_id: String,
+    document_id: String,
+    changes: NodeChanges,
+) -> Result<(), String> {
+    let node_uuid = parse_uuid(&node_id)?;
+    let doc_uuid = parse_uuid(&document_id)?;
+
+    // Check if this is the currently loaded document
+    let is_current = {
+        let current = state.current_document.lock().unwrap();
+        current.as_ref().map_or(false, |doc| doc.id == doc_uuid)
+    };
+
+    if is_current {
+        let op = update_op(node_uuid, changes);
+        save_op(state, op)?;
+        return Ok(());
+    }
+
+    // Load the target document, apply changes, save
+    let doc_dir = documents_dir().join(doc_uuid.to_string());
+    let mut doc = Document::load(doc_dir)?;
+
+    let op = update_op(node_uuid, changes);
+    doc.append_op(&op)?;
+    op.apply(&mut doc.state);
+
+    // Re-index the modified node for search
+    if let Ok(search_index) = state.search_index.lock() {
+        if let Some(ref index) = *search_index {
+            if let Some(updated_node) = doc.state.nodes.iter().find(|n| n.id == node_uuid) {
+                let _ = index.update_node(&doc_uuid, updated_node);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Move a node (convenience command that wraps save_op)
 #[tauri::command]
 pub fn move_node(

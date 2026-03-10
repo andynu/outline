@@ -9,6 +9,7 @@ import { KeyboardShortcutsModal } from './components/ui/KeyboardShortcutsModal';
 import { SettingsModal } from './components/ui/SettingsModal';
 import { SearchModal } from './components/ui/SearchModal';
 import { DateViewsPanel } from './components/ui/DateViewsPanel';
+import { TodayPanel } from './components/ui/TodayPanel';
 import { TagsPanel } from './components/ui/TagsPanel';
 import { InboxPanel } from './components/ui/InboxPanel';
 import { QuickNavigator } from './components/ui/QuickNavigator';
@@ -155,6 +156,7 @@ function App() {
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDateViews, setShowDateViews] = useState(false);
+  const [showTodayPanel, setShowTodayPanel] = useState(false);
   const [showTagsPanel, setShowTagsPanel] = useState(false);
   const [showInboxPanel, setShowInboxPanel] = useState(false);
   const [inboxCount, setInboxCount] = useState(0);
@@ -479,6 +481,18 @@ function App() {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
     setShowDateViews(false);
+  }, [currentDocumentId, load]);
+
+  // Handle today panel navigation (cross-document, keeps panel open)
+  const handleTodayNavigate = useCallback((nodeId: string, documentId: string) => {
+    if (documentId !== currentDocumentId) {
+      setCurrentDocumentId(documentId);
+      load(documentId).then(() => {
+        useOutlineStore.getState().setFocusedId(nodeId);
+      });
+    } else {
+      useOutlineStore.getState().setFocusedId(nodeId);
+    }
   }, [currentDocumentId, load]);
 
   // Handle tags panel navigation (same document only)
@@ -861,6 +875,13 @@ function App() {
         return;
       }
 
+      // Today panel (Ctrl+Shift+Y for todaY)
+      if (mod && event.shiftKey && event.key === 'Y') {
+        event.preventDefault();
+        setShowTodayPanel(prev => !prev);
+        return;
+      }
+
       // Date Views
       if (mod && event.shiftKey && event.key === 'T') {
         event.preventDefault();
@@ -1073,7 +1094,7 @@ function App() {
       }
 
       // Escape clears selection, filter, or exits zoom (when no modal is open)
-      if (event.key === 'Escape' && !showSearchModal && !showQuickNavigator && !showQuickMove && !showQuickCapture && !showDateViews && !showTagsPanel && !showInboxPanel && !showKeyboardShortcuts && !showSettings) {
+      if (event.key === 'Escape' && !showSearchModal && !showQuickNavigator && !showQuickMove && !showQuickCapture && !showDateViews && !showTodayPanel && !showTagsPanel && !showInboxPanel && !showKeyboardShortcuts && !showSettings) {
         // First clear selection if any, then filter, then zoom
         if (selectedIds.size > 0) {
           event.preventDefault();
@@ -1111,7 +1132,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
@@ -1209,6 +1230,16 @@ function App() {
               <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
             </svg>
             {inboxCount > 0 && <span className="toolbar-badge">{inboxCount}</span>}
+          </button>
+          <button
+            className={`toolbar-btn ${showTodayPanel ? 'active' : ''}`}
+            onClick={() => setShowTodayPanel(prev => !prev)}
+            title="Today (Ctrl+Shift+Y)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
           </button>
           <button
             className="toolbar-btn"
@@ -1390,6 +1421,13 @@ function App() {
             </>
           )}
         </main>
+
+        <TodayPanel
+          isOpen={showTodayPanel}
+          onClose={() => setShowTodayPanel(false)}
+          onNavigate={handleTodayNavigate}
+          currentDocumentId={currentDocumentId}
+        />
       </div>
 
       {/* Status Bar */}

@@ -114,6 +114,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
               <li><kbd>Ctrl+D</kbd> Set date</li>
               <li><kbd>Ctrl+Shift+D</kbd> Clear date</li>
               <li><kbd>Ctrl+R</kbd> Set recurrence</li>
+              <li><kbd>Ctrl+Shift+Y</kbd> Today panel</li>
               <li><kbd>Ctrl+Shift+T</kbd> Date views</li>
             </ul>
           </div>

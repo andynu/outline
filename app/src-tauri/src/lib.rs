@@ -46,6 +46,7 @@ pub fn run() {
             commands::create_node,
             commands::create_node_with_id,
             commands::update_node,
+            commands::update_node_in_document,
             commands::move_node,
             commands::delete_node,
             commands::compact_document,
