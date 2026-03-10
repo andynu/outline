@@ -35,6 +35,13 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
   const itemRef = useRef<HTMLDivElement>(null);
   const store = useOutlineStore.getState;
 
+  // Scroll navigate-focused item into view
+  useEffect(() => {
+    if (isNavigateFocused && itemRef.current) {
+      itemRef.current.scrollIntoView({ block: 'nearest' });
+    }
+  }, [isNavigateFocused]);
+
   useEffect(() => {
     const el = staticContentRef.current;
     if (!el) return;

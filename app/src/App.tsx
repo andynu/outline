@@ -1152,9 +1152,20 @@ function App() {
         }
       }
 
-      // Navigate mode re-entry keys (vim-style)
+      // Navigate mode keys
       if (keyboardMode === 'navigate' && focusedId && !mod && !event.shiftKey) {
-        // Enter, a, A: enter edit mode on focused item, cursor at end
+        // Arrow keys: move focus between items (stay in navigate mode)
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          moveToNext();
+          return;
+        }
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          moveToPrevious();
+          return;
+        }
+        // Enter, a: enter edit mode on focused item, cursor at end
         if (event.key === 'Enter' || event.key === 'a') {
           event.preventDefault();
           enterEditMode(focusedId);
