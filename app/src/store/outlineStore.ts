@@ -74,6 +74,7 @@ interface OutlineState {
   draggedId: string | null;  // Currently dragged node ID
   docPrefix: string | null;  // Document prefix for short IDs (e.g., "inbox")
   keyboardMode: 'edit' | 'navigate';  // edit = TipTap active, navigate = item-level operations
+  _selectionAnchorId: string | null;  // Anchor for Shift+Arrow selection extension
 
   // Zoom navigation history
   _zoomHistoryBack: (string | null)[];   // Stack of previous zoom targets
@@ -111,6 +112,7 @@ interface OutlineState {
   closeNoteEditor: () => void;
   enterNavigateMode: () => void;
   enterEditMode: (nodeId?: string) => void;
+  extendSelection: (direction: 'up' | 'down') => void;
 
   // Computed
   getTree: () => TreeNode[];
@@ -469,6 +471,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   draggedId: null,
   docPrefix: null,
   keyboardMode: 'edit' as const,
+  _selectionAnchorId: null,
   _zoomHistoryBack: [],
   _zoomHistoryForward: [],
   _undoStack: [],
@@ -669,11 +672,48 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   enterEditMode: (nodeId?: string) => {
-    const updates: Partial<OutlineState> = { keyboardMode: 'edit' };
+    const updates: Partial<OutlineState> = { keyboardMode: 'edit', _selectionAnchorId: null };
     if (nodeId != null) {
       updates.focusedId = nodeId;
     }
     set(updates);
+  },
+
+  extendSelection: (direction: 'up' | 'down') => {
+    const { focusedId, _selectionAnchorId, getVisibleNodes } = get();
+    if (!focusedId) return;
+
+    const visible = getVisibleNodes();
+    const focusIdx = visible.findIndex(n => n.id === focusedId);
+    if (focusIdx < 0) return;
+
+    // Set anchor to current focus if not yet set
+    const anchorId = _selectionAnchorId ?? focusedId;
+    const anchorIdx = visible.findIndex(n => n.id === anchorId);
+    if (anchorIdx < 0) return;
+
+    // Move focus in the requested direction
+    const newFocusIdx = direction === 'up'
+      ? Math.max(0, focusIdx - 1)
+      : Math.min(visible.length - 1, focusIdx + 1);
+
+    if (newFocusIdx === focusIdx) return; // Already at boundary
+
+    const newFocusId = visible[newFocusIdx].id;
+
+    // Select all items from anchor to new focus
+    const startIdx = Math.min(anchorIdx, newFocusIdx);
+    const endIdx = Math.max(anchorIdx, newFocusIdx);
+    const newSet = new Set<string>();
+    for (let i = startIdx; i <= endIdx; i++) {
+      newSet.add(visible[i].id);
+    }
+
+    set({
+      selectedIds: newSet,
+      focusedId: newFocusId,
+      _selectionAnchorId: anchorId,
+    });
   },
 
   // === Computed getters ===
@@ -2613,7 +2653,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   clearSelection: () => {
     const { selectedIds } = get();
     if (selectedIds.size > 0) {
-      set({ selectedIds: new Set<string>() });
+      set({ selectedIds: new Set<string>(), _selectionAnchorId: null });
     }
   },
 
