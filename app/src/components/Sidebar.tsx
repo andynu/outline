@@ -19,6 +19,7 @@ import { closeAllContextMenus, CLOSE_ALL_CONTEXT_MENUS } from './ui/ContextMenu'
 import { showToast } from '../store/toastStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useSavedSearchStore, type SavedSearch } from '../store/savedSearchStore';
+import { useBookmarkStore } from '../store/bookmarkStore';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ interface SidebarProps {
   onNewDocument: () => void;
   onDeleteDocument: (docId: string) => void;
   onApplySavedSearch?: (query: string) => void;
+  onNavigateToBookmark?: (nodeId: string, documentId: string) => void;
 }
 
 export interface SidebarRef {
@@ -52,12 +54,14 @@ interface FolderDropTarget {
 }
 
 export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
-  { isOpen, currentDocumentId, onToggle, onSelectDocument, onNewDocument, onDeleteDocument, onApplySavedSearch },
+  { isOpen, currentDocumentId, onToggle, onSelectDocument, onNewDocument, onDeleteDocument, onApplySavedSearch, onNavigateToBookmark },
   ref
 ) {
   const confirmDelete = useSettingsStore((s) => s.confirmDelete);
   const savedSearches = useSavedSearchStore((s) => s.savedSearches);
   const removeSavedSearch = useSavedSearchStore((s) => s.removeSavedSearch);
+  const bookmarks = useBookmarkStore((s) => s.bookmarks);
+  const removeBookmark = useBookmarkStore((s) => s.remove);
 
   // Saved search context menu state
   const [savedSearchContextMenu, setSavedSearchContextMenu] = useState<{ search: SavedSearch; x: number; y: number } | null>(null);
@@ -612,6 +616,35 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
             </div>
           )}
         </div>
+
+        {bookmarks.length > 0 && (
+          <div className="bookmarks-section">
+            <div className="bookmarks-header">Bookmarks</div>
+            <div className="bookmarks-list">
+              {bookmarks.map((bm) => (
+                <div
+                  key={bm.node_id}
+                  className="bookmark-item"
+                  onClick={() => onNavigateToBookmark?.(bm.node_id, bm.document_id)}
+                  title={bm.label}
+                >
+                  <span className="bookmark-emoji">{bm.emoji || '\u2606'}</span>
+                  <span className="bookmark-label">{bm.label}</span>
+                  <button
+                    className="bookmark-remove"
+                    onClick={(e) => { e.stopPropagation(); removeBookmark(bm.node_id); }}
+                    title="Remove bookmark"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {savedSearches.length > 0 && (
           <div className="saved-searches-section">

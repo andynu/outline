@@ -4102,6 +4102,77 @@ body {
    Saved Searches in Sidebar
    ============================================================================= */
 
+/* Bookmarks section */
+.bookmarks-section {
+  border-top: 1px solid var(--border-primary);
+  padding: 8px 0;
+}
+
+.bookmarks-header {
+  padding: 4px 16px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bookmarks-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.bookmark-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 16px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: left;
+  width: 100%;
+}
+
+.bookmark-item:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.bookmark-emoji {
+  flex-shrink: 0;
+  font-size: 14px;
+  width: 18px;
+  text-align: center;
+}
+
+.bookmark-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.bookmark-remove {
+  display: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  padding: 2px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.bookmark-item:hover .bookmark-remove {
+  display: block;
+}
+
+.bookmark-remove:hover {
+  color: var(--text-primary);
+}
+
 .saved-searches-section {
   border-top: 1px solid var(--border-primary);
   padding: 8px 0;

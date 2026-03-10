@@ -531,6 +531,18 @@ function App() {
     }
   }, [currentDocumentId, load]);
 
+  // Handle bookmark navigation (cross-document)
+  const handleBookmarkNavigate = useCallback((nodeId: string, documentId: string) => {
+    if (documentId !== currentDocumentId) {
+      setCurrentDocumentId(documentId);
+      load(documentId).then(() => {
+        useOutlineStore.getState().setFocusedId(nodeId);
+      });
+    } else {
+      useOutlineStore.getState().setFocusedId(nodeId);
+    }
+  }, [currentDocumentId, load]);
+
   // Handle tag search from tags panel - use filter instead of search
   const handleTagSearch = useCallback((tag: string) => {
     setFilterQuery(`#${tag}`);
@@ -1496,6 +1508,7 @@ function App() {
           onNewDocument={handleNewDocument}
           onDeleteDocument={handleDeleteDocument}
           onApplySavedSearch={setFilterQuery}
+          onNavigateToBookmark={handleBookmarkNavigate}
         />
 
         {/* Main Content Area */}
