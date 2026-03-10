@@ -84,6 +84,12 @@ pub fn run() {
             commands::reorder_folders,
             // Capture target
             commands::get_default_capture_target,
+            // Bookmarks
+            commands::list_bookmarks,
+            commands::add_bookmark,
+            commands::remove_bookmark,
+            commands::update_bookmark_label,
+            commands::update_bookmark_emoji,
             // Watcher commands
             commands::start_documents_watcher,
             commands::stop_documents_watcher,

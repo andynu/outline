@@ -298,6 +298,11 @@ pub fn data_dir() -> PathBuf {
     default_data_dir()
 }
 
+/// Shared mutex for tests that use DATA_DIR_OVERRIDE.
+/// All test modules (bookmarks, folders, etc.) must lock this to prevent cross-module interference.
+#[cfg(test)]
+pub static TEST_DATA_DIR_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Set the data directory override
 pub fn set_data_dir(path: Option<PathBuf>) {
     if let Ok(mut guard) = DATA_DIR_OVERRIDE.write() {

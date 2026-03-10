@@ -1193,3 +1193,64 @@ export async function getDefaultCaptureTarget(): Promise<CaptureTarget | null> {
   return null;
 }
 
+// ============================================================================
+// Bookmarks
+// ============================================================================
+
+export interface Bookmark {
+  node_id: string;
+  document_id: string;
+  label: string;
+  emoji?: string | null;
+  created_at: string;
+}
+
+export interface BookmarkState {
+  bookmarks: Bookmark[];
+}
+
+// Get all bookmarks
+export async function listBookmarks(): Promise<BookmarkState> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('list_bookmarks') as Promise<BookmarkState>;
+  }
+  return { bookmarks: [] };
+}
+
+// Add a bookmark
+export async function addBookmark(nodeId: string, documentId: string, label: string): Promise<Bookmark> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('add_bookmark', { nodeId, documentId, label }) as Promise<Bookmark>;
+  }
+  return { node_id: nodeId, document_id: documentId, label, created_at: new Date().toISOString() };
+}
+
+// Remove a bookmark
+export async function removeBookmark(nodeId: string): Promise<void> {
+  await initTauri();
+  if (tauriInvoke) {
+    await tauriInvoke('remove_bookmark', { nodeId });
+    return;
+  }
+}
+
+// Update a bookmark's label
+export async function updateBookmarkLabel(nodeId: string, label: string): Promise<Bookmark> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('update_bookmark_label', { nodeId, label }) as Promise<Bookmark>;
+  }
+  return { node_id: nodeId, document_id: '', label, created_at: new Date().toISOString() };
+}
+
+// Update a bookmark's emoji
+export async function updateBookmarkEmoji(nodeId: string, emoji: string | null): Promise<Bookmark> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('update_bookmark_emoji', { nodeId, emoji }) as Promise<Bookmark>;
+  }
+  return { node_id: nodeId, document_id: '', label: '', emoji, created_at: new Date().toISOString() };
+}
+

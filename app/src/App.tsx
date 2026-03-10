@@ -17,6 +17,7 @@ import { QuickCaptureModal } from './components/ui/QuickCaptureModal';
 import { ToastContainer } from './components/ui/ToastContainer';
 import { showToast } from './store/toastStore';
 import { useSettingsStore } from './store/settingsStore';
+import { useBookmarkStore } from './store/bookmarkStore';
 import { FilterBar } from './components/ui/FilterBar';
 import { ZoomBreadcrumbs } from './components/ui/ZoomBreadcrumbs';
 import { BacklinksPanel } from './components/ui/BacklinksPanel';
@@ -299,6 +300,7 @@ function App() {
     };
 
     restoreSession();
+    useBookmarkStore.getState().load();
   }, [load, zoomTo, setFocusedId]);
 
   // Toggle theme

@@ -201,12 +201,8 @@ pub fn reorder_folders(folder_ids: Vec<String>) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::document::set_data_dir;
-    use std::sync::Mutex;
+    use crate::data::document::{set_data_dir, TEST_DATA_DIR_MUTEX};
     use tempfile::TempDir;
-
-    // Mutex to ensure tests run serially (they share global state via DATA_DIR_OVERRIDE)
-    static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
     /// RAII guard that sets the data dir to a temp directory and resets it on drop.
     /// The TempDir field keeps the temp directory alive until the guard is dropped.
@@ -226,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_folder_collapsed_state_persistence() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_DATA_DIR_MUTEX.lock().unwrap();
         let _tmp = setup_test_data_dir();
 
         // Create a folder
@@ -246,7 +242,7 @@ mod tests {
 
     #[test]
     fn test_folder_collapsed_state_toggle() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_DATA_DIR_MUTEX.lock().unwrap();
         let _tmp = setup_test_data_dir();
 
         // Create and collapse a folder
