@@ -1275,3 +1275,24 @@ export async function updateBookmarkEmoji(nodeId: string, emoji: string | null):
   return { node_id: nodeId, document_id: '', label: '', emoji, created_at: new Date().toISOString() };
 }
 
+// Custom emoji types
+export interface CustomEmoji {
+  src?: string;
+  text?: string;
+  added_at: string;
+}
+
+export interface CustomEmojiRegistry {
+  version: number;
+  emoji: Record<string, CustomEmoji>;
+}
+
+// Load custom emoji registry
+export async function loadCustomEmoji(): Promise<CustomEmojiRegistry> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('load_custom_emoji') as Promise<CustomEmojiRegistry>;
+  }
+  return { version: 1, emoji: {} };
+}
+
