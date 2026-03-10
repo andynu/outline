@@ -389,6 +389,7 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
         {node.defer_date && <span className="date-badge defer" title={`Deferred until ${node.defer_date}`}>{'Defer: ' + formatDateRelative(node.defer_date)}</span>}
         {node.date && <span className="date-badge" title={node.date_end ? `${node.date} - ${node.date_end}` : node.date}>{formatDateRange(node.date, node.date_end)}</span>}
         {node.recurrence && <span className="recurrence-indicator" title="Repeating">↻</span>}
+        {isBookmarked && <span className="bookmark-indicator" title="Bookmarked">★</span>}
       </div>
       {node.note && noteDisplayMode !== 'none' && (
         <div className="note-row">

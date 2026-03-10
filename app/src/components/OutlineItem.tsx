@@ -1815,6 +1815,7 @@ export const OutlineItem = memo(function OutlineItem({
             ↻
           </span>
         )}
+        {isBookmarked && <span className="bookmark-indicator" title="Bookmarked">★</span>}
       </div>
 
       {/* Note row */}

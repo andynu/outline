@@ -2815,6 +2815,15 @@ body {
   opacity: 1;
 }
 
+.bookmark-indicator {
+  font-size: 11px;
+  margin-left: 4px;
+  color: var(--accent-color, #e8a838);
+  opacity: 0.8;
+  cursor: default;
+  flex-shrink: 0;
+}
+
 /* Note field styles */
 .note-row {
   margin-left: 20px;
