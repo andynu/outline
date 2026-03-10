@@ -277,3 +277,11 @@ Data from the Rust backend may have `undefined` where TypeScript types say `null
    ```
 
 3. **Key fields affected**: `parent_id`, and any `Option<T>` field from Rust
+
+## Issue Tracking in Outline
+
+When working on bd issues that correspond to outline nodes, use robot emoji tracking nodes as children:
+
+- **Creating**: When starting a bd issue linked to an outline node, create a child: `🤖 Tracked: otl-xxxx (open, P2)`
+- **Completing**: When closing the issue, update the node and prepend ☑️: `☑️ 🤖 Tracked: otl-xxxx (closed) — summary of outcome`
+- **Open issues** use just `🤖`, closed issues add `☑️` prefix
