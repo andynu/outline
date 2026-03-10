@@ -1,4 +1,5 @@
 import type { Node } from './types';
+import { stripHtml } from './utils';
 
 /**
  * Ancestry-aware search for QuickMove and QuickNavigator.
@@ -7,18 +8,6 @@ import type { Node } from './types';
  * against the path segments (e.g., typing "Tech Rails" finds nodes
  * under KB > Tech > Rails).
  */
-
-// Strip HTML tags from content for matching and display
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .trim();
-}
 
 export interface AncestrySearchResult {
   node_id: string;

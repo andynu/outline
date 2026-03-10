@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useOutlineStore } from '../../store/outlineStore';
 import type { Node } from '../../lib/types';
+import { stripHtml } from '../../lib/utils';
 
 interface TagsPanelProps {
   isOpen: boolean;
@@ -18,17 +19,6 @@ function extractHashtags(text: string): string[] {
     tags.push(match[1]); // The tag without #
   }
   return tags;
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .trim();
 }
 
 export function TagsPanel({ isOpen, onClose, onNavigate, onTagSearch }: TagsPanelProps) {

@@ -1,22 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import * as api from '../../lib/api';
 import type { BacklinkResult, UnlinkedReference } from '../../lib/api';
+import { stripHtml } from '../../lib/utils';
 
 interface BacklinksPanelProps {
   nodeId: string | null;
   nodeContent: string;
   onNavigate: (nodeId: string, documentId: string) => void;
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .trim();
 }
 
 function truncate(text: string, maxLength: number = 80): string {

@@ -3,6 +3,7 @@ import { getDateStatus, formatDateRelative, formatISODate, type DateStatus } fro
 import { DateBadge } from './DateBadge';
 import { getAllDatedNodes } from '../../lib/api';
 import type { DatedNodeInfo } from '../../lib/types';
+import { stripHtml } from '../../lib/utils';
 
 type ViewType = 'today' | 'upcoming' | 'overdue' | 'all';
 
@@ -24,17 +25,6 @@ interface DateViewsPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigate: (nodeId: string, documentId: string) => void;
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .trim();
 }
 
 export function DateViewsPanel({ isOpen, onClose, onNavigate }: DateViewsPanelProps) {

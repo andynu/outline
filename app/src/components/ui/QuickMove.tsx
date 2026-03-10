@@ -3,23 +3,12 @@ import { useOutlineStore } from '../../store/outlineStore';
 import { showToast } from '../../store/toastStore';
 import { buildAncestryIndex, searchAncestryIndex } from '../../lib/ancestrySearch';
 import type { AncestrySearchResult } from '../../lib/ancestrySearch';
+import { stripHtml } from '../../lib/utils';
 
 interface QuickMoveProps {
   isOpen: boolean;
   onClose: () => void;
   bulkMode?: boolean; // When true, move all selected nodes instead of focused node
-}
-
-function stripHtml(html: string): string {
-  // Use regex to strip HTML tags - safer than innerHTML parsing
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .trim();
 }
 
 export function QuickMove({ isOpen, onClose, bulkMode = false }: QuickMoveProps) {

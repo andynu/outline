@@ -1,18 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import * as api from '../../lib/api';
 import type { SearchResult } from '../../lib/api';
+import { stripHtml } from '../../lib/utils';
 
 interface WikiLinkSuggestionProps {
   query: string;
   position: { x: number; y: number };
   onSelect: (nodeId: string, displayText: string) => void;
   onClose: () => void;
-}
-
-function stripHtml(html: string): string {
-  const div = document.createElement('div');
-  div.textContent = html;
-  return div.textContent || '';
 }
 
 export function WikiLinkSuggestion({ query, position, onSelect, onClose }: WikiLinkSuggestionProps) {

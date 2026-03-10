@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as api from '../../lib/api';
 import type { SearchResult } from '../../lib/api';
 import { hasSearchOperators } from '../../lib/searchQueryParser';
+import { stripHtml } from '../../lib/utils';
 
 type SearchMode = 'navigate' | 'filter';
 
@@ -12,12 +13,6 @@ interface SearchModalProps {
   onClose: () => void;
   onNavigate: (nodeId: string, documentId: string) => void;
   onFilter: (query: string) => void;
-}
-
-function stripHtml(html: string): string {
-  const div = document.createElement('div');
-  div.textContent = html;
-  return div.textContent || '';
 }
 
 export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose, onNavigate, onFilter }: SearchModalProps) {
