@@ -15,6 +15,8 @@ interface EmojiPickerProps {
   onClose: () => void;
   /** Position for absolute placement (optional — if omitted, renders inline) */
   position?: { x: number; y: number };
+  /** Callback to open the custom emoji manager */
+  onOpenCustomEmojiManager?: () => void;
 }
 
 // ── Constants ────────────────────────────────────────────────────
@@ -189,7 +191,7 @@ function buildRows(items: FlatItem[]): Row[] {
 
 // ── Component ────────────────────────────────────────────────────
 
-export function EmojiPicker({ onSelect, onClose, position }: EmojiPickerProps) {
+export function EmojiPicker({ onSelect, onClose, position, onOpenCustomEmojiManager }: EmojiPickerProps) {
   const [search, setSearch] = useState('');
   const [recents, setRecents] = useState<string[]>(loadRecents);
   const [customEmoji, setCustomEmoji] = useState<CustomEmojiRegistry | null>(null);
@@ -490,6 +492,15 @@ export function EmojiPicker({ onSelect, onClose, position }: EmojiPickerProps) {
           <span className="emoji-picker-hint">
             <kbd>Arrow keys</kbd> Navigate <kbd>Enter</kbd> Select <kbd>Esc</kbd> Close
           </span>
+        )}
+        {onOpenCustomEmojiManager && (
+          <button
+            className="emoji-picker-manage-btn"
+            onClick={(e) => { e.stopPropagation(); onClose(); onOpenCustomEmojiManager(); }}
+            title="Manage custom emoji"
+          >
+            +
+          </button>
         )}
       </div>
     </div>

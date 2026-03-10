@@ -21,6 +21,7 @@ import { useSettingsStore } from '../store/settingsStore';
 import { useSavedSearchStore, type SavedSearch } from '../store/savedSearchStore';
 import { useBookmarkStore } from '../store/bookmarkStore';
 import { EmojiPicker } from './ui/EmojiPicker';
+import { CustomEmojiManager } from './ui/CustomEmojiManager';
 import type { Bookmark } from '../lib/api';
 
 interface SidebarProps {
@@ -71,6 +72,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
   // Bookmark context menu state
   const [bookmarkContextMenu, setBookmarkContextMenu] = useState<{ bookmark: Bookmark; x: number; y: number } | null>(null);
   const [emojiPickerBookmark, setEmojiPickerBookmark] = useState<{ bookmark: Bookmark; x: number; y: number } | null>(null);
+  const [showCustomEmojiManager, setShowCustomEmojiManager] = useState(false);
 
   // Saved search context menu state
   const [savedSearchContextMenu, setSavedSearchContextMenu] = useState<{ search: SavedSearch; x: number; y: number } | null>(null);
@@ -922,9 +924,16 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
             setEmojiPickerBookmark(null);
           }}
           onClose={() => setEmojiPickerBookmark(null)}
+          onOpenCustomEmojiManager={() => setShowCustomEmojiManager(true)}
         />,
         document.body
       )}
+
+      {/* Custom emoji manager modal */}
+      <CustomEmojiManager
+        isOpen={showCustomEmojiManager}
+        onClose={() => setShowCustomEmojiManager(false)}
+      />
 
       {/* Saved search context menu */}
       {savedSearchContextMenu && createPortal(

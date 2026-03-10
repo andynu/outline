@@ -1296,3 +1296,63 @@ export async function loadCustomEmoji(): Promise<CustomEmojiRegistry> {
   return { version: 1, emoji: {} };
 }
 
+// Add a custom emoji (image or text)
+export async function addCustomEmoji(
+  shortcode: string,
+  src?: string,
+  text?: string,
+): Promise<CustomEmojiRegistry> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('add_custom_emoji', {
+      shortcode,
+      src: src ?? null,
+      text: text ?? null,
+    }) as Promise<CustomEmojiRegistry>;
+  }
+  return { version: 1, emoji: {} };
+}
+
+// Remove a custom emoji by shortcode
+export async function removeCustomEmoji(shortcode: string): Promise<CustomEmojiRegistry> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('remove_custom_emoji', { shortcode }) as Promise<CustomEmojiRegistry>;
+  }
+  return { version: 1, emoji: {} };
+}
+
+// Copy an image file to the emoji images directory, returns relative path
+export async function copyEmojiImage(sourcePath: string): Promise<string> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('copy_emoji_image', { sourcePath }) as Promise<string>;
+  }
+  throw new Error('Copy emoji image not available in browser-only mode');
+}
+
+// Pick an emoji image file using native dialog
+export async function pickEmojiImage(): Promise<string | null> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('pick_emoji_image') as Promise<string | null>;
+  }
+  // Browser-only fallback: use HTML file input
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.png,.gif,.svg,.webp,.jpg,.jpeg';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) {
+        resolve(null);
+        return;
+      }
+      // In browser mode we can't get the real path, return the name
+      resolve(file.name);
+    };
+    input.oncancel = () => resolve(null);
+    input.click();
+  });
+}
+

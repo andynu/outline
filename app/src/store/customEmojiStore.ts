@@ -27,6 +27,8 @@ interface CustomEmojiState {
   loaded: boolean;
   /** Load custom emoji from backend */
   load: () => Promise<void>;
+  /** Force reload from backend (e.g. after adding/removing emoji) */
+  reload: () => Promise<void>;
   /** Look up a custom emoji by shortcode, returns the emoji or null */
   lookup: (shortcode: string) => CustomEmoji | null;
   /** Resolve an image src to a full URL usable in <img> tags */
@@ -66,6 +68,30 @@ export const useCustomEmojiStore = create<CustomEmojiState>((set, get) => ({
     } catch (e) {
       console.error('[CustomEmoji] Failed to load:', e);
       set({ emoji: {}, emojiBaseUrl: null, loaded: true });
+    }
+  },
+
+  reload: async () => {
+    try {
+      const api = await import('../lib/api');
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const { convertFileSrc } = await import('@tauri-apps/api/core');
+
+        const registry = await invoke('load_custom_emoji') as CustomEmojiRegistry;
+        const dataDir = await api.getDataDirectory();
+
+        const emojiDirPath = dataDir.current.replace(/\/$/, '') + '/emoji';
+        const baseUrl = convertFileSrc(emojiDirPath);
+
+        set({
+          emoji: registry.emoji,
+          emojiBaseUrl: baseUrl,
+          loaded: true,
+        });
+      }
+    } catch (e) {
+      console.error('[CustomEmoji] Failed to reload:', e);
     }
   },
 

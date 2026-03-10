@@ -6,6 +6,7 @@ export { WikiLinkSuggestion } from './WikiLinkSuggestion';
 export { HashtagSuggestion } from './HashtagSuggestion';
 export { EmojiSuggestion } from './EmojiSuggestion';
 export { EmojiPicker } from './EmojiPicker';
+export { CustomEmojiManager } from './CustomEmojiManager';
 export { DueDateSuggestion } from './DueDateSuggestion';
 export { BacklinksPanel } from './BacklinksPanel';
 export { DateBadge } from './DateBadge';

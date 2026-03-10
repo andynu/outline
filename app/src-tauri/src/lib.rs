@@ -95,6 +95,8 @@ pub fn run() {
             commands::load_custom_emoji,
             commands::add_custom_emoji,
             commands::remove_custom_emoji,
+            commands::copy_emoji_image,
+            commands::pick_emoji_image,
             // Watcher commands
             commands::start_documents_watcher,
             commands::stop_documents_watcher,
