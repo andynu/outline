@@ -20,6 +20,8 @@ import { showToast } from '../store/toastStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useSavedSearchStore, type SavedSearch } from '../store/savedSearchStore';
 import { useBookmarkStore } from '../store/bookmarkStore';
+import { EmojiPicker } from './ui/EmojiPicker';
+import type { Bookmark } from '../lib/api';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -64,6 +66,11 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
   const isBookmarked = useBookmarkStore((s) => s.isBookmarked);
   const removeBookmark = useBookmarkStore((s) => s.remove);
   const addBookmark = useBookmarkStore((s) => s.add);
+  const updateBookmarkEmoji = useBookmarkStore((s) => s.updateEmoji);
+
+  // Bookmark context menu state
+  const [bookmarkContextMenu, setBookmarkContextMenu] = useState<{ bookmark: Bookmark; x: number; y: number } | null>(null);
+  const [emojiPickerBookmark, setEmojiPickerBookmark] = useState<{ bookmark: Bookmark; x: number; y: number } | null>(null);
 
   // Saved search context menu state
   const [savedSearchContextMenu, setSavedSearchContextMenu] = useState<{ search: SavedSearch; x: number; y: number } | null>(null);
@@ -123,10 +130,12 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
     function handleGlobalClick() {
       setContextMenuTarget(null);
       setSavedSearchContextMenu(null);
+      setBookmarkContextMenu(null);
     }
     function handleCloseAll() {
       setContextMenuTarget(null);
       setSavedSearchContextMenu(null);
+      setBookmarkContextMenu(null);
     }
     document.addEventListener('click', handleGlobalClick);
     document.addEventListener(CLOSE_ALL_CONTEXT_MENUS, handleCloseAll);
@@ -628,6 +637,12 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
                   key={bm.node_id}
                   className="bookmark-item"
                   onClick={() => onNavigateToBookmark?.(bm.node_id, bm.document_id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeAllContextMenus();
+                    setBookmarkContextMenu({ bookmark: bm, x: e.clientX, y: e.clientY });
+                  }}
                   title={bm.label}
                 >
                   <span className="bookmark-emoji">{bm.emoji || '\u2606'}</span>
@@ -841,6 +856,75 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
         onRename={handleRenameFolder}
         onClose={() => setRenameFolder(null)}
       />
+
+      {/* Bookmark context menu */}
+      {bookmarkContextMenu && createPortal(
+        <div className="context-menu" style={{ left: bookmarkContextMenu.x, top: bookmarkContextMenu.y }}>
+          <button
+            className="context-menu-item"
+            onClick={(e) => {
+              e.stopPropagation();
+              const bm = bookmarkContextMenu.bookmark;
+              setBookmarkContextMenu(null);
+              setEmojiPickerBookmark({ bookmark: bm, x: bookmarkContextMenu.x, y: bookmarkContextMenu.y });
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+              <line x1="9" y1="9" x2="9.01" y2="9" />
+              <line x1="15" y1="9" x2="15.01" y2="9" />
+            </svg>
+            Change Emoji
+          </button>
+          {bookmarkContextMenu.bookmark.emoji != null && (
+            <button
+              className="context-menu-item"
+              onClick={(e) => {
+                e.stopPropagation();
+                const bm = bookmarkContextMenu.bookmark;
+                setBookmarkContextMenu(null);
+                updateBookmarkEmoji(bm.node_id, null);
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+              Remove Emoji
+            </button>
+          )}
+          <button
+            className="context-menu-item context-menu-item-danger"
+            onClick={(e) => {
+              e.stopPropagation();
+              const bm = bookmarkContextMenu.bookmark;
+              setBookmarkContextMenu(null);
+              removeBookmark(bm.node_id);
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+            Remove Bookmark
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {/* Emoji picker for bookmark */}
+      {emojiPickerBookmark && createPortal(
+        <EmojiPicker
+          position={{ x: emojiPickerBookmark.x, y: emojiPickerBookmark.y }}
+          onSelect={(emoji) => {
+            updateBookmarkEmoji(emojiPickerBookmark.bookmark.node_id, emoji);
+            setEmojiPickerBookmark(null);
+          }}
+          onClose={() => setEmojiPickerBookmark(null)}
+        />,
+        document.body
+      )}
 
       {/* Saved search context menu */}
       {savedSearchContextMenu && createPortal(
