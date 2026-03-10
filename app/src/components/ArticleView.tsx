@@ -1,10 +1,10 @@
 import React, { useMemo } from 'react';
 import type { TreeNode } from '../lib/types';
 import DOMPurify from 'dompurify';
+import { stripHtml } from '../lib/utils';
 
 interface ArticleViewProps {
   tree: TreeNode[];
-  onNodeClick?: (nodeId: string) => void;
 }
 
 /**
@@ -21,7 +21,7 @@ interface ArticleViewProps {
  *
  * All HTML content is sanitized via DOMPurify before rendering.
  */
-export const ArticleView = React.memo(function ArticleView({ tree, onNodeClick }: ArticleViewProps) {
+export const ArticleView = React.memo(function ArticleView({ tree }: ArticleViewProps) {
   const content = useMemo(() => renderTree(tree, 0), [tree]);
 
   return (
@@ -33,13 +33,9 @@ export const ArticleView = React.memo(function ArticleView({ tree, onNodeClick }
 
 function sanitize(html: string): string {
   return DOMPurify.sanitize(html || '', {
-    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 's', 'a', 'span'],
+    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 's', 'a', 'span', 'h1', 'h2', 'h3', 'ul', 'ol', 'li', 'blockquote', 'pre', 'hr'],
     ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'data-wiki-link', 'data-node-id'],
   });
-}
-
-function stripHtmlTags(html: string): string {
-  return (html || '').replace(/<[^>]*>/g, '').trim();
 }
 
 function renderTree(items: TreeNode[], depth: number): React.ReactNode[] {
@@ -47,7 +43,7 @@ function renderTree(items: TreeNode[], depth: number): React.ReactNode[] {
 
   for (const item of items) {
     const { node, children, hasChildren } = item;
-    const textContent = stripHtmlTags(node.content);
+    const textContent = stripHtml(node.content);
 
     // Skip empty nodes with no children
     if (!textContent && !hasChildren && !node.note) {
@@ -97,7 +93,7 @@ function renderTree(items: TreeNode[], depth: number): React.ReactNode[] {
 
     // Notes render as blockquotes (content sanitized via DOMPurify)
     if (node.note) {
-      const noteText = stripHtmlTags(node.note);
+      const noteText = stripHtml(node.note);
       if (noteText) {
         const sanitizedNote = sanitize(node.note);
         elements.push(

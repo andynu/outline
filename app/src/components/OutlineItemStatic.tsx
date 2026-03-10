@@ -7,6 +7,7 @@ import { processStaticContentElement, handleStaticContentClick } from '../lib/re
 import { formatDateRelative, formatDateRange } from '../lib/dateUtils';
 import { NODE_COLORS, getColorCss } from '../lib/colorPalette';
 import { useBookmarkStore } from '../store/bookmarkStore';
+import { stripHtml } from '../lib/utils';
 import DOMPurify from 'dompurify';
 
 interface OutlineItemStaticProps {
@@ -393,11 +394,17 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
       </div>
       {node.note && noteDisplayMode !== 'none' && (
         <div className="note-row">
-          <div className="note-content note-preview">
-            {noteDisplayMode === 'one-line'
-              ? (node.note.length > 100 ? node.note.slice(0, 100) + '...' : node.note)
-              : node.note}
-          </div>
+          <div
+            className="note-content note-preview"
+            dangerouslySetInnerHTML={{
+              __html: noteDisplayMode === 'one-line'
+                ? (() => {
+                    const plain = stripHtml(node.note);
+                    return plain.length > 100 ? plain.slice(0, 100) + '...' : plain;
+                  })()
+                : DOMPurify.sanitize(node.note)
+            }}
+          />
         </div>
       )}
       {childrenSlot}

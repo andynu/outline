@@ -1098,10 +1098,15 @@ export const OutlineItem = memo(function OutlineItem({
   // URL pattern for linkifying notes
   const NOTE_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.)[^\s<>[\]{}|\\^`"']+/g;
 
-  /** Convert URLs in text to clickable links, escaping HTML */
-  const linkifyNote = useCallback((text: string): string => {
+  /** Render note content as HTML. Handles both HTML notes (from NoteEditor)
+   *  and legacy plain-text notes (linkified with URL detection). */
+  const renderNoteHtml = useCallback((text: string): string => {
     if (!text) return '';
-    // Escape HTML first
+    // If the note contains HTML block tags, it's a rich note — sanitize and pass through
+    if (/<(?:p|h[1-3]|ul|ol|li|blockquote|pre|hr)\b/i.test(text)) {
+      return DOMPurify.sanitize(text);
+    }
+    // Legacy plain-text note: escape HTML first, then linkify
     let result = text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -1120,7 +1125,7 @@ export const OutlineItem = memo(function OutlineItem({
   const handleNoteClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     // If clicking a link, open it externally
-    if (target.tagName === 'A' && target.classList.contains('note-link')) {
+    if (target.tagName === 'A') {
       e.preventDefault();
       e.stopPropagation();
       const href = target.getAttribute('href');
@@ -1129,11 +1134,16 @@ export const OutlineItem = memo(function OutlineItem({
       }
       return;
     }
-    // Otherwise enter edit mode
+    // If note contains HTML (rich formatting), open the full NoteEditor
+    if (node.note && /<(?:p|h[1-3]|ul|ol|li|blockquote|pre|hr)\b/i.test(node.note)) {
+      openNoteEditor(node.id);
+      return;
+    }
+    // Otherwise enter inline edit mode for plain-text notes
     setFocusedId(node.id);
     setIsEditingNote(true);
     setTimeout(() => noteInputRef.current?.focus(), 0);
-  }, [node.id, setFocusedId]);
+  }, [node.id, node.note, setFocusedId, openNoteEditor]);
 
   // === Context Menu ===
 
@@ -1836,7 +1846,7 @@ export const OutlineItem = memo(function OutlineItem({
             <div
               className="note-content"
               onClick={handleNoteClick}
-              dangerouslySetInnerHTML={{ __html: linkifyNote(node.note || '') }}
+              dangerouslySetInnerHTML={{ __html: renderNoteHtml(node.note || '') }}
             />
           )}
         </div>

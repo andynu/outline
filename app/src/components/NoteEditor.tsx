@@ -17,6 +17,7 @@ import { Hashtag } from '../lib/Hashtag';
 import { DueDate } from '../lib/DueDate';
 import { AutoLink } from '../lib/AutoLink';
 import { MarkdownLink } from '../lib/MarkdownLink';
+import { stripHtml } from '../lib/utils';
 
 interface NoteEditorProps {
   nodeId: string;
@@ -29,18 +30,23 @@ export const NoteEditor = React.memo(function NoteEditor({
   onClose,
   onNavigateToNode,
 }: NoteEditorProps) {
-  const node = useOutlineStore(state => state.nodes.find(n => n.id === nodeId));
+  const node = useOutlineStore(state => state.getNode(nodeId));
   const updateNote = useOutlineStore(state => state.updateNote);
   const setFilterQuery = useOutlineStore(state => state.setFilterQuery);
 
   // Track the latest note from store (for initial content only)
   const initialNoteRef = useRef(node?.note || '');
 
-  // Convert plain text note to HTML for TipTap.
-  // Notes are stored as plain text, so we convert newlines to paragraphs.
-  // Uses DOMPurify to sanitize any embedded markup.
+  // Convert stored note to HTML for TipTap.
+  // Notes may be stored as HTML (from NoteEditor) or plain text (legacy/inline edits).
+  // Detects HTML by checking for common block-level tags.
   const noteToHtml = useCallback((text: string): string => {
     if (!text) return '<p></p>';
+    // If the note already contains HTML block tags, treat it as HTML
+    if (/<(?:p|h[1-3]|ul|ol|li|blockquote|pre|hr)\b/i.test(text)) {
+      return DOMPurify.sanitize(text);
+    }
+    // Legacy plain-text note: convert newlines to paragraphs
     const lines = text.split('\n');
     const raw = lines.map(line => {
       const escaped = line
@@ -50,29 +56,6 @@ export const NoteEditor = React.memo(function NoteEditor({
       return `<p>${escaped || '<br>'}</p>`;
     }).join('');
     return DOMPurify.sanitize(raw);
-  }, []);
-
-  // Convert TipTap HTML back to plain text for storage
-  const htmlToNote = useCallback((html: string): string => {
-    const div = document.createElement('div');
-    div.textContent = ''; // clear
-    // Use DOMPurify before parsing
-    const clean = DOMPurify.sanitize(html);
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(clean, 'text/html');
-    const paragraphs = doc.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li');
-    if (paragraphs.length === 0) {
-      return doc.body.textContent || '';
-    }
-    const lines: string[] = [];
-    paragraphs.forEach(p => {
-      lines.push(p.textContent || '');
-    });
-    // Remove trailing empty lines
-    while (lines.length > 0 && lines[lines.length - 1] === '') {
-      lines.pop();
-    }
-    return lines.join('\n');
   }, []);
 
   const editor = useEditor({
@@ -120,8 +103,14 @@ export const NoteEditor = React.memo(function NoteEditor({
     },
     onUpdate: ({ editor: ed }) => {
       const html = ed.getHTML();
-      const text = htmlToNote(html);
-      updateNote(nodeId, text);
+      // Store as sanitized HTML to preserve rich formatting
+      const sanitized = DOMPurify.sanitize(html);
+      // If the content is just an empty paragraph, store as empty string
+      if (sanitized === '<p></p>' || sanitized === '<p><br></p>') {
+        updateNote(nodeId, '');
+      } else {
+        updateNote(nodeId, sanitized);
+      }
     },
   });
 
@@ -158,12 +147,7 @@ export const NoteEditor = React.memo(function NoteEditor({
     return null;
   }
 
-  // Strip HTML from content for the header display
-  const nodeTitle = node.content
-    ?.replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .trim() || 'Untitled';
+  const nodeTitle = stripHtml(node.content || '') || 'Untitled';
 
   return (
     <div className="note-editor-view">

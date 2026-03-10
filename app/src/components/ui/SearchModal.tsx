@@ -200,7 +200,7 @@ export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose,
                     {stripHtml(result.snippet)}
                   </div>
                   {result.note && (
-                    <div className="result-note">{result.note}</div>
+                    <div className="result-note">{stripHtml(result.note)}</div>
                   )}
                 </div>
               ))
