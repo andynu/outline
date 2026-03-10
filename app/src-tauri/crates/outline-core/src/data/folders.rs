@@ -201,18 +201,27 @@ pub fn reorder_folders(folder_ids: Vec<String>) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
+    use crate::data::document::set_data_dir;
     use std::sync::Mutex;
     use tempfile::TempDir;
 
-    // Mutex to ensure tests run serially (they share global state via env var)
+    // Mutex to ensure tests run serially (they share global state via DATA_DIR_OVERRIDE)
     static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
-    fn setup_test_data_dir() -> TempDir {
+    /// RAII guard that sets the data dir to a temp directory and resets it on drop.
+    /// The TempDir field keeps the temp directory alive until the guard is dropped.
+    #[allow(dead_code)]
+    struct TestDataDir(TempDir);
+    impl Drop for TestDataDir {
+        fn drop(&mut self) {
+            set_data_dir(None);
+        }
+    }
+
+    fn setup_test_data_dir() -> TestDataDir {
         let tmp = TempDir::new().unwrap();
-        // Override the data directory for testing
-        env::set_var("OUTLINE_DATA_DIR", tmp.path());
-        tmp
+        set_data_dir(Some(tmp.path().to_path_buf()));
+        TestDataDir(tmp)
     }
 
     #[test]

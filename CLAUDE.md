@@ -87,7 +87,7 @@ otl node create <parent-id> "content" --type checkbox  # Create as checkbox
 otl node create <parent-id> "content" --note "extra"   # With note text
 otl node update --check <short-id>    # Check/uncheck a checkbox
 otl node update --content "new" <id>  # Update content
-otl node move <id> <new-parent> <pos> # Move node in hierarchy
+otl node move <id> --parent <parent-id> --position <pos>  # Move node in hierarchy
 otl node delete <short-id>            # Delete node and descendants
 
 # Capture (direct node creation, bypasses inbox.jsonl)
@@ -219,6 +219,7 @@ The app supports offline editing on multiple machines via file sync (Dropbox/Syn
 
 - **E2E tests**: `app/tests/*.spec.ts` using Playwright
 - **Rust tests**: Unit tests in `app/src-tauri/src/` modules (inline `#[cfg(test)]`)
+- **Rust test data isolation**: Rust tests that touch the filesystem MUST use `set_data_dir(Some(tmp_path))` (not env vars) to redirect to a temp directory, and reset on teardown. See `folders.rs` `TestDataDir` RAII guard pattern. Never let tests write to `~/.outline-data/`.
 - Playwright auto-starts Vite dev server on port 5173 (reuses existing if running)
 - Runs on Chromium only
 - Use `npm run test:headed` to debug tests visually
