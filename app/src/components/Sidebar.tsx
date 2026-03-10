@@ -69,6 +69,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
   const removeBookmark = useBookmarkStore((s) => s.remove);
   const addBookmark = useBookmarkStore((s) => s.add);
   const updateBookmarkEmoji = useBookmarkStore((s) => s.updateEmoji);
+  const reorderBookmarks = useBookmarkStore((s) => s.reorder);
 
   // Bookmark context menu state
   const [bookmarkContextMenu, setBookmarkContextMenu] = useState<{ bookmark: Bookmark; x: number; y: number } | null>(null);
@@ -101,6 +102,10 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
 
   // Folder reorder drag-drop state
   const [folderDropTarget, setFolderDropTarget] = useState<FolderDropTarget | null>(null);
+
+  // Bookmark reorder drag-drop state
+  const [bookmarkDragId, setBookmarkDragId] = useState<string | null>(null);
+  const [bookmarkDropTarget, setBookmarkDropTarget] = useState<{ nodeId: string; position: 'before' | 'after' } | null>(null);
 
   // Load documents and folders
   const loadAll = useCallback(async () => {
@@ -482,6 +487,51 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
     }
   }, [dragItem, organizedItems.folders, folderDropTarget, loadAll]);
 
+  // Bookmark reorder handlers
+  const handleBookmarkDragStart = useCallback((e: React.DragEvent, nodeId: string) => {
+    setBookmarkDragId(nodeId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', nodeId);
+  }, []);
+
+  const handleBookmarkDragOver = useCallback((e: React.DragEvent, nodeId: string) => {
+    e.preventDefault();
+    if (!bookmarkDragId || bookmarkDragId === nodeId) return;
+    e.dataTransfer.dropEffect = 'move';
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const position = e.clientY < midY ? 'before' : 'after';
+    setBookmarkDropTarget({ nodeId, position });
+  }, [bookmarkDragId]);
+
+  const handleBookmarkDrop = useCallback(async (e: React.DragEvent, targetNodeId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!bookmarkDragId || bookmarkDragId === targetNodeId) {
+      setBookmarkDragId(null);
+      setBookmarkDropTarget(null);
+      return;
+    }
+
+    const currentIds = bookmarks.map(b => b.node_id);
+    const newOrder = currentIds.filter(id => id !== bookmarkDragId);
+    const insertIndex = bookmarkDropTarget?.position === 'before'
+      ? newOrder.indexOf(targetNodeId)
+      : newOrder.indexOf(targetNodeId) + 1;
+    newOrder.splice(insertIndex, 0, bookmarkDragId);
+
+    setBookmarkDragId(null);
+    setBookmarkDropTarget(null);
+
+    await reorderBookmarks(newOrder);
+  }, [bookmarkDragId, bookmarks, bookmarkDropTarget, reorderBookmarks]);
+
+  const handleBookmarkDragEnd = useCallback(() => {
+    setBookmarkDragId(null);
+    setBookmarkDropTarget(null);
+  }, []);
+
   if (!isOpen) {
     return null;
   }
@@ -644,7 +694,13 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
               {bookmarks.map((bm) => (
                 <div
                   key={bm.node_id}
-                  className="bookmark-item"
+                  className={`bookmark-item${bookmarkDragId === bm.node_id ? ' bookmark-dragging' : ''}${bookmarkDropTarget?.nodeId === bm.node_id ? ` bookmark-drop-${bookmarkDropTarget.position}` : ''}`}
+                  draggable
+                  onDragStart={(e) => handleBookmarkDragStart(e, bm.node_id)}
+                  onDragOver={(e) => handleBookmarkDragOver(e, bm.node_id)}
+                  onDragLeave={() => { if (bookmarkDropTarget?.nodeId === bm.node_id) setBookmarkDropTarget(null); }}
+                  onDrop={(e) => handleBookmarkDrop(e, bm.node_id)}
+                  onDragEnd={handleBookmarkDragEnd}
                   onClick={() => onNavigateToBookmark?.(bm.node_id, bm.document_id)}
                   onContextMenu={(e) => {
                     e.preventDefault();

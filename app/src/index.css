@@ -4700,6 +4700,22 @@ img.custom-emoji {
   color: var(--text-primary);
 }
 
+.bookmark-item[draggable] {
+  cursor: grab;
+}
+
+.bookmark-dragging {
+  opacity: 0.4;
+}
+
+.bookmark-drop-before {
+  box-shadow: 0 -2px 0 0 var(--accent-primary);
+}
+
+.bookmark-drop-after {
+  box-shadow: 0 2px 0 0 var(--accent-primary);
+}
+
 .saved-searches-section {
   border-top: 1px solid var(--border-primary);
   padding: 8px 0;

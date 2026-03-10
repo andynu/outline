@@ -152,6 +152,27 @@ pub fn update_bookmark_label(node_id: &str, label: String) -> Result<Bookmark, S
     })
 }
 
+/// Reorder bookmarks to match the given node_id order.
+pub fn reorder_bookmarks(node_ids: Vec<String>) -> Result<(), String> {
+    with_cache(|state| {
+        // Build a position map from the requested order
+        let position_map: std::collections::HashMap<&str, usize> = node_ids
+            .iter()
+            .enumerate()
+            .map(|(i, id)| (id.as_str(), i))
+            .collect();
+
+        // Sort bookmarks by their position in the new order.
+        // Any bookmark not in node_ids keeps its relative order at the end.
+        let max_pos = node_ids.len();
+        state.bookmarks.sort_by_key(|b| {
+            position_map.get(b.node_id.as_str()).copied().unwrap_or(max_pos)
+        });
+
+        Ok(((), true))
+    })
+}
+
 /// Check if a node is bookmarked
 pub fn is_bookmarked(node_id: &str) -> bool {
     with_cache(|state| {

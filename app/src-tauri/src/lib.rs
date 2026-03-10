@@ -91,6 +91,7 @@ pub fn run() {
             commands::remove_bookmark,
             commands::update_bookmark_label,
             commands::update_bookmark_emoji,
+            commands::reorder_bookmarks,
             // Custom emoji
             commands::load_custom_emoji,
             commands::add_custom_emoji,

@@ -5,6 +5,7 @@ use outline_core::data::{
     remove_bookmark as remove_bookmark_impl,
     update_bookmark_label as update_bookmark_label_impl,
     update_bookmark_emoji as update_bookmark_emoji_impl,
+    reorder_bookmarks as reorder_bookmarks_impl,
 };
 
 /// Get all bookmarks
@@ -35,4 +36,10 @@ pub fn update_bookmark_label(node_id: String, label: String) -> Result<Bookmark,
 #[tauri::command]
 pub fn update_bookmark_emoji(node_id: String, emoji: Option<String>) -> Result<Bookmark, String> {
     update_bookmark_emoji_impl(&node_id, emoji)
+}
+
+/// Reorder bookmarks
+#[tauri::command]
+pub fn reorder_bookmarks(node_ids: Vec<String>) -> Result<(), String> {
+    reorder_bookmarks_impl(node_ids)
 }

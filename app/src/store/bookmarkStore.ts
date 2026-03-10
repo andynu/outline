@@ -12,6 +12,7 @@ interface BookmarkStore {
   remove: (nodeId: string) => Promise<void>;
   updateLabel: (nodeId: string, label: string) => Promise<void>;
   updateEmoji: (nodeId: string, emoji: string | null) => Promise<void>;
+  reorder: (nodeIds: string[]) => Promise<void>;
   isBookmarked: (nodeId: string) => boolean;
 }
 
@@ -59,6 +60,23 @@ export const useBookmarkStore = create<BookmarkStore>((set, get) => ({
         b.node_id === nodeId ? updated : b
       ),
     }));
+  },
+
+  reorder: async (nodeIds) => {
+    // Optimistic update: reorder locally first
+    const { bookmarks } = get();
+    const byId = new Map(bookmarks.map(b => [b.node_id, b]));
+    const reordered = nodeIds.map(id => byId.get(id)).filter(Boolean) as Bookmark[];
+    set({ bookmarks: reordered });
+
+    try {
+      await api.reorderBookmarks(nodeIds);
+    } catch (e) {
+      console.error('Failed to reorder bookmarks:', e);
+      // Reload from backend on failure
+      const state = await api.listBookmarks();
+      set({ bookmarks: state.bookmarks });
+    }
   },
 
   isBookmarked: (nodeId) => {

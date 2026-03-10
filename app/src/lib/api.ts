@@ -1275,6 +1275,14 @@ export async function updateBookmarkEmoji(nodeId: string, emoji: string | null):
   return { node_id: nodeId, document_id: '', label: '', emoji, created_at: new Date().toISOString() };
 }
 
+// Reorder bookmarks
+export async function reorderBookmarks(nodeIds: string[]): Promise<void> {
+  await initTauri();
+  if (tauriInvoke) {
+    await tauriInvoke('reorder_bookmarks', { nodeIds });
+  }
+}
+
 // Custom emoji types
 export interface CustomEmoji {
   src?: string;
