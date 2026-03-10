@@ -62,6 +62,13 @@ body {
   background: var(--selection-bg);
 }
 
+/* Navigate mode: neon blue border on focused item, no editor cursor */
+.outline-item.navigate-focused > .item-row {
+  outline: 2px solid #00bfff;
+  outline-offset: -2px;
+  background: var(--selection-bg);
+}
+
 .bullet {
   width: 20px;
   text-align: center;
@@ -2725,10 +2732,11 @@ body {
 }
 
 /* When both focused and selected, focused takes precedence */
-.outline-item.focused.selected > .item-row {
+.outline-item.focused.selected > .item-row,
+.outline-item.navigate-focused.selected > .item-row {
   background-color: var(--selection-bg);
-  outline: 1px solid var(--multiselect-border, rgba(59, 130, 246, 0.4));
-  outline-offset: -1px;
+  outline: 2px solid #00bfff;
+  outline-offset: -2px;
 }
 
 /* Subtler highlight for items in the focused item's subtree */
@@ -2806,7 +2814,8 @@ body {
 
 /* Show menu button on item hover or focus */
 .item-row:hover .hover-menu-btn,
-.outline-item.focused .hover-menu-btn {
+.outline-item.focused .hover-menu-btn,
+.outline-item.navigate-focused .hover-menu-btn {
   opacity: 1;
 }
 

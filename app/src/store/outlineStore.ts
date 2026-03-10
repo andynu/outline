@@ -73,6 +73,7 @@ interface OutlineState {
   noteEditorNodeId: string | null;  // Node whose note is open in full-screen editor
   draggedId: string | null;  // Currently dragged node ID
   docPrefix: string | null;  // Document prefix for short IDs (e.g., "inbox")
+  keyboardMode: 'edit' | 'navigate';  // edit = TipTap active, navigate = item-level operations
 
   // Zoom navigation history
   _zoomHistoryBack: (string | null)[];   // Stack of previous zoom targets
@@ -108,6 +109,8 @@ interface OutlineState {
   getZoomBreadcrumbs: () => { id: string | null; title: string }[];
   openNoteEditor: (nodeId: string) => void;
   closeNoteEditor: () => void;
+  enterNavigateMode: () => void;
+  enterEditMode: (nodeId?: string) => void;
 
   // Computed
   getTree: () => TreeNode[];
@@ -464,6 +467,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   noteEditorNodeId: null,
   draggedId: null,
   docPrefix: null,
+  keyboardMode: 'edit' as const,
   _zoomHistoryBack: [],
   _zoomHistoryForward: [],
   _undoStack: [],
@@ -480,11 +484,11 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     });
   },
 
-  setFocusedId: (id) => set({ focusedId: id }),
+  setFocusedId: (id) => set({ focusedId: id, keyboardMode: 'edit' }),
 
   setPendingCursorPos: (pos) => set({ pendingCursorPos: pos }),
 
-  setFocusWithCursor: (id, cursorPos) => set({ focusedId: id, pendingCursorPos: cursorPos }),
+  setFocusWithCursor: (id, cursorPos) => set({ focusedId: id, pendingCursorPos: cursorPos, keyboardMode: 'edit' }),
 
   updateFromState: (state: DocumentState) => {
     const { nodesById, childrenByParent } = rebuildIndexes(state.nodes);
@@ -657,6 +661,18 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
   closeNoteEditor: () => {
     set({ noteEditorNodeId: null });
+  },
+
+  enterNavigateMode: () => {
+    set({ keyboardMode: 'navigate' });
+  },
+
+  enterEditMode: (nodeId?: string) => {
+    const updates: Partial<OutlineState> = { keyboardMode: 'edit' };
+    if (nodeId != null) {
+      updates.focusedId = nodeId;
+    }
+    set(updates);
   },
 
   // === Computed getters ===

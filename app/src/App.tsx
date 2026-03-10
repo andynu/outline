@@ -55,6 +55,7 @@ const TreeItemRenderer = React.memo(function TreeItemRenderer({
 }: TreeItemRendererProps) {
   // Subscribe to just whether this specific item is focused (boolean selector for efficient updates)
   const isFocused = useOutlineStore(state => state.focusedId === item.node.id);
+  const keyboardMode = useOutlineStore(state => state.keyboardMode);
   // For focused items, read fresh content from store to avoid stale data from useDeferredValue
   // Use content string as selector return to avoid object reference changes causing re-renders
   const freshContent = useOutlineStore(state =>
@@ -82,8 +83,9 @@ const TreeItemRenderer = React.memo(function TreeItemRenderer({
     </div>
   ) : null;
 
-  // Focused item gets full OutlineItem with TipTap editor
-  if (isFocused) {
+  // Focused item in edit mode gets full OutlineItem with TipTap editor
+  // In navigate mode, even the focused item uses OutlineItemStatic (no editor)
+  if (isFocused && keyboardMode === 'edit') {
     return (
       <OutlineItem
         item={{ ...item, node }}
@@ -96,7 +98,7 @@ const TreeItemRenderer = React.memo(function TreeItemRenderer({
     );
   }
 
-  // Unfocused items use lightweight OutlineItemStatic
+  // Unfocused items (and focused items in navigate mode) use lightweight OutlineItemStatic
   return (
     <OutlineItemStatic
       item={item}
@@ -216,6 +218,9 @@ function App() {
   const canZoomGoBack = useOutlineStore(state => state.canZoomGoBack);
   const canZoomGoForward = useOutlineStore(state => state.canZoomGoForward);
   const focusedId = useOutlineStore(state => state.focusedId);
+  const keyboardMode = useOutlineStore(state => state.keyboardMode);
+  const enterNavigateMode = useOutlineStore(state => state.enterNavigateMode);
+  const enterEditMode = useOutlineStore(state => state.enterEditMode);
   const focusedNodeContent = useOutlineStore(state => {
     if (!state.focusedId) return '';
     const node = state.nodes.find(n => n.id === state.focusedId);
@@ -1117,9 +1122,17 @@ function App() {
         return;
       }
 
-      // Escape clears selection, filter, note editor, or exits zoom (when no modal is open)
+      // Escape: edit mode → navigate mode → clear selection → clear filter → exit zoom
       if (event.key === 'Escape' && !showSearchModal && !showQuickNavigator && !showQuickMove && !showQuickCapture && !showDateViews && !showTodayPanel && !showTagsPanel && !showInboxPanel && !showKeyboardShortcuts && !showSettings) {
-        // First clear selection if any, then filter, then zoom
+        // First exit edit mode into navigate mode (only when focus is in the outline area, not in modals/note editors)
+        const eventTarget = event.target as HTMLElement;
+        const targetInNonOutlineArea = eventTarget?.closest('.modal, .sidebar, .note-input');
+        if (keyboardMode === 'edit' && focusedId && !targetInNonOutlineArea) {
+          event.preventDefault();
+          enterNavigateMode();
+          return;
+        }
+        // Then clear selection if any, then filter, then zoom
         if (selectedIds.size > 0) {
           event.preventDefault();
           clearSelection();
@@ -1156,7 +1169,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId

@@ -163,6 +163,9 @@ test.describe('Search filter mode', () => {
     // Press Escape to clear filter (need to click on outline area first so search doesn't re-open)
     await page.locator('.outline-container').click();
     await page.waitForTimeout(100);
+    // First Escape enters navigate mode (exits editor), second clears filter
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
     await page.keyboard.press('Escape');
     await page.waitForTimeout(200);
 

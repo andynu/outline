@@ -335,12 +335,17 @@ test.describe('Bulk operations on multi-selection', () => {
       await expect(items.first().locator('.checkbox-btn')).toBeVisible({ timeout: 2000 });
       await expect(items.nth(1).locator('.checkbox-btn')).toBeVisible({ timeout: 2000 });
 
-      // Press Escape to clear selection, then re-select for bulk menu
+      // Press Escape to exit edit mode into navigate mode, then Escape again to clear selection
       await page.keyboard.press('Escape');
       await page.waitForTimeout(50);
-      await editors.first().click({ modifiers: ['Control'] });
+      await page.keyboard.press('Escape');
       await page.waitForTimeout(50);
-      await editors.nth(1).click({ modifiers: ['Control'] });
+      // Click first item to re-enter edit mode, then Ctrl+click both to select
+      await items.first().locator('> .item-row').click();
+      await page.waitForTimeout(50);
+      await items.first().locator('> .item-row').click({ modifiers: ['Control'] });
+      await page.waitForTimeout(50);
+      await items.nth(1).locator('> .item-row').click({ modifiers: ['Control'] });
       await page.waitForTimeout(50);
 
       // Verify both items are selected before opening context menu

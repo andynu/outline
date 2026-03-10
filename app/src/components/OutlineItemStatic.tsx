@@ -27,6 +27,7 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
   // Use separate selectors with primitive returns for stable memoization
   const isSelected = useOutlineStore(state => state.selectedIds.has(node.id));
   const isDragging = useOutlineStore(state => state.draggedId === node.id);
+  const isNavigateFocused = useOutlineStore(state => state.focusedId === node.id && state.keyboardMode === 'navigate');
   const noteDisplayMode = useSettingsStore(state => state.noteDisplayMode);
   const showShortIds = useSettingsStore(state => state.showShortIds);
   const staticContentRef = useRef<HTMLDivElement>(null);
@@ -296,6 +297,7 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
   const itemClasses = [
     'outline-item',
     isSelected && 'selected',
+    isNavigateFocused && 'navigate-focused',
     isInFocusedSubtree && 'in-focused-subtree',
     node.is_checked && 'checked',
     isDragging && 'dragging',

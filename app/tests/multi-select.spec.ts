@@ -93,7 +93,10 @@ test.describe('Multi-select', () => {
     await page.waitForTimeout(50);
     await expect(firstItem).toHaveClass(/selected/);
 
-    // Press Escape to clear selection
+    // First Escape enters navigate mode (exits editor)
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(50);
+    // Second Escape clears selection
     await page.keyboard.press('Escape');
     await page.waitForTimeout(50);
 
