@@ -10,12 +10,16 @@ A self-hosted outliner for hierarchical notes, tasks, and knowledge management. 
 ## Features
 
 - **Hierarchical outlining** - Infinite nesting with zoom/hoist, collapse/expand
+- **Rich document titles** - Editable title header with emoji shortcodes, hashtags, and mentions
 - **Wiki-style linking** - `[[link to any node]]` with backlinks panel
 - **Task management** - Checkboxes, due dates, recurring tasks
+- **Emoji support** - Inline `:shortcode:` conversion, custom image emoji
+- **Bookmarks** - Pin frequently-used nodes with custom emoji labels
 - **Calendar integration** - iCalendar feed for Google Calendar, Apple Calendar, etc.
 - **Keyboard-first** - Full keyboard navigation and shortcuts
 - **Offline-first** - Edit on multiple machines, sync via Dropbox/Syncthing
 - **Mobile capture** - Quick inbox from phone via web form or API
+- **CLI tool (`otl`)** - Full CRUD, search, and capture from the terminal
 
 ## Status
 
@@ -93,6 +97,18 @@ Documents are stored in `~/.outline-data/`:
 3. On load, all pending changes merge automatically (last-write-wins)
 4. Click "Save" to compact pending files into `state.json`
 
+## CLI Tool (`otl`)
+
+The `otl` command provides full access to Outline data from the terminal. See [CLI.md](CLI.md) for complete reference.
+
+```bash
+otl doc list                    # List documents
+otl doc show <short-id>         # Show node tree
+otl search "query"              # Full-text search
+otl capture "buy milk"          # Quick capture to inbox
+otl node create <parent> "text" # Create a node
+```
+
 ## Server Setup (Optional)
 
 The thin server enables mobile capture and calendar feeds. It's optional - the desktop app works standalone.
@@ -136,7 +152,7 @@ See [server/README.md](server/README.md) for nginx configuration.
 cd app
 npm run dev          # Vite dev server (browser mode)
 npm run tauri dev    # Full Tauri app with Rust backend
-npm run check        # TypeScript/Svelte type checking
+npm run check        # TypeScript type checking
 npm run test         # Playwright E2E tests
 ```
 
@@ -153,18 +169,25 @@ cargo check          # Type check
 
 ```
 app/
-├── src/                    # Svelte 5 frontend
-│   ├── lib/
-│   │   ├── outline.svelte.ts   # Core state management
-│   │   ├── api.ts              # Tauri IPC / mock fallback
-│   │   └── *.svelte            # UI components
-│   └── routes/
-│       └── +page.svelte        # Main page
+├── src/                    # React 19 + TipTap frontend
+│   ├── components/         # UI components
+│   │   ├── DocumentTitle.tsx   # Rich title editor
+│   │   ├── OutlineItem.tsx     # Full TipTap editor (focused item)
+│   │   └── OutlineItemStatic.tsx # Lightweight renderer (unfocused)
+│   ├── store/              # Zustand state management
+│   │   └── outlineStore.ts     # Core document state
+│   └── lib/                # Utilities, TipTap extensions
+│       ├── api.ts              # Tauri IPC / mock fallback
+│       ├── WikiLink.ts         # [[wiki-links]]
+│       ├── Hashtag.ts          # #hashtags
+│       └── EmojiShortcode.ts   # :emoji: conversion
 ├── src-tauri/              # Rust backend
 │   └── src/
 │       ├── commands.rs         # Tauri command handlers
 │       ├── data/               # Document, Node, Operations
 │       └── search/             # SQLite FTS5 index
+├── crates/
+│   └── outline-cli/        # otl CLI tool
 └── tests/                  # Playwright E2E tests
 
 server/                     # Ruby/Sinatra thin server
@@ -176,25 +199,25 @@ server/                     # Ruby/Sinatra thin server
 
 ```
 ┌────────────────────────────────────────────┐
-│         Desktop App (Tauri + Svelte)       │
-│  • Rich editing UI                         │
-│  • SQLite search cache                     │
-│  • JSONL file persistence                  │
+│         Desktop App (Tauri + React)        │
+│  • Rich editing UI (TipTap)               │
+│  • SQLite search cache                    │
+│  • JSONL file persistence                 │
 └────────────────────────────────────────────┘
                     │
                     ▼
 ┌────────────────────────────────────────────┐
 │         Local Files (~/.outline-data/)     │
-│  • state.json (merged document state)      │
-│  • pending.*.jsonl (per-machine changes)   │
+│  • state.json (merged document state)     │
+│  • pending.*.jsonl (per-machine changes)  │
 └────────────────────────────────────────────┘
                     │ File sync
                     ▼
 ┌────────────────────────────────────────────┐
 │         Thin Server (Ruby/Sinatra)         │
-│  • Mobile capture → inbox.jsonl            │
-│  • Calendar feed (iCal)                    │
-│  • Read-only viewer                        │
+│  • Mobile capture → inbox.jsonl           │
+│  • Calendar feed (iCal)                   │
+│  • Read-only viewer                       │
 └────────────────────────────────────────────┘
 ```
 

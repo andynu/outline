@@ -1,6 +1,6 @@
 # Outline Application - Complete Feature Reference
 
-A comprehensive catalog of all features, keyboard shortcuts, and UI controls in the Outline application (Tauri 2 + Svelte 5).
+A comprehensive catalog of all features, keyboard shortcuts, and UI controls in the Outline application (Tauri 2 + React 19).
 
 **Legend:** ✓ Implemented | ◐ Partial | ✗ Not Implemented
 
@@ -40,6 +40,19 @@ A comprehensive catalog of all features, keyboard shortcuts, and UI controls in 
 | **Bullet** | ✓ | Default item type (•) |
 | **Checkbox** | ✓ | Task item with completion state (☐/☑) |
 | **Heading** | ✓ | Styled heading (levels 1-6) |
+
+### Document Title Editor
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Rich TipTap editor for document title | ✓ | First root node rendered as title header |
+| Emoji shortcodes in title (`:smile:`) | ✓ | Same suggestion popup as items |
+| Hashtags in title (`#tag`) | ✓ | With autocomplete suggestions |
+| Custom image emoji in title | ✓ | |
+| Enter in title focuses first child | ✓ | Creates child if none exist |
+| ArrowDown from title enters tree | ✓ | |
+| ArrowUp from first item enters title | ✓ | |
+| Sidebar rename focuses title editor | ✓ | For currently-loaded document |
+| Sidebar title updates on edit | ✓ | Debounced 500ms refresh |
 
 ### Node Properties
 | Property | Status | Notes |
@@ -272,7 +285,8 @@ Right-click on any item to access:
 ### Document Context Menu
 | Action | Status |
 |--------|--------|
-| Rename | ✓ |
+| Rename (focuses title editor for current doc) | ✓ |
+| Bookmark | ✓ |
 | Move to Root | ✓ |
 | Move to [Folder] | ✓ |
 
@@ -431,6 +445,16 @@ Right-click on any item to access:
 | Color-coded by status | ✓ |
 | Click to edit date | ✓ |
 
+### Emoji Shortcodes
+| Feature | Status |
+|---------|--------|
+| `:shortcode:` → Unicode emoji conversion | ✓ |
+| Suggestion popup while typing `:` | ✓ |
+| Search/filter emoji by name | ✓ |
+| Custom image emoji (uploaded) | ✓ |
+| Custom emoji management UI | ✓ |
+| Custom emoji renders inline in content | ✓ |
+
 ### Markdown Formatting
 | Feature | Status |
 |---------|--------|
@@ -438,6 +462,19 @@ Right-click on any item to access:
 | `*italic text*` | ✓ |
 | `` `code` `` | ✓ |
 | `[link text](url)` | ✓ |
+
+---
+
+## Bookmarks
+
+| Feature | Status |
+|---------|--------|
+| Bookmark any node from context menu | ✓ |
+| Bookmarks section in sidebar | ✓ |
+| Click bookmark to navigate to node | ✓ |
+| Custom emoji label per bookmark | ✓ |
+| Emoji picker for bookmark labels | ✓ |
+| Remove bookmark from context menu | ✓ |
 
 ---
 
@@ -546,9 +583,11 @@ Right-click on any item to access:
 - **Color labels**: Schema exists in node properties but UI for setting colors is not yet built
 
 This is a feature-complete hierarchical outliner with:
-- Rich text editing via TipTap
+- Rich text editing via TipTap with inline document title editor
+- Emoji shortcodes and custom image emoji
 - Task management with dates and recurrence
 - Cross-linking with wiki links and backlinks
+- Bookmarks with custom emoji labels
 - Full-text search with SQLite FTS5
 - Multi-machine sync via file-based replication
-- Quick capture from desktop and mobile
+- Quick capture from desktop, mobile, and CLI (`otl`)
