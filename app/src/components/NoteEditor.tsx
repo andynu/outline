@@ -37,6 +37,22 @@ export const NoteEditor = React.memo(function NoteEditor({
   // Track the latest note from store (for initial content only)
   const initialNoteRef = useRef(node?.note || '');
 
+  // Debounced save: avoids DOMPurify.sanitize + store update on every keystroke
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedSave = useCallback((html: string) => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = setTimeout(() => {
+      const sanitized = DOMPurify.sanitize(html);
+      if (sanitized === '<p></p>' || sanitized === '<p><br></p>') {
+        updateNote(nodeId, '');
+      } else {
+        updateNote(nodeId, sanitized);
+      }
+    }, 150);
+  }, [nodeId, updateNote]);
+
   // Convert stored note to HTML for TipTap.
   // Notes may be stored as HTML (from NoteEditor) or plain text (legacy/inline edits).
   // Detects HTML by checking for common block-level tags.
@@ -102,15 +118,7 @@ export const NoteEditor = React.memo(function NoteEditor({
       },
     },
     onUpdate: ({ editor: ed }) => {
-      const html = ed.getHTML();
-      // Store as sanitized HTML to preserve rich formatting
-      const sanitized = DOMPurify.sanitize(html);
-      // If the content is just an empty paragraph, store as empty string
-      if (sanitized === '<p></p>' || sanitized === '<p><br></p>') {
-        updateNote(nodeId, '');
-      } else {
-        updateNote(nodeId, sanitized);
-      }
+      debouncedSave(ed.getHTML());
     },
   });
 
@@ -136,12 +144,25 @@ export const NoteEditor = React.memo(function NoteEditor({
     return () => window.removeEventListener('keydown', handleKeydown);
   }, [onClose]);
 
-  // Cleanup editor on unmount
+  // Flush pending save and cleanup editor on unmount
   useEffect(() => {
     return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        // Flush: save the current content immediately before destroying
+        if (editor && !editor.isDestroyed) {
+          const html = editor.getHTML();
+          const sanitized = DOMPurify.sanitize(html);
+          if (sanitized === '<p></p>' || sanitized === '<p><br></p>') {
+            updateNote(nodeId, '');
+          } else {
+            updateNote(nodeId, sanitized);
+          }
+        }
+      }
       editor?.destroy();
     };
-  }, [editor]);
+  }, [editor, nodeId, updateNote]);
 
   if (!node) {
     return null;
