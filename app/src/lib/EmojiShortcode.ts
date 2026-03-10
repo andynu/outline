@@ -1,6 +1,7 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import _EMOJI_MAP from './emoji-map.json';
+import { resolveCustomEmoji } from '../store/customEmojiStore';
 
 const EMOJI_MAP: Record<string, string> = _EMOJI_MAP;
 
@@ -12,6 +13,7 @@ const EMOJI_MAP: Record<string, string> = _EMOJI_MAP;
  * if the text between them is a known shortcode. If so, the `:shortcode:` text
  * is replaced with the corresponding emoji character.
  *
+ * Supports both built-in Unicode emoji and custom emoji (text or image).
  * Unrecognized shortcodes are left as-is.
  */
 export const EmojiShortcode = Extension.create({
@@ -55,27 +57,56 @@ export const EmojiShortcode = Extension.create({
               return false;
             }
 
-            // Look up the emoji
-            const emoji = EMOJI_MAP[shortcode.toLowerCase()];
-            if (!emoji) {
-              return false;
-            }
-
             // Calculate the absolute position of the opening `:`
-            // parentOffset tells us where `from` is within the parent node,
-            // and we know `textBefore` ends at parentOffset
             const startOfParent = from - $from.parentOffset;
             const absoluteStart = startOfParent + lastColonIndex;
 
-            // Replace `:shortcode:` (including the closing `:` being typed) with the emoji
-            const tr = state.tr.replaceWith(
-              absoluteStart,
-              to,
-              state.schema.text(emoji)
-            );
-            view.dispatch(tr);
+            // First, check built-in emoji map
+            const emoji = EMOJI_MAP[shortcode.toLowerCase()];
+            if (emoji) {
+              const tr = state.tr.replaceWith(
+                absoluteStart,
+                to,
+                state.schema.text(emoji)
+              );
+              view.dispatch(tr);
+              return true;
+            }
 
-            return true;
+            // Then, check custom emoji
+            const custom = resolveCustomEmoji(shortcode.toLowerCase());
+            if (!custom) {
+              return false;
+            }
+
+            if (custom.type === 'text') {
+              // Text-based custom emoji: insert as plain text
+              const tr = state.tr.replaceWith(
+                absoluteStart,
+                to,
+                state.schema.text(custom.content)
+              );
+              view.dispatch(tr);
+              return true;
+            }
+
+            if (custom.type === 'image') {
+              // Image-based custom emoji: insert as a customEmoji node
+              const nodeType = state.schema.nodes.customEmoji;
+              if (nodeType) {
+                const emojiNode = nodeType.create({
+                  src: custom.url,
+                  alt: `:${custom.shortcode}:`,
+                  shortcode: custom.shortcode,
+                });
+                const tr = state.tr.replaceWith(absoluteStart, to, emojiNode);
+                view.dispatch(tr);
+                return true;
+              }
+              return false;
+            }
+
+            return false;
           },
         },
       }),

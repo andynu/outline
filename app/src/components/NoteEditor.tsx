@@ -17,6 +17,7 @@ import { Hashtag } from '../lib/Hashtag';
 import { DueDate } from '../lib/DueDate';
 import { AutoLink } from '../lib/AutoLink';
 import { MarkdownLink } from '../lib/MarkdownLink';
+import { CustomEmojiNode } from '../lib/CustomEmojiNode';
 import { stripHtml } from '../lib/utils';
 
 interface NoteEditorProps {
@@ -110,6 +111,7 @@ export const NoteEditor = React.memo(function NoteEditor({
       MarkdownLink.configure({
         openOnClick: true,
       }),
+      CustomEmojiNode,
     ],
     content: noteToHtml(initialNoteRef.current),
     editorProps: {

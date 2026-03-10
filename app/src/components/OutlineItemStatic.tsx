@@ -48,8 +48,9 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
     const el = staticContentRef.current;
     if (!el) return;
     const sanitizedHtml = DOMPurify.sanitize(node.content || '', {
-      ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 's', 'a', 'span'],
-      ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'data-wiki-link', 'data-node-id'],
+      ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 's', 'a', 'span', 'img'],
+      ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'data-wiki-link', 'data-node-id',
+        'src', 'alt', 'title', 'data-emoji-shortcode', 'draggable'],
     });
     el.innerHTML = sanitizedHtml;
     processStaticContentElement(el);

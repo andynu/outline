@@ -17,6 +17,7 @@ import { AutoLink } from '../lib/AutoLink';
 import { MarkdownLink } from '../lib/MarkdownLink';
 import { Mention } from '../lib/Mention';
 import { EmojiShortcode } from '../lib/EmojiShortcode';
+import { CustomEmojiNode } from '../lib/CustomEmojiNode';
 
 // Suggestion popups
 import { WikiLinkSuggestion } from './ui/WikiLinkSuggestion';
@@ -302,6 +303,8 @@ export const OutlineItem = memo(function OutlineItem({
           }),
           // Emoji shortcode conversion (:smile: -> emoji)
           EmojiShortcode,
+          // Custom emoji inline images
+          CustomEmojiNode,
         ],
         content: node.content || '',
         editorProps: {
@@ -1674,18 +1677,35 @@ export const OutlineItem = memo(function OutlineItem({
   }, []);
 
   // Emoji suggestion handlers
-  const handleEmojiSelect = useCallback((_shortcode: string, emoji: string) => {
+  const handleEmojiSelect = useCallback((shortcode: string, emoji: string, imageUrl?: string) => {
     const editor = editorRef.current;
     const range = emojiRangeRef.current;
     if (!editor || !range) return;
 
-    // Delete the :query text and insert the emoji character
-    editor
-      .chain()
-      .focus()
-      .deleteRange(range)
-      .insertContent(emoji)
-      .run();
+    if (imageUrl) {
+      // Image-based custom emoji: insert as a customEmoji node
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertContent({
+          type: 'customEmoji',
+          attrs: {
+            src: imageUrl,
+            alt: `:${shortcode}:`,
+            shortcode: shortcode,
+          },
+        })
+        .run();
+    } else {
+      // Unicode emoji or text custom emoji: insert as text
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertContent(emoji)
+        .run();
+    }
 
     emojiActiveRef.current = false;
     emojiRangeRef.current = null;
