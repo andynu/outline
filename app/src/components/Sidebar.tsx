@@ -61,7 +61,9 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
   const savedSearches = useSavedSearchStore((s) => s.savedSearches);
   const removeSavedSearch = useSavedSearchStore((s) => s.removeSavedSearch);
   const bookmarks = useBookmarkStore((s) => s.bookmarks);
+  const bookmarkedIds = useBookmarkStore((s) => s._bookmarkedIds);
   const removeBookmark = useBookmarkStore((s) => s.remove);
+  const addBookmark = useBookmarkStore((s) => s.add);
 
   // Saved search context menu state
   const [savedSearchContextMenu, setSavedSearchContextMenu] = useState<{ search: SavedSearch; x: number; y: number } | null>(null);
@@ -737,6 +739,26 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
             </svg>
             Rename
           </button>
+          {contextMenuTarget.doc.title_node_id && (
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                const doc = contextMenuTarget!.doc;
+                const nodeId = doc.title_node_id!;
+                if (bookmarkedIds.has(nodeId)) {
+                  removeBookmark(nodeId);
+                } else {
+                  addBookmark(nodeId, doc.id, doc.title || 'Untitled');
+                }
+                setContextMenuTarget(null);
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+              {bookmarkedIds.has(contextMenuTarget.doc.title_node_id) ? 'Remove Bookmark' : 'Bookmark'}
+            </button>
+          )}
           {folderState.document_folders[contextMenuTarget.doc.id] && (
             <button className="context-menu-item" onClick={handleMoveToRootClick}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
