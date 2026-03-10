@@ -142,6 +142,7 @@ interface OutlineState {
   // Document operations
   load: (docId?: string) => Promise<void>;
   addSiblingAfter: (nodeId: string) => Promise<string | null>;
+  addSiblingBefore: (nodeId: string) => Promise<string | null>;
   splitNode: (nodeId: string, beforeContent: string, afterContent: string) => Promise<string | null>;
   mergeWithNextSibling: (nodeId: string) => Promise<{ cursorPos: number } | null>;
   mergeWithPreviousSibling: (nodeId: string) => Promise<{ cursorPos: number; newFocusId: string } | null>;
@@ -976,9 +977,47 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
       const result = await api.createNode(node.parent_id, newPosition, '');
       updateFromState(result.state);
-      set({ focusedId: result.id });
+      set({ focusedId: result.id, keyboardMode: 'edit' });
 
       // Get the newly created node for undo
+      const newNode = get()._nodesById.get(result.id);
+      if (newNode) {
+        _pushUndo({
+          description: 'Create item',
+          undo: { type: 'delete', id: result.id },
+          redo: { type: 'create', node: { ...newNode } },
+          timestamp: Date.now(),
+        });
+      }
+
+      return result.id;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return null;
+    } finally {
+      set(s => ({ pendingOperations: s.pendingOperations - 1 }));
+    }
+  },
+
+  addSiblingBefore: async (nodeId: string) => {
+    const { getNode, getSiblings, updateFromState, _pushUndo } = get();
+    const node = getNode(nodeId);
+    if (!node) return null;
+
+    const siblings = getSiblings(nodeId);
+    const idx = siblings.findIndex(n => n.id === nodeId);
+
+    set(s => ({ pendingOperations: s.pendingOperations + 1 }));
+    try {
+      // Shift current node and all siblings after it
+      for (let i = idx; i < siblings.length; i++) {
+        await api.moveNode(siblings[i].id, node.parent_id, i + 1);
+      }
+
+      const result = await api.createNode(node.parent_id, idx, '');
+      updateFromState(result.state);
+      set({ focusedId: result.id, keyboardMode: 'edit' });
+
       const newNode = get()._nodesById.get(result.id);
       if (newNode) {
         _pushUndo({

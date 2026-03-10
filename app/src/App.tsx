@@ -221,6 +221,8 @@ function App() {
   const keyboardMode = useOutlineStore(state => state.keyboardMode);
   const enterNavigateMode = useOutlineStore(state => state.enterNavigateMode);
   const enterEditMode = useOutlineStore(state => state.enterEditMode);
+  const addSiblingAfter = useOutlineStore(state => state.addSiblingAfter);
+  const addSiblingBefore = useOutlineStore(state => state.addSiblingBefore);
   const focusedNodeContent = useOutlineStore(state => {
     if (!state.focusedId) return '';
     const node = state.nodes.find(n => n.id === state.focusedId);
@@ -1149,6 +1151,37 @@ function App() {
           return;
         }
       }
+
+      // Navigate mode re-entry keys (vim-style)
+      if (keyboardMode === 'navigate' && focusedId && !mod && !event.shiftKey) {
+        // Enter, a, A: enter edit mode on focused item, cursor at end
+        if (event.key === 'Enter' || event.key === 'a') {
+          event.preventDefault();
+          enterEditMode(focusedId);
+          return;
+        }
+        // o: create sibling below and enter edit mode
+        if (event.key === 'o') {
+          event.preventDefault();
+          addSiblingAfter(focusedId);
+          return;
+        }
+      }
+      // A (shift+a) and O (shift+o) need shiftKey check
+      if (keyboardMode === 'navigate' && focusedId && !mod && event.shiftKey) {
+        // A: enter edit mode (same as a — cursor at end)
+        if (event.key === 'A') {
+          event.preventDefault();
+          enterEditMode(focusedId);
+          return;
+        }
+        // O: create sibling above and enter edit mode
+        if (event.key === 'O') {
+          event.preventDefault();
+          addSiblingBefore(focusedId);
+          return;
+        }
+      }
     };
 
     // Mousewheel zoom (Ctrl+scroll)
@@ -1169,7 +1202,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode]);
+  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showInboxPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode, enterEditMode, addSiblingAfter, addSiblingBefore]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
