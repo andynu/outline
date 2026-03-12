@@ -180,6 +180,13 @@ pub fn move_document_to_folder(doc_id: &str, folder_id: Option<&str>, position: 
     Ok(())
 }
 
+/// Reorder documents within a folder (or root level with key "__root__")
+pub fn reorder_documents(folder_key: &str, doc_ids: Vec<String>) -> Result<(), String> {
+    let mut state = load_folders()?;
+    state.document_order.insert(folder_key.to_string(), doc_ids);
+    save_folders(&state)
+}
+
 /// Reorder folders
 pub fn reorder_folders(folder_ids: Vec<String>) -> Result<(), String> {
     let mut state = load_folders()?;

@@ -10,6 +10,7 @@ import {
   deleteDocument,
   moveDocumentToFolder,
   reorderFolders,
+  reorderDocuments,
   type DocumentInfo,
   type Folder,
   type FolderState,
@@ -102,6 +103,10 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
 
   // Folder reorder drag-drop state
   const [folderDropTarget, setFolderDropTarget] = useState<FolderDropTarget | null>(null);
+
+  // Document reorder drag-drop state
+  const [docDragId, setDocDragId] = useState<string | null>(null);
+  const [docDropTarget, setDocDropTarget] = useState<{ docId: string; position: 'before' | 'after' } | null>(null);
 
   // Bookmark reorder drag-drop state
   const [bookmarkDragId, setBookmarkDragId] = useState<string | null>(null);
@@ -433,6 +438,60 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
     setDropTarget(null);
   }, [dragItem, loadAll]);
 
+  // Document reorder handlers
+  const handleDocReorderDragStart = useCallback((e: React.DragEvent, docId: string) => {
+    setDocDragId(docId);
+    // Also set dragItem so folder headers can accept this as a cross-container drop
+    setDragItem({ type: 'document', id: docId });
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', docId);
+  }, []);
+
+  const handleDocReorderDragOver = useCallback((e: React.DragEvent, docId: string) => {
+    e.preventDefault();
+    if (!docDragId || docDragId === docId) return;
+    e.dataTransfer.dropEffect = 'move';
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const position = e.clientY < midY ? 'before' : 'after';
+    setDocDropTarget({ docId, position });
+  }, [docDragId]);
+
+  const handleDocReorderDrop = useCallback(async (e: React.DragEvent, targetDocId: string, folderKey: string, docIds: string[]) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!docDragId || docDragId === targetDocId) {
+      setDocDragId(null);
+      setDocDropTarget(null);
+      return;
+    }
+
+    const newOrder = docIds.filter(id => id !== docDragId);
+    const insertIndex = docDropTarget?.position === 'before'
+      ? newOrder.indexOf(targetDocId)
+      : newOrder.indexOf(targetDocId) + 1;
+    newOrder.splice(insertIndex, 0, docDragId);
+
+    setDocDragId(null);
+    setDocDropTarget(null);
+
+    try {
+      await reorderDocuments(folderKey, newOrder);
+      await loadAll();
+    } catch (err) {
+      console.error('Failed to reorder documents:', err);
+      showToast('Failed to reorder documents');
+    }
+  }, [docDragId, docDropTarget, loadAll]);
+
+  const handleDocReorderDragEnd = useCallback(() => {
+    setDocDragId(null);
+    setDocDropTarget(null);
+    setDragItem(null);
+    setDropTarget(null);
+  }, []);
+
   // Folder reorder: drag over a folder to determine insertion position (above/below midpoint)
   const handleFolderReorderDragOver = useCallback((e: React.DragEvent, folderId: string) => {
     e.preventDefault();
@@ -622,16 +681,21 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
 
                   {!folder.collapsed && (
                     <div className="folder-contents">
-                      {docs.map((doc) => (
+                      {docs.map((doc) => {
+                        const folderDocIds = docs.map(d => d.id);
+                        return (
                         <button
                           key={doc.id}
-                          className={`document-item in-folder ${doc.id === currentDocumentId ? 'active' : ''}`}
+                          className={`document-item in-folder ${doc.id === currentDocumentId ? 'active' : ''}${docDragId === doc.id ? ' doc-dragging' : ''}${docDropTarget?.docId === doc.id ? ` doc-drop-${docDropTarget.position}` : ''}`}
                           draggable="true"
                           onClick={() => handleDocumentClick(doc.id)}
                           onDoubleClick={(e) => handleDocDoubleClick(e, doc)}
                           onContextMenu={(e) => handleDocumentContextMenu(e, doc)}
-                          onDragStart={(e) => handleDragStart(e, 'document', doc.id)}
-                          onDragEnd={handleDragEnd}
+                          onDragStart={(e) => handleDocReorderDragStart(e, doc.id)}
+                          onDragOver={(e) => handleDocReorderDragOver(e, doc.id)}
+                          onDragLeave={() => { if (docDropTarget?.docId === doc.id) setDocDropTarget(null); }}
+                          onDrop={(e) => handleDocReorderDrop(e, doc.id, folder.id, folderDocIds)}
+                          onDragEnd={handleDocReorderDragEnd}
                         >
                           <svg className="document-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -645,7 +709,8 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
                             <span className="document-count">{doc.node_count} items</span>
                           </div>
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -658,16 +723,21 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
                 onDragEnter={handleRootDragEnter}
                 onDrop={(e) => handleDrop(e, 'root')}
               >
-                {organizedItems.rootDocs.map((doc) => (
+                {organizedItems.rootDocs.map((doc) => {
+                  const rootDocIds = organizedItems.rootDocs.map(d => d.id);
+                  return (
                   <button
                     key={doc.id}
-                    className={`document-item ${doc.id === currentDocumentId ? 'active' : ''}`}
+                    className={`document-item ${doc.id === currentDocumentId ? 'active' : ''}${docDragId === doc.id ? ' doc-dragging' : ''}${docDropTarget?.docId === doc.id ? ` doc-drop-${docDropTarget.position}` : ''}`}
                     draggable="true"
                     onClick={() => handleDocumentClick(doc.id)}
                     onDoubleClick={(e) => handleDocDoubleClick(e, doc)}
                     onContextMenu={(e) => handleDocumentContextMenu(e, doc)}
-                    onDragStart={(e) => handleDragStart(e, 'document', doc.id)}
-                    onDragEnd={handleDragEnd}
+                    onDragStart={(e) => handleDocReorderDragStart(e, doc.id)}
+                    onDragOver={(e) => handleDocReorderDragOver(e, doc.id)}
+                    onDragLeave={() => { if (docDropTarget?.docId === doc.id) setDocDropTarget(null); }}
+                    onDrop={(e) => handleDocReorderDrop(e, doc.id, '__root__', rootDocIds)}
+                    onDragEnd={handleDocReorderDragEnd}
                   >
                     <svg className="document-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -681,7 +751,8 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
                       <span className="document-count">{doc.node_count} items</span>
                     </div>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

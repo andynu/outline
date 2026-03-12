@@ -5,6 +5,7 @@ use outline_core::data::{
     delete_folder as delete_folder_impl,
     move_document_to_folder as move_doc_to_folder_impl,
     reorder_folders as reorder_folders_impl,
+    reorder_documents as reorder_documents_impl,
 };
 
 /// Get all folders and document-folder assignments
@@ -35,6 +36,12 @@ pub fn delete_folder(id: String) -> Result<(), String> {
 #[tauri::command]
 pub fn move_document_to_folder(doc_id: String, folder_id: Option<String>, position: Option<i32>) -> Result<(), String> {
     move_doc_to_folder_impl(&doc_id, folder_id.as_deref(), position)
+}
+
+/// Reorder documents within a folder (or root level with folder_key "__root__")
+#[tauri::command]
+pub fn reorder_documents(folder_key: String, doc_ids: Vec<String>) -> Result<(), String> {
+    reorder_documents_impl(&folder_key, doc_ids)
 }
 
 /// Reorder folders by providing the new order of folder IDs

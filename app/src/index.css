@@ -4716,6 +4716,18 @@ img.custom-emoji {
   box-shadow: 0 2px 0 0 var(--accent-primary);
 }
 
+.document-item.doc-dragging {
+  opacity: 0.4;
+}
+
+.document-item.doc-drop-before {
+  box-shadow: 0 -2px 0 0 var(--accent-primary);
+}
+
+.document-item.doc-drop-after {
+  box-shadow: 0 2px 0 0 var(--accent-primary);
+}
+
 .saved-searches-section {
   border-top: 1px solid var(--border-primary);
   padding: 8px 0;

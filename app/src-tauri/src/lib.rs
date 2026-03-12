@@ -83,6 +83,7 @@ pub fn run() {
             commands::delete_folder,
             commands::move_document_to_folder,
             commands::reorder_folders,
+            commands::reorder_documents,
             // Capture target
             commands::get_default_capture_target,
             // Bookmarks

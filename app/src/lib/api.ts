@@ -1057,6 +1057,15 @@ export async function reorderFolders(folderIds: string[]): Promise<void> {
   // Browser-only mode: no-op
 }
 
+// Reorder documents within a folder (or root level with folderKey "__root__")
+export async function reorderDocuments(folderKey: string, docIds: string[]): Promise<void> {
+  await initTauri();
+  if (tauriInvoke) {
+    return tauriInvoke('reorder_documents', { folderKey, docIds }) as Promise<void>;
+  }
+  // Browser-only mode: no-op
+}
+
 // ============================================================================
 // Export Selection
 // ============================================================================
