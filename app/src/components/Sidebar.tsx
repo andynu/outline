@@ -70,12 +70,14 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
   const removeBookmark = useBookmarkStore((s) => s.remove);
   const addBookmark = useBookmarkStore((s) => s.add);
   const updateBookmarkEmoji = useBookmarkStore((s) => s.updateEmoji);
+  const updateBookmarkLabel = useBookmarkStore((s) => s.updateLabel);
   const reorderBookmarks = useBookmarkStore((s) => s.reorder);
 
   // Bookmark context menu state
   const [bookmarkContextMenu, setBookmarkContextMenu] = useState<{ bookmark: Bookmark; x: number; y: number } | null>(null);
   const [emojiPickerBookmark, setEmojiPickerBookmark] = useState<{ bookmark: Bookmark; x: number; y: number } | null>(null);
   const [showCustomEmojiManager, setShowCustomEmojiManager] = useState(false);
+  const [renameBookmark, setRenameBookmark] = useState<Bookmark | null>(null);
 
   // Saved search context menu state
   const [savedSearchContextMenu, setSavedSearchContextMenu] = useState<{ search: SavedSearch; x: number; y: number } | null>(null);
@@ -993,9 +995,37 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
         onClose={() => setRenameFolder(null)}
       />
 
+      {/* Rename bookmark modal */}
+      <RenameModal
+        isOpen={renameBookmark !== null}
+        currentName={renameBookmark?.label || ''}
+        itemType="bookmark"
+        onRename={(newName) => {
+          if (renameBookmark) {
+            updateBookmarkLabel(renameBookmark.node_id, newName);
+          }
+        }}
+        onClose={() => setRenameBookmark(null)}
+      />
+
       {/* Bookmark context menu */}
       {bookmarkContextMenu && createPortal(
         <div className="context-menu" style={{ left: bookmarkContextMenu.x, top: bookmarkContextMenu.y }}>
+          <button
+            className="context-menu-item"
+            onClick={(e) => {
+              e.stopPropagation();
+              const bm = bookmarkContextMenu.bookmark;
+              setBookmarkContextMenu(null);
+              setRenameBookmark(bm);
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+              <path d="m15 5 4 4" />
+            </svg>
+            Rename
+          </button>
           <button
             className="context-menu-item"
             onClick={(e) => {
