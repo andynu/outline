@@ -25,6 +25,7 @@ import { ZoomBreadcrumbs } from './components/ui/ZoomBreadcrumbs';
 import { BacklinksPanel } from './components/ui/BacklinksPanel';
 import { NoteEditor } from './components/NoteEditor';
 import { ArticleView } from './components/ArticleView';
+import { ZoomedLeafNoteEditor } from './components/ZoomedLeafNoteEditor';
 import { DocumentTitle } from './components/DocumentTitle';
 import { BookmarkBar } from './components/BookmarkBar';
 import { loadSessionState, saveSessionState } from './lib/sessionState';
@@ -1576,18 +1577,22 @@ function App() {
                           onTitleChange={() => sidebarRef.current?.refresh()}
                         />
                       )}
-                      <div className="outline-container">
-                        {(zoomedNodeId ? tree : tree.slice(1)).map(item => (
-                          <TreeItemRenderer
-                            key={item.node.id}
-                            item={item}
-                            onOpenBulkQuickMove={() => {
-                              setQuickMoveBulkMode(true);
-                              setShowQuickMove(true);
-                            }}
-                          />
-                        ))}
-                      </div>
+                      {zoomedNodeId && tree.length === 0 ? (
+                        <ZoomedLeafNoteEditor nodeId={zoomedNodeId} />
+                      ) : (
+                        <div className="outline-container">
+                          {(zoomedNodeId ? tree : tree.slice(1)).map(item => (
+                            <TreeItemRenderer
+                              key={item.node.id}
+                              item={item}
+                              onOpenBulkQuickMove={() => {
+                                setQuickMoveBulkMode(true);
+                                setShowQuickMove(true);
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </>
                   )}
                   <BacklinksPanel

@@ -5250,6 +5250,58 @@ img.custom-emoji {
   outline: none;
 }
 
+/* === Zoomed Leaf Note Editor (inline note for childless zoomed nodes) === */
+
+.zoomed-leaf-note {
+  display: flex;
+  flex-direction: column;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 24px 80px;
+  min-height: 0;
+  flex: 1;
+}
+
+.zoomed-leaf-note-header {
+  margin-bottom: 8px;
+}
+
+.zoomed-leaf-note-title {
+  font-size: 1.25em;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.zoomed-leaf-note-label {
+  font-size: 0.8em;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.zoomed-leaf-note-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.zoomed-leaf-note-body .tiptap {
+  outline: none;
+}
+
+/* Reuse .note-editor-content styles for the inline editor */
+.zoomed-leaf-note-body .note-editor-content {
+  outline: none;
+  font-size: 0.95em;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
 /* ========================================
    Article View - flowing prose rendering
    ======================================== */
