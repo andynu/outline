@@ -1833,7 +1833,7 @@ export const OutlineItem = memo(function OutlineItem({
   return (
     <div
       className={itemClasses}
-      style={{ marginLeft: depth * 24, ...(nodeColorCss ? { borderLeftColor: nodeColorCss } as React.CSSProperties : {}) }}
+      style={{ marginLeft: depth === 0 ? 0 : 24, ...(nodeColorCss ? { borderLeftColor: nodeColorCss } as React.CSSProperties : {}) }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
