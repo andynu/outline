@@ -26,6 +26,7 @@ import { BacklinksPanel } from './components/ui/BacklinksPanel';
 import { NoteEditor } from './components/NoteEditor';
 import { ArticleView } from './components/ArticleView';
 import { DocumentTitle } from './components/DocumentTitle';
+import { BookmarkBar } from './components/BookmarkBar';
 import { loadSessionState, saveSessionState } from './lib/sessionState';
 import type { Node, TreeNode } from './lib/types';
 import * as api from './lib/api';
@@ -147,6 +148,13 @@ function App() {
       return localStorage.getItem('outline-sidebar-open') === 'true';
     }
     return false;
+  });
+  const [showBookmarkBar, setShowBookmarkBar] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('outline-bookmark-bar');
+      return saved !== 'false'; // default to true
+    }
+    return true;
   });
   const [currentDocumentId, setCurrentDocumentId] = useState<string | undefined>();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -427,6 +435,15 @@ function App() {
     setSidebarOpen(prev => {
       const newValue = !prev;
       localStorage.setItem('outline-sidebar-open', String(newValue));
+      return newValue;
+    });
+  }, []);
+
+  // Toggle bookmark bar
+  const toggleBookmarkBar = useCallback(() => {
+    setShowBookmarkBar(prev => {
+      const newValue = !prev;
+      localStorage.setItem('outline-bookmark-bar', String(newValue));
       return newValue;
     });
   }, []);
@@ -722,6 +739,7 @@ function App() {
   const isArticleView = viewMode === 'article';
   const viewMenuItems: MenuEntry[] = useMemo(() => [
     { label: 'Toggle Sidebar', shortcut: 'Ctrl+\\', action: toggleSidebar, separator: false },
+    { label: 'Toggle Bookmark Bar', shortcut: 'Ctrl+Shift+B', action: toggleBookmarkBar, checked: showBookmarkBar, separator: false },
     { separator: true },
     { label: 'Article View', shortcut: 'Ctrl+Shift+R', action: toggleViewMode, checked: isArticleView, separator: false },
     { label: hideCompleted ? 'Show Completed' : 'Hide Completed', shortcut: 'Ctrl+Shift+H', action: toggleHideCompleted, separator: false },
@@ -741,7 +759,7 @@ function App() {
     { label: 'Reset Zoom', shortcut: 'Ctrl+0', action: resetZoom, separator: false },
     { separator: true },
     { label: isDark ? 'Light Mode' : 'Dark Mode', action: toggleTheme, separator: false },
-  ], [toggleSidebar, toggleTheme, isDark, collapseAll, expandAll, expandToLevel, collapseSiblings, focusedId, hideCompleted, toggleHideCompleted, hideDeferred, toggleHideDeferred, zoomIn, zoomOut, resetZoom, showShortIds, toggleShortIds, toggleViewMode, isArticleView]);
+  ], [toggleSidebar, toggleBookmarkBar, showBookmarkBar, toggleTheme, isDark, collapseAll, expandAll, expandToLevel, collapseSiblings, focusedId, hideCompleted, toggleHideCompleted, hideDeferred, toggleHideDeferred, zoomIn, zoomOut, resetZoom, showShortIds, toggleShortIds, toggleViewMode, isArticleView]);
 
   // Help menu items
   const helpMenuItems: MenuEntry[] = useMemo(() => [
@@ -865,6 +883,13 @@ function App() {
       if (mod && event.key === '\\') {
         event.preventDefault();
         toggleSidebar();
+        return;
+      }
+
+      // Toggle bookmark bar (Ctrl+Shift+B)
+      if (mod && event.shiftKey && event.key === 'B') {
+        event.preventDefault();
+        toggleBookmarkBar();
         return;
       }
 
@@ -1260,7 +1285,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode, enterEditMode, addSiblingAfter, addSiblingBefore, swapWithPrevious, swapWithNext, extendSelection, deleteNode, toggleCheckbox, indentNode, outdentNode]);
+  }, [currentDocumentId, handleSave, toggleSidebar, toggleBookmarkBar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode, enterEditMode, addSiblingAfter, addSiblingBefore, swapWithPrevious, swapWithNext, extendSelection, deleteNode, toggleCheckbox, indentNode, outdentNode]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
@@ -1515,8 +1540,17 @@ function App() {
           onNavigateToBookmark={handleBookmarkNavigate}
         />
 
-        {/* Main Content Area */}
-        <main className="content-area" ref={contentAreaRef}>
+        {/* Content Column: bookmark bar + main content */}
+        <div className="content-column">
+          {showBookmarkBar && (
+            <BookmarkBar
+              currentDocumentId={currentDocumentId}
+              onNavigate={handleBookmarkNavigate}
+            />
+          )}
+
+          {/* Main Content Area */}
+          <main className="content-area" ref={contentAreaRef}>
           {noteEditorNodeId ? (
             <NoteEditor
               nodeId={noteEditorNodeId}
@@ -1566,6 +1600,7 @@ function App() {
             </>
           )}
         </main>
+        </div>
 
         <TodayPanel
           isOpen={showTodayPanel}

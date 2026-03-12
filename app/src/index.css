@@ -2743,11 +2743,115 @@ img.custom-emoji {
   overflow: hidden;
 }
 
+/* Content column - holds bookmark bar and content area */
+.content-column {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
 /* Main Content Area - Flex grow and scroll */
 .content-area {
   flex: 1;
   overflow-y: auto;
   background: var(--bg-elevated);
+}
+
+/* Bookmark Bar - horizontal tabs across top of content column */
+.bookmark-bar {
+  display: flex;
+  align-items: center;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-primary);
+  min-height: 32px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.bookmark-bar-tabs {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+  scrollbar-width: none;
+  padding: 2px 4px;
+}
+
+.bookmark-bar-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.bookmark-bar-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  user-select: none;
+  transition: background 0.1s, color 0.1s;
+}
+
+.bookmark-bar-tab:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.bookmark-bar-tab-active {
+  background: var(--selection-bg);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.bookmark-bar-tab-emoji {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.bookmark-bar-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.bookmark-bar-tab[draggable] {
+  cursor: grab;
+}
+
+.bookmark-bar-tab-dragging {
+  opacity: 0.4;
+}
+
+.bookmark-bar-tab-drop-before {
+  box-shadow: -2px 0 0 0 var(--accent-primary);
+}
+
+.bookmark-bar-tab-drop-after {
+  box-shadow: 2px 0 0 0 var(--accent-primary);
+}
+
+.bookmark-bar-scroll {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.bookmark-bar-scroll:hover {
+  color: var(--text-primary);
 }
 
 /* Sidebar toggle button active state */
