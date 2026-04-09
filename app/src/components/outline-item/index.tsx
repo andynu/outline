@@ -10,6 +10,7 @@ import { ContextMenu, closeAllContextMenus } from '../ui/ContextMenu';
 import { buildItemContextMenu } from './itemContextMenu';
 import { buildBulkContextMenu } from './bulkContextMenu';
 import { useDragDrop } from './useDragDrop';
+import { useNoteEditor } from './useNoteEditor';
 import { processStaticContentElement, handleStaticContentClick } from '../../lib/renderStaticContent';
 import DOMPurify from 'dompurify';
 
@@ -146,7 +147,14 @@ export const OutlineItem = memo(function OutlineItem({
   const noteInputRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const [editorReady, setEditorReady] = useState(false);
-  const [isEditingNote, setIsEditingNote] = useState(false);
+  const {
+    isEditingNote, setIsEditingNote,
+    handleNoteInput, handleNoteKeydown, handleNoteBlur, handleNoteClick, renderNoteHtml,
+  } = useNoteEditor({
+    nodeId: node.id, note: node.note, isFocused,
+    noteInputRef, editorRef,
+    updateNote, setFocusedId, openNoteEditor,
+  });
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -1088,84 +1096,6 @@ export const OutlineItem = memo(function OutlineItem({
   // Plain text version of content (for clipboard, search, etc.)
   const plainTextContent = node.content?.replace(/<[^>]*>/g, '') || '';
 
-  // === Note editing handlers ===
-
-  const handleNoteInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    updateNote(node.id, e.target.value);
-  }, [node.id, updateNote]);
-
-  const handleNoteKeydown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Escape: close note editor
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      setIsEditingNote(false);
-      // Re-focus the main editor
-      editorRef.current?.commands.focus('end');
-    }
-    // Shift+Enter in note: also close and return to main editor
-    if (e.key === 'Enter' && e.shiftKey) {
-      e.preventDefault();
-      setIsEditingNote(false);
-      editorRef.current?.commands.focus('end');
-    }
-  }, []);
-
-  const handleNoteBlur = useCallback(() => {
-    // Close note editing when focus leaves (unless note is empty - then also clear it)
-    if (!node.note?.trim()) {
-      setIsEditingNote(false);
-    }
-  }, [node.note]);
-
-  // URL pattern for linkifying notes
-  const NOTE_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.)[^\s<>[\]{}|\\^`"']+/g;
-
-  /** Render note content as HTML. Handles both HTML notes (from NoteEditor)
-   *  and legacy plain-text notes (linkified with URL detection). */
-  const renderNoteHtml = useCallback((text: string): string => {
-    if (!text) return '';
-    // If the note contains HTML block tags, it's a rich note — sanitize and pass through
-    if (/<(?:p|h[1-3]|ul|ol|li|blockquote|pre|hr)\b/i.test(text)) {
-      return DOMPurify.sanitize(text);
-    }
-    // Legacy plain-text note: escape HTML first, then linkify
-    let result = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-    // Replace URLs with links
-    result = result.replace(NOTE_URL_PATTERN, (url) => {
-      const href = url.startsWith('www.') ? `https://${url}` : url;
-      return `<a href="${href}" class="note-link" target="_blank" rel="noopener noreferrer">${url}</a>`;
-    });
-    // Convert newlines to <br>
-    result = result.replace(/\n/g, '<br>');
-    return result;
-  }, []);
-
-  const handleNoteClick = useCallback((e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-    // If clicking a link, open it externally
-    if (target.tagName === 'A') {
-      e.preventDefault();
-      e.stopPropagation();
-      const href = target.getAttribute('href');
-      if (href) {
-        window.open(href, '_blank');
-      }
-      return;
-    }
-    // If note contains HTML (rich formatting), open the full NoteEditor
-    if (node.note && /<(?:p|h[1-3]|ul|ol|li|blockquote|pre|hr)\b/i.test(node.note)) {
-      openNoteEditor(node.id);
-      return;
-    }
-    // Otherwise enter inline edit mode for plain-text notes
-    setFocusedId(node.id);
-    setIsEditingNote(true);
-    setTimeout(() => noteInputRef.current?.focus(), 0);
-  }, [node.id, node.note, setFocusedId, openNoteEditor]);
 
   // === Context Menu ===
 
