@@ -703,7 +703,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   getSiblings: (nodeId) => {
     const node = get()._nodesById.get(nodeId);
     if (!node) return [];
-    return node.parent_id === null
+    return node.parent_id == null
       ? get().rootNodes()
       : get().childrenOf(node.parent_id);
   },
@@ -1914,7 +1914,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     const oldPosition = node.position;
 
     // Position after parent in grandparent's children
-    const grandparentChildren = parent.parent_id === null
+    const grandparentChildren = parent.parent_id == null
       ? rootNodes()
       : childrenOf(parent.parent_id);
     const parentIdx = grandparentChildren.findIndex(n => n.id === parent.id);

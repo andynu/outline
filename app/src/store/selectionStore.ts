@@ -488,7 +488,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         const parent = getParent(node.id);
         if (!parent) continue;
 
-        const grandparentChildren = parent.parent_id === null
+        const grandparentChildren = parent.parent_id == null
           ? rootNodes()
           : childrenOf(parent.parent_id);
         const parentIdx = grandparentChildren.findIndex(n => n.id === parent.id);
