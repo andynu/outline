@@ -11,6 +11,7 @@ import { buildItemContextMenu } from './itemContextMenu';
 import { buildBulkContextMenu } from './bulkContextMenu';
 import { useDragDrop } from './useDragDrop';
 import { useNoteEditor } from './useNoteEditor';
+import { useSuggestions } from './useSuggestions';
 import { processStaticContentElement, handleStaticContentClick } from '../../lib/renderStaticContent';
 import DOMPurify from 'dompurify';
 
@@ -155,46 +156,14 @@ export const OutlineItem = memo(function OutlineItem({
     noteInputRef, editorRef,
     updateNote, setFocusedId, openNoteEditor,
   });
+  const suggestions = useSuggestions({ editorRef, nodeId: node.id });
+  // Keep a stable ref to suggestion controls so the editor closure (created once on focus)
+  // can access up-to-date setters without stale closure issues.
+  const suggestionsControlsRef = useRef(suggestions.controls);
+  suggestionsControlsRef.current = suggestions.controls;
+
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [datePickerPosition, setDatePickerPosition] = useState({ x: 0, y: 0 });
-  const [datePickerMode, setDatePickerMode] = useState<DatePickerMode>('due');
-  const [showRecurrencePicker, setShowRecurrencePicker] = useState(false);
-  const [recurrencePickerPosition, setRecurrencePickerPosition] = useState({ x: 0, y: 0 });
-
-  // Wiki link suggestion state - use refs for values accessed in editor handlers
-  // to avoid stale closure issues
-  const [showWikiLinkSuggestion, setShowWikiLinkSuggestion] = useState(false);
-  const [wikiLinkQuery, setWikiLinkQuery] = useState('');
-  const [wikiLinkRange, setWikiLinkRange] = useState<{ from: number; to: number } | null>(null);
-  const [wikiLinkPosition, setWikiLinkPosition] = useState({ x: 0, y: 0 });
-  const wikiLinkActiveRef = useRef(false);
-  const wikiLinkRangeRef = useRef<{ from: number; to: number } | null>(null);
-
-  // Hashtag suggestion state
-  const [showHashtagSuggestion, setShowHashtagSuggestion] = useState(false);
-  const [hashtagQuery, setHashtagQuery] = useState('');
-  const [hashtagRange, setHashtagRange] = useState<{ from: number; to: number } | null>(null);
-  const [hashtagPosition, setHashtagPosition] = useState({ x: 0, y: 0 });
-  const hashtagActiveRef = useRef(false);
-  const hashtagRangeRef = useRef<{ from: number; to: number } | null>(null);
-
-  // Due date suggestion state
-  const [showDueDateSuggestion, setShowDueDateSuggestion] = useState(false);
-  const [dueDateQuery, setDueDateQuery] = useState('');
-  const [dueDateRange, setDueDateRange] = useState<{ from: number; to: number } | null>(null);
-  const [dueDatePosition, setDueDatePosition] = useState({ x: 0, y: 0 });
-  const dueDateActiveRef = useRef(false);
-  const dueDateRangeRef = useRef<{ from: number; to: number } | null>(null);
-
-  // Emoji suggestion state
-  const [showEmojiSuggestion, setShowEmojiSuggestion] = useState(false);
-  const [emojiQuery, setEmojiQuery] = useState('');
-  const [emojiRange, setEmojiRange] = useState<{ from: number; to: number } | null>(null);
-  const [emojiPosition, setEmojiPosition] = useState({ x: 0, y: 0 });
-  const emojiActiveRef = useRef(false);
-  const emojiRangeRef = useRef<{ from: number; to: number } | null>(null);
 
   // Compute existing hashtags from all nodes for suggestion popup
   const existingTags = useMemo(() => {
@@ -328,141 +297,142 @@ export const OutlineItem = memo(function OutlineItem({
           handleTextInput: (view, from, to, text) => {
             const state = view.state;
             const prevChar = from > 0 ? state.doc.textBetween(from - 1, from) : '';
+            const sc = suggestionsControlsRef.current;
 
             // Detect [[ trigger for wiki links
             if (text === '[' && prevChar === '[') {
               const coords = view.coordsAtPos(from);
-              wikiLinkActiveRef.current = true;
-              wikiLinkRangeRef.current = { from: from - 1, to: from + 1 };
-              setShowWikiLinkSuggestion(true);
-              setWikiLinkQuery('');
-              setWikiLinkRange({ from: from - 1, to: from + 1 });
-              setWikiLinkPosition({ x: coords.left, y: coords.bottom + 5 });
+              sc.wikiLink.activeRef.current = true;
+              sc.wikiLink.rangeRef.current = { from: from - 1, to: from + 1 };
+              sc.wikiLink.setShow(true);
+              sc.wikiLink.setQuery('');
+              sc.wikiLink.setRange({ from: from - 1, to: from + 1 });
+              sc.wikiLink.setPosition({ x: coords.left, y: coords.bottom + 5 });
               return false;
             }
 
             // If wiki link suggestion is active, update query
-            if (wikiLinkActiveRef.current && wikiLinkRangeRef.current) {
-              const range = wikiLinkRangeRef.current;
+            if (sc.wikiLink.activeRef.current && sc.wikiLink.rangeRef.current) {
+              const range = sc.wikiLink.rangeRef.current;
               const queryStart = range.from + 2;
               const currentQuery = state.doc.textBetween(queryStart, from) + text;
 
               // Check for ]] to close
               if (text === ']' && currentQuery.endsWith(']')) {
-                wikiLinkActiveRef.current = false;
-                wikiLinkRangeRef.current = null;
-                setShowWikiLinkSuggestion(false);
-                setWikiLinkRange(null);
+                sc.wikiLink.activeRef.current = false;
+                sc.wikiLink.rangeRef.current = null;
+                sc.wikiLink.setShow(false);
+                sc.wikiLink.setRange(null);
                 return false;
               }
 
               const newRange = { from: range.from, to: from + text.length + 1 };
-              wikiLinkRangeRef.current = newRange;
-              setWikiLinkQuery(currentQuery);
-              setWikiLinkRange(newRange);
+              sc.wikiLink.rangeRef.current = newRange;
+              sc.wikiLink.setQuery(currentQuery);
+              sc.wikiLink.setRange(newRange);
               return false;
             }
 
             // Detect # trigger for hashtags (at start or after whitespace)
             if (text === '#' && (prevChar === '' || prevChar === ' ' || prevChar === '\t' || from === 1)) {
               const coords = view.coordsAtPos(from);
-              hashtagActiveRef.current = true;
-              hashtagRangeRef.current = { from: from, to: from + 1 };
-              setShowHashtagSuggestion(true);
-              setHashtagQuery('');
-              setHashtagRange({ from: from, to: from + 1 });
-              setHashtagPosition({ x: coords.left, y: coords.bottom + 5 });
+              sc.hashtag.activeRef.current = true;
+              sc.hashtag.rangeRef.current = { from: from, to: from + 1 };
+              sc.hashtag.setShow(true);
+              sc.hashtag.setQuery('');
+              sc.hashtag.setRange({ from: from, to: from + 1 });
+              sc.hashtag.setPosition({ x: coords.left, y: coords.bottom + 5 });
               return false;
             }
 
             // If hashtag suggestion is active, update query
-            if (hashtagActiveRef.current && hashtagRangeRef.current) {
-              const range = hashtagRangeRef.current;
+            if (sc.hashtag.activeRef.current && sc.hashtag.rangeRef.current) {
+              const range = sc.hashtag.rangeRef.current;
               const queryStart = range.from + 1; // After the #
               const currentQuery = state.doc.textBetween(queryStart, from) + text;
 
               // Check for space or special char to close
               if (text === ' ' || text === '\t' || text === '\n') {
-                hashtagActiveRef.current = false;
-                hashtagRangeRef.current = null;
-                setShowHashtagSuggestion(false);
-                setHashtagRange(null);
+                sc.hashtag.activeRef.current = false;
+                sc.hashtag.rangeRef.current = null;
+                sc.hashtag.setShow(false);
+                sc.hashtag.setRange(null);
                 return false;
               }
 
               const newRange = { from: range.from, to: from + text.length + 1 };
-              hashtagRangeRef.current = newRange;
-              setHashtagQuery(currentQuery);
-              setHashtagRange(newRange);
+              sc.hashtag.rangeRef.current = newRange;
+              sc.hashtag.setQuery(currentQuery);
+              sc.hashtag.setRange(newRange);
               return false;
             }
 
             // Detect !( trigger for due dates
             if (text === '(' && prevChar === '!') {
               const coords = view.coordsAtPos(from);
-              dueDateActiveRef.current = true;
-              dueDateRangeRef.current = { from: from - 1, to: from + 1 };
-              setShowDueDateSuggestion(true);
-              setDueDateQuery('');
-              setDueDateRange({ from: from - 1, to: from + 1 });
-              setDueDatePosition({ x: coords.left, y: coords.bottom + 5 });
+              sc.dueDate.activeRef.current = true;
+              sc.dueDate.rangeRef.current = { from: from - 1, to: from + 1 };
+              sc.dueDate.setShow(true);
+              sc.dueDate.setQuery('');
+              sc.dueDate.setRange({ from: from - 1, to: from + 1 });
+              sc.dueDate.setPosition({ x: coords.left, y: coords.bottom + 5 });
               return false;
             }
 
             // If due date suggestion is active, update query
-            if (dueDateActiveRef.current && dueDateRangeRef.current) {
-              const range = dueDateRangeRef.current;
+            if (sc.dueDate.activeRef.current && sc.dueDate.rangeRef.current) {
+              const range = sc.dueDate.rangeRef.current;
               const queryStart = range.from + 2; // After the !(
               const currentQuery = state.doc.textBetween(queryStart, from) + text;
 
               // Check for ) to close and complete
               if (text === ')') {
-                dueDateActiveRef.current = false;
-                dueDateRangeRef.current = null;
-                setShowDueDateSuggestion(false);
-                setDueDateRange(null);
+                sc.dueDate.activeRef.current = false;
+                sc.dueDate.rangeRef.current = null;
+                sc.dueDate.setShow(false);
+                sc.dueDate.setRange(null);
                 return false;
               }
 
               const newRange = { from: range.from, to: from + text.length + 1 };
-              dueDateRangeRef.current = newRange;
-              setDueDateQuery(currentQuery);
-              setDueDateRange(newRange);
+              sc.dueDate.rangeRef.current = newRange;
+              sc.dueDate.setQuery(currentQuery);
+              sc.dueDate.setRange(newRange);
               return false;
             }
 
             // Detect : trigger for emoji shortcodes (at start or after whitespace)
-            if (text === ':' && !emojiActiveRef.current &&
+            if (text === ':' && !sc.emoji.activeRef.current &&
                 (prevChar === '' || prevChar === ' ' || prevChar === '\t' || from === 1)) {
               const coords = view.coordsAtPos(from);
-              emojiActiveRef.current = true;
-              emojiRangeRef.current = { from: from, to: from + 1 };
-              setShowEmojiSuggestion(true);
-              setEmojiQuery('');
-              setEmojiRange({ from: from, to: from + 1 });
-              setEmojiPosition({ x: coords.left, y: coords.bottom + 5 });
+              sc.emoji.activeRef.current = true;
+              sc.emoji.rangeRef.current = { from: from, to: from + 1 };
+              sc.emoji.setShow(true);
+              sc.emoji.setQuery('');
+              sc.emoji.setRange({ from: from, to: from + 1 });
+              sc.emoji.setPosition({ x: coords.left, y: coords.bottom + 5 });
               return false;
             }
 
             // If emoji suggestion is active, update query
-            if (emojiActiveRef.current && emojiRangeRef.current) {
-              const range = emojiRangeRef.current;
+            if (sc.emoji.activeRef.current && sc.emoji.rangeRef.current) {
+              const range = sc.emoji.rangeRef.current;
               const queryStart = range.from + 1; // After the :
               const currentQuery = state.doc.textBetween(queryStart, from) + text;
 
               // Close on space, closing colon, or invalid characters
               if (text === ' ' || text === '\t' || text === '\n' || text === ':') {
-                emojiActiveRef.current = false;
-                emojiRangeRef.current = null;
-                setShowEmojiSuggestion(false);
-                setEmojiRange(null);
+                sc.emoji.activeRef.current = false;
+                sc.emoji.rangeRef.current = null;
+                sc.emoji.setShow(false);
+                sc.emoji.setRange(null);
                 return false;
               }
 
               const newRange = { from: range.from, to: from + text.length + 1 };
-              emojiRangeRef.current = newRange;
-              setEmojiQuery(currentQuery);
-              setEmojiRange(newRange);
+              sc.emoji.rangeRef.current = newRange;
+              sc.emoji.setQuery(currentQuery);
+              sc.emoji.setRange(newRange);
               return false;
             }
 
@@ -490,10 +460,11 @@ export const OutlineItem = memo(function OutlineItem({
           handleKeyDown: (view, event) => {
             const mod = event.ctrlKey || event.metaKey;
             const store = storeRef.current;
+            const sc = suggestionsControlsRef.current;
 
             // When wiki link, hashtag, due date, or emoji suggestion is active, let Enter/Tab/Arrow keys
             // pass through to the suggestion popup's keyboard handler
-            if (wikiLinkActiveRef.current || hashtagActiveRef.current || dueDateActiveRef.current || emojiActiveRef.current) {
+            if (sc.wikiLink.activeRef.current || sc.hashtag.activeRef.current || sc.dueDate.activeRef.current || sc.emoji.activeRef.current) {
               if (event.key === 'Enter' || event.key === 'Tab' ||
                   event.key === 'ArrowUp' || event.key === 'ArrowDown') {
                 // Don't handle - let the suggestion popup component handle it
@@ -677,10 +648,10 @@ export const OutlineItem = memo(function OutlineItem({
               event.preventDefault();
               const rect = editorContainerRef.current?.getBoundingClientRect();
               if (rect) {
-                setDatePickerPosition({ x: rect.left, y: rect.bottom + 5 });
+                sc.datePicker.setPosition({ x: rect.left, y: rect.bottom + 5 });
               }
-              setDatePickerMode('due');
-              setShowDatePicker(true);
+              sc.datePicker.setMode('due');
+              sc.datePicker.setShow(true);
               return true;
             }
 
@@ -689,10 +660,10 @@ export const OutlineItem = memo(function OutlineItem({
               event.preventDefault();
               const rect = editorContainerRef.current?.getBoundingClientRect();
               if (rect) {
-                setDatePickerPosition({ x: rect.left, y: rect.bottom + 5 });
+                sc.datePicker.setPosition({ x: rect.left, y: rect.bottom + 5 });
               }
-              setDatePickerMode('defer');
-              setShowDatePicker(true);
+              sc.datePicker.setMode('defer');
+              sc.datePicker.setShow(true);
               return true;
             }
 
@@ -701,9 +672,9 @@ export const OutlineItem = memo(function OutlineItem({
               event.preventDefault();
               const rect = editorContainerRef.current?.getBoundingClientRect();
               if (rect) {
-                setRecurrencePickerPosition({ x: rect.left, y: rect.bottom + 5 });
+                sc.recurrencePicker.setPosition({ x: rect.left, y: rect.bottom + 5 });
               }
-              setShowRecurrencePicker(true);
+              sc.recurrencePicker.setShow(true);
               return true;
             }
 
@@ -776,89 +747,89 @@ export const OutlineItem = memo(function OutlineItem({
             }
 
             // === WIKI LINK SUGGESTION HANDLING ===
-            if (wikiLinkActiveRef.current) {
+            if (sc.wikiLink.activeRef.current) {
               if (event.key === 'Escape') {
                 event.preventDefault();
-                wikiLinkActiveRef.current = false;
-                wikiLinkRangeRef.current = null;
-                setShowWikiLinkSuggestion(false);
-                setWikiLinkRange(null);
+                sc.wikiLink.activeRef.current = false;
+                sc.wikiLink.rangeRef.current = null;
+                sc.wikiLink.setShow(false);
+                sc.wikiLink.setRange(null);
                 return true;
               }
-              if (event.key === 'Backspace' && wikiLinkRangeRef.current) {
+              if (event.key === 'Backspace' && sc.wikiLink.rangeRef.current) {
                 const { from } = view.state.selection;
                 // If backspacing to before start of trigger, close suggestion
-                if (from <= wikiLinkRangeRef.current.from + 2) {
-                  wikiLinkActiveRef.current = false;
-                  wikiLinkRangeRef.current = null;
-                  setShowWikiLinkSuggestion(false);
-                  setWikiLinkRange(null);
+                if (from <= sc.wikiLink.rangeRef.current.from + 2) {
+                  sc.wikiLink.activeRef.current = false;
+                  sc.wikiLink.rangeRef.current = null;
+                  sc.wikiLink.setShow(false);
+                  sc.wikiLink.setRange(null);
                 }
               }
             }
 
             // === HASHTAG SUGGESTION HANDLING ===
-            if (hashtagActiveRef.current) {
+            if (sc.hashtag.activeRef.current) {
               if (event.key === 'Escape') {
                 event.preventDefault();
-                hashtagActiveRef.current = false;
-                hashtagRangeRef.current = null;
-                setShowHashtagSuggestion(false);
-                setHashtagRange(null);
+                sc.hashtag.activeRef.current = false;
+                sc.hashtag.rangeRef.current = null;
+                sc.hashtag.setShow(false);
+                sc.hashtag.setRange(null);
                 return true;
               }
-              if (event.key === 'Backspace' && hashtagRangeRef.current) {
+              if (event.key === 'Backspace' && sc.hashtag.rangeRef.current) {
                 const { from } = view.state.selection;
                 // If backspacing to before start of trigger, close suggestion
-                if (from <= hashtagRangeRef.current.from + 1) {
-                  hashtagActiveRef.current = false;
-                  hashtagRangeRef.current = null;
-                  setShowHashtagSuggestion(false);
-                  setHashtagRange(null);
+                if (from <= sc.hashtag.rangeRef.current.from + 1) {
+                  sc.hashtag.activeRef.current = false;
+                  sc.hashtag.rangeRef.current = null;
+                  sc.hashtag.setShow(false);
+                  sc.hashtag.setRange(null);
                 }
               }
             }
 
             // === DUE DATE SUGGESTION HANDLING ===
-            if (dueDateActiveRef.current) {
+            if (sc.dueDate.activeRef.current) {
               if (event.key === 'Escape') {
                 event.preventDefault();
-                dueDateActiveRef.current = false;
-                dueDateRangeRef.current = null;
-                setShowDueDateSuggestion(false);
-                setDueDateRange(null);
+                sc.dueDate.activeRef.current = false;
+                sc.dueDate.rangeRef.current = null;
+                sc.dueDate.setShow(false);
+                sc.dueDate.setRange(null);
                 return true;
               }
-              if (event.key === 'Backspace' && dueDateRangeRef.current) {
+              if (event.key === 'Backspace' && sc.dueDate.rangeRef.current) {
                 const { from } = view.state.selection;
                 // If backspacing to before start of trigger !( , close suggestion
-                if (from <= dueDateRangeRef.current.from + 2) {
-                  dueDateActiveRef.current = false;
-                  dueDateRangeRef.current = null;
-                  setShowDueDateSuggestion(false);
-                  setDueDateRange(null);
+                if (from <= sc.dueDate.rangeRef.current.from + 2) {
+                  sc.dueDate.activeRef.current = false;
+                  sc.dueDate.rangeRef.current = null;
+                  sc.dueDate.setShow(false);
+                  sc.dueDate.setRange(null);
                 }
               }
             }
 
             // === EMOJI SUGGESTION HANDLING ===
-            if (emojiActiveRef.current) {
+            if (sc.emoji.activeRef.current) {
               if (event.key === 'Escape') {
                 event.preventDefault();
-                emojiActiveRef.current = false;
-                emojiRangeRef.current = null;
-                setShowEmojiSuggestion(false);
-                setEmojiRange(null);
+                sc.emoji.activeRef.current = false;
+                sc.emoji.rangeRef.current = null;
+                sc.emoji.setShow(false);
+                sc.emoji.setRange(null);
                 return true;
               }
-              if (event.key === 'Backspace' && emojiRangeRef.current) {
+              if (event.key === 'Backspace' && sc.emoji.rangeRef.current) {
                 const { from } = view.state.selection;
                 // If backspacing to before start of trigger, close suggestion
-                if (from <= emojiRangeRef.current.from + 1) {
-                  emojiActiveRef.current = false;
-                  emojiRangeRef.current = null;
-                  setShowEmojiSuggestion(false);
-                  setEmojiRange(null);
+                if (from <= sc.emoji.rangeRef.current.from + 1) {
+                  sc.emoji.activeRef.current = false;
+                  sc.emoji.rangeRef.current = null;
+                  sc.emoji.setShow(false);
+                  sc.emoji.setRange(null);
                 }
               }
             }
@@ -1131,7 +1102,9 @@ export const OutlineItem = memo(function OutlineItem({
     toggleCheckbox, toggleNodeType, setNodeTypeTo, setHeadingLevel, clearHeading,
     toggleCollapse, zoomTo, zoomToParent, openNoteEditor, indentNode, outdentNode,
     deleteNode, setNodeColor, copyToClipboard, webSearch,
-    setDatePickerPosition, setDatePickerMode, setShowDatePicker,
+    setDatePickerPosition: suggestions.controls.datePicker.setPosition,
+    setDatePickerMode: suggestions.controls.datePicker.setMode,
+    setShowDatePicker: suggestions.controls.datePicker.setShow,
   }), [node.id, node.is_checked, node.node_type, node.heading_level, node.collapsed, node.date, node.date_end, node.defer_date, node.color, hasChildren, plainTextContent, toggleCheckbox, toggleNodeType, setNodeTypeTo, setHeadingLevel, clearHeading, toggleCollapse, zoomTo, openNoteEditor, indentNode, outdentNode, deleteNode, copyToClipboard, webSearch, contextMenuPosition, setNodeColor, isBookmarked, documentId]);
 
   // Multi-selection context menu (shown when multiple items are selected)
@@ -1148,201 +1121,6 @@ export const OutlineItem = memo(function OutlineItem({
     exportSelectedToFile, exportSelectedToFilePlainText,
     deleteSelectedNodes, setSelectedNodesColor, onOpenBulkQuickMove,
   }), [selectedIds, getSelectedNodes, completeSelectedNodes, uncompleteSelectedNodes, convertSelectedToCheckbox, convertSelectedToBullet, convertSelectedToNumbered, moveSelectedToTop, moveSelectedToBottom, groupSelectedUnderNewParent, sortSelectedAlphabetical, sortSelectedReverseAlphabetical, sortSelectedByDate, sortSelectedByDateReverse, sortSelectedByCompletion, reverseSelectedOrder, copySelectedAsMarkdown, copySelectedAsPlainText, exportSelectedToFile, exportSelectedToFilePlainText, indentSelectedNodes, outdentSelectedNodes, deleteSelectedNodes, onOpenBulkQuickMove, setSelectedNodesColor]);
-
-  // Wiki link suggestion handlers
-  const handleWikiLinkSelect = useCallback((nodeId: string, displayText: string) => {
-    const editor = editorRef.current;
-    const range = wikiLinkRangeRef.current;
-    if (!editor || !range) return;
-
-    // Delete the [[query text and insert the wiki link
-    editor
-      .chain()
-      .focus()
-      .deleteRange(range)
-      .insertWikiLink(nodeId, displayText)
-      .run();
-
-    wikiLinkActiveRef.current = false;
-    wikiLinkRangeRef.current = null;
-    setShowWikiLinkSuggestion(false);
-    setWikiLinkRange(null);
-  }, []);
-
-  const handleWikiLinkClose = useCallback(() => {
-    wikiLinkActiveRef.current = false;
-    wikiLinkRangeRef.current = null;
-    setShowWikiLinkSuggestion(false);
-    setWikiLinkRange(null);
-  }, []);
-
-  // Hashtag suggestion handlers
-  const handleHashtagSelect = useCallback((tag: string) => {
-    const editor = editorRef.current;
-    const range = hashtagRangeRef.current;
-    if (!editor || !range) return;
-
-    // Delete the #query text and insert the complete hashtag
-    editor
-      .chain()
-      .focus()
-      .deleteRange(range)
-      .insertContent(`#${tag} `) // Insert hashtag with trailing space
-      .run();
-
-    hashtagActiveRef.current = false;
-    hashtagRangeRef.current = null;
-    setShowHashtagSuggestion(false);
-    setHashtagRange(null);
-  }, []);
-
-  const handleHashtagClose = useCallback(() => {
-    hashtagActiveRef.current = false;
-    hashtagRangeRef.current = null;
-    setShowHashtagSuggestion(false);
-    setHashtagRange(null);
-  }, []);
-
-  // Due date suggestion handlers
-  const handleDueDateSelect = useCallback((date: string) => {
-    const editor = editorRef.current;
-    const range = dueDateRangeRef.current;
-    if (!editor || !range) return;
-
-    // Delete the !(query text and insert the complete due date
-    editor
-      .chain()
-      .focus()
-      .deleteRange(range)
-      .insertContent(`!(${date})`) // Insert due date with closing paren
-      .run();
-
-    dueDateActiveRef.current = false;
-    dueDateRangeRef.current = null;
-    setShowDueDateSuggestion(false);
-    setDueDateRange(null);
-  }, []);
-
-  const handleDueDateClose = useCallback(() => {
-    dueDateActiveRef.current = false;
-    dueDateRangeRef.current = null;
-    setShowDueDateSuggestion(false);
-    setDueDateRange(null);
-  }, []);
-
-  // Emoji suggestion handlers
-  const handleEmojiSelect = useCallback((shortcode: string, emoji: string, imageUrl?: string) => {
-    const editor = editorRef.current;
-    const range = emojiRangeRef.current;
-    if (!editor || !range) return;
-
-    if (imageUrl) {
-      // Image-based custom emoji: insert as a customEmoji node
-      editor
-        .chain()
-        .focus()
-        .deleteRange(range)
-        .insertContent({
-          type: 'customEmoji',
-          attrs: {
-            src: imageUrl,
-            alt: `:${shortcode}:`,
-            shortcode: shortcode,
-          },
-        })
-        .run();
-    } else {
-      // Unicode emoji or text custom emoji: insert as text
-      editor
-        .chain()
-        .focus()
-        .deleteRange(range)
-        .insertContent(emoji)
-        .run();
-    }
-
-    emojiActiveRef.current = false;
-    emojiRangeRef.current = null;
-    setShowEmojiSuggestion(false);
-    setEmojiRange(null);
-  }, []);
-
-  const handleEmojiClose = useCallback(() => {
-    emojiActiveRef.current = false;
-    emojiRangeRef.current = null;
-    setShowEmojiSuggestion(false);
-    setEmojiRange(null);
-  }, []);
-
-  // Date picker handlers
-  const handleDateSelect = useCallback(async (date: string | null, pickerMode: DatePickerMode) => {
-    setShowDatePicker(false);
-    const api = await import('../../lib/api');
-    if (pickerMode === 'defer') {
-      await api.updateNode(node.id, { defer_date: date || '' });
-    } else if (pickerMode === 'end') {
-      await api.updateNode(node.id, { date_end: date || '' });
-    } else {
-      await api.updateNode(node.id, { date: date || '' });
-    }
-    const state = await api.loadDocument();
-    useOutlineStore.getState().updateFromState(state);
-  }, [node.id]);
-
-  const handleDatePickerClose = useCallback(() => {
-    setShowDatePicker(false);
-  }, []);
-
-  const handleDateBadgeClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    setDatePickerPosition({ x: rect.left, y: rect.bottom + 5 });
-    setDatePickerMode('due');
-    setShowDatePicker(true);
-  }, []);
-
-  const handleDeferBadgeClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    setDatePickerPosition({ x: rect.left, y: rect.bottom + 5 });
-    setDatePickerMode('defer');
-    setShowDatePicker(true);
-  }, []);
-
-  // Recurrence picker handlers
-  const handleRecurrenceSelect = useCallback(async (rrule: string | null, mode: RecurrenceMode) => {
-    setShowRecurrencePicker(false);
-    // Update node recurrence and mode via API
-    const api = await import('../../lib/api');
-    const changes: Record<string, string | undefined> = {
-      recurrence: rrule || undefined,
-    };
-    // Only store recurrence_mode if it's "complete" (to preserve backward compat)
-    // When clearing recurrence, also clear mode
-    if (rrule == null) {
-      changes.recurrence_mode = '';  // empty string clears the field
-    } else {
-      changes.recurrence_mode = mode === 'complete' ? 'complete' : '';
-    }
-    await api.updateNode(node.id, changes);
-    // Reload state
-    const state = await api.loadDocument();
-    useOutlineStore.getState().updateFromState(state);
-  }, [node.id]);
-
-  const handleRecurrencePickerClose = useCallback(() => {
-    setShowRecurrencePicker(false);
-  }, []);
-
-  const handleRecurrenceIndicatorClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    setRecurrencePickerPosition({ x: rect.left, y: rect.bottom + 5 });
-    setShowRecurrencePicker(true);
-  }, []);
 
   // Compute numbered index for numbered items
   const numberedIndex = useMemo(() => {
@@ -1474,21 +1252,21 @@ export const OutlineItem = memo(function OutlineItem({
 
         {/* Defer date badge */}
         {node.defer_date && (
-          <span className="date-badge defer" onClick={handleDeferBadgeClick} title={`Deferred until ${node.defer_date}`}>
+          <span className="date-badge defer" onClick={suggestions.datePicker.onDeferBadgeClick} title={`Deferred until ${node.defer_date}`}>
             {'Defer: ' + formatDateRelative(node.defer_date)}
           </span>
         )}
 
         {/* Date badge */}
         {node.date && (
-          <span className="date-badge" onClick={handleDateBadgeClick} title={node.date_end ? `${node.date} - ${node.date_end}` : node.date}>
+          <span className="date-badge" onClick={suggestions.datePicker.onDateBadgeClick} title={node.date_end ? `${node.date} - ${node.date_end}` : node.date}>
             {formatDateRange(node.date, node.date_end)}
           </span>
         )}
 
         {/* Recurrence indicator */}
         {node.recurrence && (
-          <span className="recurrence-indicator" onClick={handleRecurrenceIndicatorClick} title="Repeating">
+          <span className="recurrence-indicator" onClick={suggestions.recurrencePicker.onIndicatorClick} title="Repeating">
             ↻
           </span>
         )}
@@ -1548,67 +1326,67 @@ export const OutlineItem = memo(function OutlineItem({
       )}
 
       {/* Wiki link suggestion popup */}
-      {showWikiLinkSuggestion && (
+      {suggestions.wikiLink.show && (
         <WikiLinkSuggestion
-          query={wikiLinkQuery}
-          position={wikiLinkPosition}
-          onSelect={handleWikiLinkSelect}
-          onClose={handleWikiLinkClose}
+          query={suggestions.wikiLink.query}
+          position={suggestions.wikiLink.position}
+          onSelect={suggestions.wikiLink.onSelect}
+          onClose={suggestions.wikiLink.onClose}
         />
       )}
 
       {/* Hashtag suggestion popup */}
-      {showHashtagSuggestion && (
+      {suggestions.hashtag.show && (
         <HashtagSuggestion
-          query={hashtagQuery}
-          position={hashtagPosition}
-          onSelect={handleHashtagSelect}
-          onClose={handleHashtagClose}
+          query={suggestions.hashtag.query}
+          position={suggestions.hashtag.position}
+          onSelect={suggestions.hashtag.onSelect}
+          onClose={suggestions.hashtag.onClose}
           existingTags={existingTags}
         />
       )}
 
       {/* Due date suggestion popup */}
-      {showDueDateSuggestion && (
+      {suggestions.dueDate.show && (
         <DueDateSuggestion
-          query={dueDateQuery}
-          position={dueDatePosition}
-          onSelect={handleDueDateSelect}
-          onClose={handleDueDateClose}
+          query={suggestions.dueDate.query}
+          position={suggestions.dueDate.position}
+          onSelect={suggestions.dueDate.onSelect}
+          onClose={suggestions.dueDate.onClose}
         />
       )}
 
       {/* Emoji suggestion popup */}
-      {showEmojiSuggestion && (
+      {suggestions.emoji.show && (
         <EmojiSuggestion
-          query={emojiQuery}
-          position={emojiPosition}
-          onSelect={handleEmojiSelect}
-          onClose={handleEmojiClose}
+          query={suggestions.emoji.query}
+          position={suggestions.emoji.position}
+          onSelect={suggestions.emoji.onSelect}
+          onClose={suggestions.emoji.onClose}
         />
       )}
 
       {/* Date picker modal */}
-      {showDatePicker && (
+      {suggestions.datePicker.show && (
         <DatePicker
-          position={datePickerPosition}
+          position={suggestions.datePicker.position}
           currentDate={node.date}
           currentDeferDate={node.defer_date}
           currentDateEnd={node.date_end}
-          initialMode={datePickerMode}
-          onSelect={handleDateSelect}
-          onClose={handleDatePickerClose}
+          initialMode={suggestions.datePicker.mode}
+          onSelect={suggestions.datePicker.onSelect}
+          onClose={suggestions.datePicker.onClose}
         />
       )}
 
       {/* Recurrence picker modal */}
-      {showRecurrencePicker && (
+      {suggestions.recurrencePicker.show && (
         <RecurrencePicker
-          position={recurrencePickerPosition}
+          position={suggestions.recurrencePicker.position}
           currentRecurrence={node.recurrence}
           currentMode={(node.recurrence_mode as RecurrenceMode) ?? 'schedule'}
-          onSelect={handleRecurrenceSelect}
-          onClose={handleRecurrencePickerClose}
+          onSelect={suggestions.recurrencePicker.onSelect}
+          onClose={suggestions.recurrencePicker.onClose}
         />
       )}
     </div>
