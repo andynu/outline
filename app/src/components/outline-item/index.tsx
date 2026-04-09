@@ -2,35 +2,35 @@ import React, { memo, useRef, useEffect, useCallback, useState, useMemo, DragEve
 import { Editor } from '@tiptap/core';
 import { DOMSerializer } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
-import type { TreeNode } from '../lib/types';
-import { useOutlineStore } from '../store/outlineStore';
-import { useSelectionStore } from '../store/selectionStore';
-import { useSettingsStore } from '../store/settingsStore';
-import { ContextMenu, closeAllContextMenus } from './ui/ContextMenu';
-import { processStaticContentElement, handleStaticContentClick } from '../lib/renderStaticContent';
+import type { TreeNode } from '../../lib/types';
+import { useOutlineStore } from '../../store/outlineStore';
+import { useSelectionStore } from '../../store/selectionStore';
+import { useSettingsStore } from '../../store/settingsStore';
+import { ContextMenu, closeAllContextMenus } from '../ui/ContextMenu';
+import { processStaticContentElement, handleStaticContentClick } from '../../lib/renderStaticContent';
 import DOMPurify from 'dompurify';
 
 // TipTap extensions
-import { WikiLink, createWikiLinkInputHandler } from '../lib/WikiLink';
-import { Hashtag } from '../lib/Hashtag';
-import { DueDate } from '../lib/DueDate';
-import { AutoLink } from '../lib/AutoLink';
-import { MarkdownLink } from '../lib/MarkdownLink';
-import { Mention } from '../lib/Mention';
-import { EmojiShortcode } from '../lib/EmojiShortcode';
-import { CustomEmojiNode } from '../lib/CustomEmojiNode';
+import { WikiLink, createWikiLinkInputHandler } from '../../lib/WikiLink';
+import { Hashtag } from '../../lib/Hashtag';
+import { DueDate } from '../../lib/DueDate';
+import { AutoLink } from '../../lib/AutoLink';
+import { MarkdownLink } from '../../lib/MarkdownLink';
+import { Mention } from '../../lib/Mention';
+import { EmojiShortcode } from '../../lib/EmojiShortcode';
+import { CustomEmojiNode } from '../../lib/CustomEmojiNode';
 
 // Suggestion popups
-import { WikiLinkSuggestion } from './ui/WikiLinkSuggestion';
-import { HashtagSuggestion } from './ui/HashtagSuggestion';
-import { DueDateSuggestion } from './ui/DueDateSuggestion';
-import { EmojiSuggestion } from './ui/EmojiSuggestion';
-import { DatePicker, type DatePickerMode } from './ui/DatePicker';
-import { RecurrencePicker, type RecurrenceMode } from './ui/RecurrencePicker';
-import { formatDateRelative, formatDateRange } from '../lib/dateUtils';
-import { looksLikeMarkdownList, parseMarkdownList } from '../lib/markdownPaste';
-import { NODE_COLORS, getColorCss } from '../lib/colorPalette';
-import { useBookmarkStore } from '../store/bookmarkStore';
+import { WikiLinkSuggestion } from '../ui/WikiLinkSuggestion';
+import { HashtagSuggestion } from '../ui/HashtagSuggestion';
+import { DueDateSuggestion } from '../ui/DueDateSuggestion';
+import { EmojiSuggestion } from '../ui/EmojiSuggestion';
+import { DatePicker, type DatePickerMode } from '../ui/DatePicker';
+import { RecurrencePicker, type RecurrenceMode } from '../ui/RecurrencePicker';
+import { formatDateRelative, formatDateRange } from '../../lib/dateUtils';
+import { looksLikeMarkdownList, parseMarkdownList } from '../../lib/markdownPaste';
+import { NODE_COLORS, getColorCss } from '../../lib/colorPalette';
+import { useBookmarkStore } from '../../store/bookmarkStore';
 
 interface OutlineItemProps {
   item: TreeNode;
@@ -700,9 +700,19 @@ export const OutlineItem = memo(function OutlineItem({
               if (useSelectionStore.getState().selectedIds.size > 0) {
                 return false; // Don't handle, let it bubble to App.tsx
               }
-              // Single item - toggle just this node
+              // Single item - toggle just this node, then advance focus
               event.preventDefault();
+              // Determine next/prev visible node before toggling (item may vanish if hide-completed is on)
+              const { getVisibleNodes } = useOutlineStore.getState();
+              const visible = getVisibleNodes();
+              const idx = visible.findIndex(n => n.id === nodeId);
+              const nextId = idx >= 0 && idx < visible.length - 1 ? visible[idx + 1].id
+                           : idx > 0 ? visible[idx - 1].id
+                           : null;
               store.toggleCheckbox(nodeId);
+              if (nextId) {
+                store.setFocusedId(nextId);
+              }
               return true;
             }
 
@@ -1731,7 +1741,7 @@ export const OutlineItem = memo(function OutlineItem({
   // Date picker handlers
   const handleDateSelect = useCallback(async (date: string | null, pickerMode: DatePickerMode) => {
     setShowDatePicker(false);
-    const api = await import('../lib/api');
+    const api = await import('../../lib/api');
     if (pickerMode === 'defer') {
       await api.updateNode(node.id, { defer_date: date || '' });
     } else if (pickerMode === 'end') {
@@ -1769,7 +1779,7 @@ export const OutlineItem = memo(function OutlineItem({
   const handleRecurrenceSelect = useCallback(async (rrule: string | null, mode: RecurrenceMode) => {
     setShowRecurrencePicker(false);
     // Update node recurrence and mode via API
-    const api = await import('../lib/api');
+    const api = await import('../../lib/api');
     const changes: Record<string, string | undefined> = {
       recurrence: rrule || undefined,
     };

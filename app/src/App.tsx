@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useCallback, useRef, useDeferredValue, us
 import { useOutlineStore } from './store/outlineStore';
 import { useSelectionStore } from './store/selectionStore';
 import { useZoomStore, reapplyZoom } from './store/zoomStore';
-import { OutlineItem } from './components/OutlineItem';
+import { OutlineItem } from './components/outline-item';
 import { OutlineItemStatic } from './components/OutlineItemStatic';
 import { Sidebar, SidebarRef } from './components/Sidebar';
 import { MenuDropdown, type MenuEntry } from './components/ui/MenuDropdown';
@@ -1192,7 +1192,16 @@ function App() {
         if (selectedIds.size > 0) {
           toggleSelectedCheckboxes();
         } else {
+          // Determine next/prev visible node before toggling (item may vanish if hide-completed is on)
+          const visible = getVisibleNodes();
+          const idx = visible.findIndex(n => n.id === focusedId);
+          const nextId = idx >= 0 && idx < visible.length - 1 ? visible[idx + 1].id
+                       : idx > 0 ? visible[idx - 1].id
+                       : null;
           toggleCheckbox(focusedId);
+          if (nextId) {
+            useOutlineStore.setState({ focusedId: nextId });
+          }
         }
         return;
       }
