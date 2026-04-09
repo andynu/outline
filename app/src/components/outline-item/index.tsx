@@ -9,6 +9,7 @@ import { useSettingsStore } from '../../store/settingsStore';
 import { ContextMenu, closeAllContextMenus } from '../ui/ContextMenu';
 import { buildItemContextMenu } from './itemContextMenu';
 import { buildBulkContextMenu } from './bulkContextMenu';
+import { useDragDrop } from './useDragDrop';
 import { processStaticContentElement, handleStaticContentClick } from '../../lib/renderStaticContent';
 import DOMPurify from 'dompurify';
 
@@ -136,13 +137,15 @@ export const OutlineItem = memo(function OutlineItem({
   const isFocused = focusedId === node.id;
   const isNodeSelected = selectedIds.has(node.id);
   const isDragging = draggedId === node.id;
+  const {
+    isDragOver, dropPosition,
+    handleDragStart, handleDragEnd, handleDragOver, handleDragLeave, handleDrop,
+  } = useDragDrop({ nodeId: node.id, draggedId, startDrag, endDrag, dropOnNode });
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const staticContentRef = useRef<HTMLDivElement>(null);
   const noteInputRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const [editorReady, setEditorReady] = useState(false);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'child' | null>(null);
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
@@ -1081,76 +1084,6 @@ export const OutlineItem = memo(function OutlineItem({
       selectRange(node.id);
     }
   }, [node.id, toggleSelection, selectRange]);
-
-  // === Drag and Drop handlers ===
-
-  const handleDragStart = useCallback((e: DragEvent<HTMLSpanElement>) => {
-    e.stopPropagation();
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'move';
-      // Use custom MIME type so TipTap won't try to insert it as text
-      e.dataTransfer.setData('application/x-outline-node', node.id);
-    }
-    startDrag(node.id);
-  }, [node.id, startDrag]);
-
-  const handleDragEnd = useCallback((e: DragEvent<HTMLSpanElement>) => {
-    e.stopPropagation();
-    endDrag();
-    setIsDragOver(false);
-    setDropPosition(null);
-  }, [endDrag]);
-
-  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Don't allow dropping on self
-    if (draggedId === node.id) {
-      return;
-    }
-
-    setIsDragOver(true);
-
-    // Determine drop position based on mouse Y position
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    const height = rect.height;
-
-    if (y < height * 0.25) {
-      setDropPosition('before');
-    } else if (y > height * 0.75) {
-      setDropPosition('after');
-    } else {
-      setDropPosition('child');
-    }
-
-    if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = 'move';
-    }
-  }, [draggedId, node.id]);
-
-  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    setIsDragOver(false);
-    setDropPosition(null);
-  }, []);
-
-  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (draggedId && draggedId !== node.id) {
-      if (dropPosition === 'child') {
-        dropOnNode(node.id, true);
-      } else {
-        dropOnNode(node.id, false);
-      }
-    }
-
-    setIsDragOver(false);
-    setDropPosition(null);
-  }, [draggedId, node.id, dropPosition, dropOnNode]);
 
   // Plain text version of content (for clipboard, search, etc.)
   const plainTextContent = node.content?.replace(/<[^>]*>/g, '') || '';
