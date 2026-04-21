@@ -460,7 +460,10 @@ export function useOutlineEditor({
 
             // === COLLAPSE/EXPAND ===
             if (event.key === '.' && mod) {
+              // stopPropagation prevents the window-level handler in App.tsx
+              // (toggleFocusedCollapse) from firing and immediately undoing this toggle.
               event.preventDefault();
+              event.stopPropagation();
               store.toggleCollapse(nodeId);
               return true;
             }
