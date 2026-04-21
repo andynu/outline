@@ -58,6 +58,7 @@ function createMockData(): DocumentState {
   const root3Id = 'mock-root-3';
 
   return {
+    doc_id: 'mock-doc',
     doc_prefix: 'mock',
     nodes: [
       {

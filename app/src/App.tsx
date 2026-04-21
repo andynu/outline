@@ -28,7 +28,13 @@ import { ArticleView } from './components/ArticleView';
 import { ZoomedLeafNoteEditor } from './components/ZoomedLeafNoteEditor';
 import { DocumentTitle } from './components/DocumentTitle';
 import { BookmarkBar } from './components/BookmarkBar';
-import { loadSessionState, saveSessionState } from './lib/sessionState';
+import {
+  loadSessionState,
+  saveSessionState,
+  savePerDocumentState,
+  flushSessionState,
+  getDocumentState,
+} from './lib/sessionState';
 import type { Node, TreeNode } from './lib/types';
 import * as api from './lib/api';
 import React from 'react';
@@ -158,6 +164,12 @@ function App() {
     return true;
   });
   const [currentDocumentId, setCurrentDocumentId] = useState<string | undefined>();
+  // The store knows the loaded doc id (Rust populates it; mock uses a stable
+  // sentinel). We prefer the local `currentDocumentId` for UI semantics, but
+  // fall back to the store id so per-document session persistence works even
+  // when no explicit selection has happened yet (initial load / browser mock).
+  const storeDocumentId = useOutlineStore(state => state.documentId);
+  const effectiveDocumentId = currentDocumentId ?? storeDocumentId ?? undefined;
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -279,9 +291,10 @@ function App() {
       const session = loadSessionState();
 
       // Load document (from session or default)
-      if (session?.documentId) {
-        setCurrentDocumentId(session.documentId);
-        await load(session.documentId);
+      const docIdToLoad = session?.documentId;
+      if (docIdToLoad) {
+        setCurrentDocumentId(docIdToLoad);
+        await load(docIdToLoad);
       } else {
         await load();
       }
@@ -289,26 +302,39 @@ function App() {
       // Get the store state to validate node IDs
       const store = useOutlineStore.getState();
 
+      // Look up per-document state for the doc we just loaded. When the session
+      // didn't know which doc to open (first run), fall back to whatever doc the
+      // store settled on (the backend's default doc).
+      const loadedDocId = docIdToLoad ?? store.documentId ?? undefined;
+      const perDoc = getDocumentState(session, loadedDocId);
+
       // Restore zoom state after document loads (only if node exists)
-      if (session?.zoomedNodeId && store.getNode(session.zoomedNodeId)) {
-        zoomTo(session.zoomedNodeId);
+      if (perDoc.zoomedNodeId && store.getNode(perDoc.zoomedNodeId)) {
+        zoomTo(perDoc.zoomedNodeId);
       }
 
       // Restore focus state after document loads (only if node exists)
-      if (session?.focusedNodeId && store.getNode(session.focusedNodeId)) {
-        setFocusedId(session.focusedNodeId);
+      if (perDoc.focusedNodeId && store.getNode(perDoc.focusedNodeId)) {
+        setFocusedId(perDoc.focusedNodeId);
       }
 
       // Restore scroll position after a brief delay for DOM to settle
-      if (session?.scrollTop !== undefined && contentAreaRef.current) {
+      if (perDoc.scrollTop !== undefined && contentAreaRef.current) {
+        const scrollTop = perDoc.scrollTop;
         setTimeout(() => {
           if (contentAreaRef.current) {
-            contentAreaRef.current.scrollTop = session.scrollTop || 0;
+            contentAreaRef.current.scrollTop = scrollTop || 0;
           }
         }, 100);
       }
 
       sessionRestored.current = true;
+
+      // Ensure the loaded doc id gets persisted even if effectiveDocumentId
+      // didn't change after the sessionRestored flip (initial mount case).
+      if (loadedDocId) {
+        saveSessionState({ documentId: loadedDocId });
+      }
     };
 
     restoreSession();
@@ -353,24 +379,26 @@ function App() {
   // Save session state when document changes
   useEffect(() => {
     if (!sessionRestored.current) return;
-    if (currentDocumentId) {
-      saveSessionState({ documentId: currentDocumentId });
+    if (effectiveDocumentId) {
+      saveSessionState({ documentId: effectiveDocumentId });
     }
-  }, [currentDocumentId]);
+  }, [effectiveDocumentId]);
 
-  // Save session state when focus changes
+  // Save session state when focus changes (per-document)
   useEffect(() => {
     if (!sessionRestored.current) return;
-    saveSessionState({ focusedNodeId: focusedId ?? undefined });
-  }, [focusedId]);
+    if (!effectiveDocumentId) return;
+    savePerDocumentState(effectiveDocumentId, { focusedNodeId: focusedId ?? undefined });
+  }, [focusedId, effectiveDocumentId]);
 
-  // Save session state when zoom changes
+  // Save session state when zoom changes (per-document)
   useEffect(() => {
     if (!sessionRestored.current) return;
-    saveSessionState({ zoomedNodeId: zoomedNodeId ?? undefined });
-  }, [zoomedNodeId]);
+    if (!effectiveDocumentId) return;
+    savePerDocumentState(effectiveDocumentId, { zoomedNodeId: zoomedNodeId ?? undefined });
+  }, [zoomedNodeId, effectiveDocumentId]);
 
-  // Track scroll position with debounce
+  // Track scroll position with debounce (per-document)
   useEffect(() => {
     const contentArea = contentAreaRef.current;
     if (!contentArea) return;
@@ -379,13 +407,14 @@ function App() {
 
     const handleScroll = () => {
       if (!sessionRestored.current) return;
+      if (!effectiveDocumentId) return;
 
       // Debounce scroll saves by 300ms
       if (scrollTimeout) {
         clearTimeout(scrollTimeout);
       }
       scrollTimeout = setTimeout(() => {
-        saveSessionState({ scrollTop: contentArea.scrollTop });
+        savePerDocumentState(effectiveDocumentId, { scrollTop: contentArea.scrollTop });
         scrollTimeout = null;
       }, 300);
     };
@@ -398,7 +427,7 @@ function App() {
         clearTimeout(scrollTimeout);
       }
     };
-  }, []);
+  }, [effectiveDocumentId]);
 
   // Poll for external changes (Dropbox/Syncthing sync)
   useEffect(() => {
@@ -449,6 +478,53 @@ function App() {
     });
   }, []);
 
+  // Switch to a different document while preserving per-document session
+  // state. This is the single gateway used by all doc-switch call sites so
+  // that:
+  //   1. Pending focus/zoom/scroll writes for the outgoing doc are flushed
+  //      before the new doc takes over the "live" values.
+  //   2. After the new doc loads, its previously saved focus/zoom/scroll are
+  //      restored (if the referenced nodes still exist).
+  //
+  // `afterLoad` runs after the new doc's state has been loaded and restored,
+  // so callers can override focus (e.g. navigate to a specific node).
+  const switchDocument = useCallback(async (
+    newDocId: string,
+    afterLoad?: () => void,
+  ) => {
+    // Flush any pending per-doc writes for the outgoing document.
+    flushSessionState();
+
+    setCurrentDocumentId(newDocId);
+    await load(newDocId);
+
+    // Restore the new doc's saved state (if any).
+    const session = loadSessionState();
+    const perDoc = getDocumentState(session, newDocId);
+    const store = useOutlineStore.getState();
+
+    if (perDoc.zoomedNodeId && store.getNode(perDoc.zoomedNodeId)) {
+      store.zoomTo(perDoc.zoomedNodeId);
+    } else {
+      store.zoomReset();
+    }
+
+    if (perDoc.focusedNodeId && store.getNode(perDoc.focusedNodeId)) {
+      store.setFocusedId(perDoc.focusedNodeId);
+    }
+
+    if (perDoc.scrollTop !== undefined && contentAreaRef.current) {
+      const scrollTop = perDoc.scrollTop;
+      setTimeout(() => {
+        if (contentAreaRef.current) {
+          contentAreaRef.current.scrollTop = scrollTop || 0;
+        }
+      }, 100);
+    }
+
+    if (afterLoad) afterLoad();
+  }, [load]);
+
   // Handle save
   const handleSave = useCallback(async () => {
     setSaveStatus('saving');
@@ -465,22 +541,20 @@ function App() {
 
   // Handle document selection
   const handleSelectDocument = useCallback(async (docId: string) => {
-    setCurrentDocumentId(docId);
-    await load(docId);
-  }, [load]);
+    await switchDocument(docId);
+  }, [switchDocument]);
 
   // Handle new document
   const handleNewDocument = useCallback(async () => {
     try {
       const newId = await api.createDocument();
-      setCurrentDocumentId(newId);
-      await load(newId);
+      await switchDocument(newId);
       sidebarRef.current?.refresh();
     } catch (e) {
       console.error('Failed to create document:', e);
       showToast('Failed to create document');
     }
-  }, [load]);
+  }, [switchDocument]);
 
   // Handle document deletion - switch to another document or create new
   const handleDeleteDocument = useCallback(async (deletedDocId: string) => {
@@ -488,8 +562,7 @@ function App() {
       const docs = await api.listDocuments();
       const remaining = docs.filter((d) => d.id !== deletedDocId);
       if (remaining.length > 0) {
-        setCurrentDocumentId(remaining[0].id);
-        await load(remaining[0].id);
+        await switchDocument(remaining[0].id);
       } else {
         await handleNewDocument();
       }
@@ -497,43 +570,42 @@ function App() {
       console.error('Failed to switch after delete:', e);
       await handleNewDocument();
     }
-  }, [load, handleNewDocument]);
+  }, [switchDocument, handleNewDocument]);
 
   // Handle search navigation
-  const handleSearchNavigate = useCallback((nodeId: string, documentId: string) => {
+  const handleSearchNavigate = useCallback(async (nodeId: string, documentId: string) => {
     if (documentId !== currentDocumentId) {
-      setCurrentDocumentId(documentId);
-      load(documentId);
+      await switchDocument(documentId, () => {
+        useOutlineStore.getState().setFocusedId(nodeId);
+      });
+    } else {
+      useOutlineStore.getState().setFocusedId(nodeId);
     }
-    // Focus the node
-    useOutlineStore.getState().setFocusedId(nodeId);
     setShowSearchModal(false);
-  }, [currentDocumentId, load]);
+  }, [currentDocumentId, switchDocument]);
 
   // Handle date views navigation (cross-document)
-  const handleDateViewNavigate = useCallback((nodeId: string, documentId: string) => {
+  const handleDateViewNavigate = useCallback(async (nodeId: string, documentId: string) => {
     if (documentId !== currentDocumentId) {
-      setCurrentDocumentId(documentId);
-      load(documentId).then(() => {
+      await switchDocument(documentId, () => {
         useOutlineStore.getState().setFocusedId(nodeId);
       });
     } else {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
     setShowDateViews(false);
-  }, [currentDocumentId, load]);
+  }, [currentDocumentId, switchDocument]);
 
   // Handle today panel navigation (cross-document, keeps panel open)
-  const handleTodayNavigate = useCallback((nodeId: string, documentId: string) => {
+  const handleTodayNavigate = useCallback(async (nodeId: string, documentId: string) => {
     if (documentId !== currentDocumentId) {
-      setCurrentDocumentId(documentId);
-      load(documentId).then(() => {
+      await switchDocument(documentId, () => {
         useOutlineStore.getState().setFocusedId(nodeId);
       });
     } else {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
-  }, [currentDocumentId, load]);
+  }, [currentDocumentId, switchDocument]);
 
   // Handle tags panel navigation (same document only)
   const handleTagsNavigate = useCallback((nodeId: string) => {
@@ -542,28 +614,26 @@ function App() {
   }, []);
 
   // Handle backlinks panel navigation (cross-document)
-  const handleBacklinksNavigate = useCallback((nodeId: string, documentId: string) => {
+  const handleBacklinksNavigate = useCallback(async (nodeId: string, documentId: string) => {
     if (documentId !== currentDocumentId) {
-      setCurrentDocumentId(documentId);
-      load(documentId).then(() => {
+      await switchDocument(documentId, () => {
         useOutlineStore.getState().setFocusedId(nodeId);
       });
     } else {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
-  }, [currentDocumentId, load]);
+  }, [currentDocumentId, switchDocument]);
 
   // Handle bookmark navigation (cross-document)
-  const handleBookmarkNavigate = useCallback((nodeId: string, documentId: string) => {
+  const handleBookmarkNavigate = useCallback(async (nodeId: string, documentId: string) => {
     if (documentId !== currentDocumentId) {
-      setCurrentDocumentId(documentId);
-      load(documentId).then(() => {
+      await switchDocument(documentId, () => {
         useOutlineStore.getState().setFocusedId(nodeId);
       });
     } else {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
-  }, [currentDocumentId, load]);
+  }, [currentDocumentId, switchDocument]);
 
   // Handle tag search from tags panel - use filter instead of search
   const handleTagSearch = useCallback((tag: string) => {
@@ -572,16 +642,18 @@ function App() {
   }, [setFilterQuery]);
 
   // Handle quick navigator navigation
-  const handleQuickNavigate = useCallback((nodeId: string, documentId: string) => {
+  const handleQuickNavigate = useCallback(async (nodeId: string, documentId: string) => {
     if (documentId && documentId !== currentDocumentId) {
-      setCurrentDocumentId(documentId);
-      load(documentId);
-    }
-    if (nodeId) {
+      await switchDocument(documentId, () => {
+        if (nodeId) {
+          useOutlineStore.getState().setFocusedId(nodeId);
+        }
+      });
+    } else if (nodeId) {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
     setShowQuickNavigator(false);
-  }, [currentDocumentId, load]);
+  }, [currentDocumentId, switchDocument]);
 
   // Menu dropdown handlers
   const openMenuDropdown = useCallback((menu: string) => {
@@ -664,8 +736,7 @@ function App() {
       const result = await api.importOpmlFromPicker();
       if (result) {
         // Navigate to the newly imported document
-        setCurrentDocumentId(result.doc_id);
-        await load(result.doc_id);
+        await switchDocument(result.doc_id);
         // Refresh sidebar
         sidebarRef.current?.refresh();
       }
@@ -673,7 +744,7 @@ function App() {
       console.error('Import OPML failed:', e);
       showToast('Import failed');
     }
-  }, [load]);
+  }, [switchDocument]);
 
   const handleImportOpmlMerge = useCallback(async () => {
     try {
