@@ -13,6 +13,7 @@ use std::sync::Mutex;
 use tauri::State;
 use uuid::Uuid;
 
+use outline_core::data::short_ids::assign_short_ids;
 use outline_core::data::{Document, DocumentState, Operation};
 use outline_core::search::SearchIndex;
 
@@ -53,6 +54,11 @@ pub fn save_op(state: State<AppState>, op: Operation) -> Result<DocumentState, S
     // Apply operation to in-memory state
     op.apply(&mut doc.state);
 
+    // Assign short IDs to any newly-created nodes so they're visible in the UI
+    // and usable by the CLI / wiki-links immediately, without waiting for a
+    // reload or compaction. This is a no-op when all nodes already have IDs.
+    assign_short_ids(&mut doc.state.nodes);
+
     // Auto-compact if threshold reached (1000 ops or 1MB)
     if doc.should_auto_compact() {
         log::info!("Auto-compacting document...");
@@ -77,6 +83,9 @@ pub fn save_ops(state: State<AppState>, ops: Vec<Operation>) -> Result<DocumentS
         doc.append_op(op)?;
         op.apply(&mut doc.state);
     }
+
+    // Assign short IDs to any newly-created nodes (cheap no-op if none).
+    assign_short_ids(&mut doc.state.nodes);
 
     // Auto-compact if threshold reached (1000 ops or 1MB)
     if doc.should_auto_compact() {

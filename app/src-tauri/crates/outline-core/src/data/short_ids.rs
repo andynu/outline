@@ -314,4 +314,43 @@ mod tests {
         let assigned2 = assign_short_ids(&mut nodes);
         assert!(!assigned2);
     }
+
+    #[test]
+    fn test_assign_short_ids_after_create_op_gives_new_node_a_short_id() {
+        use crate::data::document::DocumentState;
+        use crate::data::operations::create_op;
+
+        // Start with a document that already has a node with a short_id (the root).
+        let mut state = DocumentState::new();
+        let mut root = Node::new("Root".to_string());
+        root.short_id = Some("root".to_string());
+        state.nodes.push(root);
+
+        // Simulate what happens in save_op: apply a Create, then assign short IDs.
+        let op = create_op(None, 1, "New node".to_string());
+        let new_id = match &op {
+            crate::data::operations::Operation::Create { id, .. } => *id,
+            _ => unreachable!(),
+        };
+        op.apply(&mut state);
+
+        // Sanity: create_op does not populate short_id itself.
+        let created = state.nodes.iter().find(|n| n.id == new_id).unwrap();
+        assert!(created.short_id.is_none(), "Create op should not populate short_id directly");
+
+        // After assign_short_ids, the new node should have one.
+        let assigned = assign_short_ids(&mut state.nodes);
+        assert!(assigned, "assign_short_ids should have assigned to the new node");
+
+        let created = state.nodes.iter().find(|n| n.id == new_id).unwrap();
+        assert!(
+            created.short_id.is_some(),
+            "New node should have short_id assigned after assign_short_ids"
+        );
+        assert_ne!(
+            created.short_id.as_deref(),
+            Some("root"),
+            "New short_id should not collide with existing ones"
+        );
+    }
 }
