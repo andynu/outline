@@ -1511,6 +1511,29 @@ function App() {
             )}
           </button>
           <button
+            className={`toolbar-btn toolbar-collapsible short-ids-toggle ${showShortIds ? 'active' : ''}`}
+            onClick={toggleShortIds}
+            title={showShortIds ? "Hide short IDs" : "Show short IDs"}
+            aria-label={showShortIds ? "Hide short IDs" : "Show short IDs"}
+          >
+            {showShortIds ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="4" y1="9" x2="20" y2="9"/>
+                <line x1="4" y1="15" x2="20" y2="15"/>
+                <line x1="10" y1="3" x2="8" y2="21"/>
+                <line x1="16" y1="3" x2="14" y2="21"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="4" y1="9" x2="20" y2="9"/>
+                <line x1="4" y1="15" x2="20" y2="15"/>
+                <line x1="10" y1="3" x2="8" y2="21"/>
+                <line x1="16" y1="3" x2="14" y2="21"/>
+                <line x1="2" y1="2" x2="22" y2="22"/>
+              </svg>
+            )}
+          </button>
+          <button
             className="toolbar-btn toolbar-collapsible"
             onClick={collapseAll}
             title="Collapse All (Ctrl+Shift+.)"
