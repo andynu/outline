@@ -32,6 +32,27 @@ function generateId(): string {
   return `mock-${Date.now()}-${mockIdCounter++}`;
 }
 
+// Base36 alphabet used by the Rust backend for short IDs.
+const BASE36_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
+
+// Generate a 4-char base36 short_id not already used in the mock state.
+// Mirrors Rust's assign_short_ids so browser-only mode behaves like the
+// real backend — newly created nodes get a short_id immediately.
+function generateMockShortId(): string {
+  const existing = new Set(
+    mockState.nodes.map(n => n.short_id).filter((s): s is string => !!s)
+  );
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    let code = '';
+    for (let i = 0; i < 4; i++) {
+      code += BASE36_ALPHABET[Math.floor(Math.random() * 36)];
+    }
+    if (!existing.has(code)) return code;
+  }
+  // Extremely unlikely fallback — 36^4 = ~1.68M codes.
+  return `x${Date.now().toString(36).slice(-3)}`;
+}
+
 // Load benchmark data from static file
 async function loadBenchmarkData(): Promise<Node[]> {
   try {
@@ -267,6 +288,7 @@ export async function createNode(
     node_type: 'bullet',
     is_checked: false,
     collapsed: false,
+    short_id: generateMockShortId(),
     created_at: now,
     updated_at: now,
   };
@@ -304,6 +326,7 @@ export async function createNodeWithId(
     node_type: nodeType,
     is_checked: false,
     collapsed: false,
+    short_id: generateMockShortId(),
     created_at: now,
     updated_at: now,
   };
