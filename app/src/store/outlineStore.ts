@@ -947,17 +947,24 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
     const siblings = getSiblings(nodeId);
     const idx = siblings.findIndex(n => n.id === nodeId);
-    const newPosition = idx + 1;
+    // Base the new position on the anchor's actual position rather than its
+    // array index, so that any pre-existing position gaps or duplicates among
+    // siblings cannot cause the new node to collide and sort into the middle.
+    // (See otl-o38c regression: Enter on last root landing mid-list.)
+    const anchorPos = siblings[idx]?.position ?? idx;
+    const newPosition = anchorPos + 1;
 
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      // Batch shift siblings after insertion point in a single IPC call
+      // Batch shift siblings after the insertion point in a single IPC call.
+      // Pack them to consecutive positions starting at newPosition + 1 so we
+      // never collide with the newly-created node or with each other.
       const now = new Date().toISOString();
       const moveOps = siblings.slice(idx + 1).map((s, i) => ({
         op: 'move' as const,
         id: s.id,
         parent_id: node.parent_id,
-        position: idx + 2 + i,
+        position: newPosition + 1 + i,
         updated_at: now,
       }));
       if (moveOps.length > 0) {
@@ -995,23 +1002,29 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
     const siblings = getSiblings(nodeId);
     const idx = siblings.findIndex(n => n.id === nodeId);
+    // Base the new position on the anchor's actual position rather than the
+    // array index; see otl-o38c for why array-index math collides when
+    // sibling positions have gaps or duplicates.
+    const anchorPos = siblings[idx]?.position ?? idx;
+    const newPosition = anchorPos;
 
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      // Batch shift current node and all siblings after it in a single IPC call
+      // Batch shift current node and all siblings after it to consecutive
+      // positions starting at newPosition + 1, guaranteeing no collision.
       const now = new Date().toISOString();
       const moveOps = siblings.slice(idx).map((s, i) => ({
         op: 'move' as const,
         id: s.id,
         parent_id: node.parent_id,
-        position: idx + 1 + i,
+        position: newPosition + 1 + i,
         updated_at: now,
       }));
       if (moveOps.length > 0) {
         await api.saveOps(moveOps);
       }
 
-      const result = await api.createNode(node.parent_id, idx, '');
+      const result = await api.createNode(node.parent_id, newPosition, '');
       updateFromState(result.state);
       set({ focusedId: result.id, keyboardMode: 'edit' });
 
@@ -1173,7 +1186,10 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
     const siblings = getSiblings(nodeId);
     const idx = siblings.findIndex(n => n.id === nodeId);
-    const newPosition = idx + 1;
+    // Anchor on the actual sibling position (not array index) to avoid
+    // collisions when sibling positions have gaps. See otl-o38c.
+    const anchorPos = siblings[idx]?.position ?? idx;
+    const newPosition = anchorPos + 1;
 
     // Get children to move to new node
     const children = childrenOf(nodeId);
@@ -1190,13 +1206,15 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       // Update current node with "before" content
       await api.updateNode(nodeId, { content: beforeContent });
 
-      // Batch shift siblings after insertion point
+      // Batch shift siblings after insertion point. Pack trailing siblings
+      // to newPosition + 1, + 2, ... so they never collide with the newly
+      // created node or each other.
       const now = new Date().toISOString();
       const siblingMoveOps = siblings.slice(idx + 1).map((s, i) => ({
         op: 'move' as const,
         id: s.id,
         parent_id: node.parent_id,
-        position: idx + 2 + i,
+        position: newPosition + 1 + i,
         updated_at: now,
       }));
       if (siblingMoveOps.length > 0) {

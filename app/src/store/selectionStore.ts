@@ -569,7 +569,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
       for (const [parentId, nodes] of nodesByParent) {
         nodes.sort((a, b) => a.position - b.position);
 
-        const siblings = parentId === null ? rootNodes() : childrenOf(parentId);
+        const siblings = parentId == null ? rootNodes() : childrenOf(parentId);
         let bottomPosition = siblings.length;
 
         const batchNow = new Date().toISOString();
