@@ -1,8 +1,6 @@
 import { useState, useCallback, RefObject } from 'react';
 import { Editor } from '@tiptap/core';
-import DOMPurify from 'dompurify';
-
-const NOTE_URL_PATTERN = /(?:https?:\/\/|ftp:\/\/|www\.)[^\s<>[\]{}|\\^`"']+/g;
+import { renderNoteHtml as renderNoteHtmlShared, handleNoteLinkClick } from '../../lib/noteLinks';
 
 interface UseNoteEditorParams {
   nodeId: string;
@@ -45,40 +43,16 @@ export function useNoteEditor({ nodeId, note, isFocused, noteInputRef, editorRef
     }
   }, [note]);
 
-  /** Render note content as HTML. Handles both HTML notes (from NoteEditor)
-   *  and legacy plain-text notes (linkified with URL detection). */
+  /** Render note content as HTML. Delegates to the shared helper so that
+   *  plain-text and HTML notes both get URL linkification, and all note
+   *  render paths stay in sync. */
   const renderNoteHtml = useCallback((text: string): string => {
-    if (!text) return '';
-    // If the note contains HTML block tags, it's a rich note — sanitize and pass through
-    if (/<(?:p|h[1-3]|ul|ol|li|blockquote|pre|hr)\b/i.test(text)) {
-      return DOMPurify.sanitize(text);
-    }
-    // Legacy plain-text note: escape HTML first, then linkify
-    let result = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-    // Replace URLs with links
-    result = result.replace(NOTE_URL_PATTERN, (url) => {
-      const href = url.startsWith('www.') ? `https://${url}` : url;
-      return `<a href="${href}" class="note-link" target="_blank" rel="noopener noreferrer">${url}</a>`;
-    });
-    // Convert newlines to <br>
-    result = result.replace(/\n/g, '<br>');
-    return result;
+    return renderNoteHtmlShared(text);
   }, []);
 
   const handleNoteClick = useCallback((e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-    // If clicking a link, open it externally
-    if (target.tagName === 'A') {
-      e.preventDefault();
-      e.stopPropagation();
-      const href = target.getAttribute('href');
-      if (href) {
-        window.open(href, '_blank');
-      }
+    // If clicking a link, open it via the Tauri shell plugin (OS default browser).
+    if (handleNoteLinkClick(e)) {
       return;
     }
     // If note contains HTML (rich formatting), open the full NoteEditor

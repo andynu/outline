@@ -9,6 +9,7 @@ import { formatDateRelative, formatDateRange } from '../lib/dateUtils';
 import { NODE_COLORS, getColorCss } from '../lib/colorPalette';
 import { useBookmarkStore } from '../store/bookmarkStore';
 import { stripHtml } from '../lib/utils';
+import { renderNoteHtml, handleNoteLinkClick } from '../lib/noteLinks';
 import DOMPurify from 'dompurify';
 
 interface OutlineItemStaticProps {
@@ -401,13 +402,14 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
         <div className="note-row">
           <div
             className="note-content note-preview"
+            onClick={(e) => { handleNoteLinkClick(e); }}
             dangerouslySetInnerHTML={{
               __html: noteDisplayMode === 'one-line'
                 ? (() => {
                     const plain = stripHtml(node.note);
                     return plain.length > 100 ? plain.slice(0, 100) + '...' : plain;
                   })()
-                : DOMPurify.sanitize(node.note)
+                : renderNoteHtml(node.note)
             }}
           />
         </div>

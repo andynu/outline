@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import type { TreeNode } from '../lib/types';
 import DOMPurify from 'dompurify';
 import { stripHtml } from '../lib/utils';
+import { renderNoteHtml, handleNoteLinkClick } from '../lib/noteLinks';
 
 interface ArticleViewProps {
   tree: TreeNode[];
@@ -25,7 +26,7 @@ export const ArticleView = React.memo(function ArticleView({ tree }: ArticleView
   const content = useMemo(() => renderTree(tree, 0), [tree]);
 
   return (
-    <div className="article-view">
+    <div className="article-view" onClick={(e) => { handleNoteLinkClick(e); }}>
       {content}
     </div>
   );
@@ -95,7 +96,8 @@ function renderTree(items: TreeNode[], depth: number): React.ReactNode[] {
     if (node.note) {
       const noteText = stripHtml(node.note);
       if (noteText) {
-        const sanitizedNote = sanitize(node.note);
+        // renderNoteHtml sanitizes (DOMPurify) and linkifies bare URLs.
+        const sanitizedNote = renderNoteHtml(node.note);
         elements.push(
           <blockquote
             key={`${node.id}-note`}
