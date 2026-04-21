@@ -225,8 +225,8 @@ function App() {
   const outdentSelectedNodes = useSelectionStore(state => state.outdentSelectedNodes);
   const copySelectedAsMarkdown = useSelectionStore(state => state.copySelectedAsMarkdown);
   const copyTreeAsMarkdown = useSelectionStore(state => state.copyTreeAsMarkdown);
-  const selectAll = useSelectionStore(state => state.selectAll);
   const selectSiblings = useSelectionStore(state => state.selectSiblings);
+  const progressiveSelectAll = useSelectionStore(state => state.progressiveSelectAll);
   const clearSelection = useSelectionStore(state => state.clearSelection);
   const zoomReset = useOutlineStore(state => state.zoomReset);
   const zoomToParent = useOutlineStore(state => state.zoomToParent);
@@ -842,6 +842,29 @@ function App() {
 
   // Global keyboard shortcuts
   useEffect(() => {
+    // Tracks whether the outline editor's text was fully selected at the moment
+    // the current Ctrl+A keydown fired (captured BEFORE ProseMirror's selectAll
+    // command runs during the bubble phase).
+    let editorFullySelectedAtKeydown = false;
+
+    const handleKeydownCapture = (event: KeyboardEvent) => {
+      const mod = event.ctrlKey || event.metaKey;
+      if (mod && event.key === 'a' && !event.shiftKey) {
+        const active = document.activeElement;
+        const editorEl = active?.closest('.outline-editor') as HTMLElement | null;
+        editorFullySelectedAtKeydown = false;
+        if (editorEl) {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+            const txt = editorEl.textContent ?? '';
+            if (txt.length > 0 && sel.toString().length === txt.length) {
+              editorFullySelectedAtKeydown = true;
+            }
+          }
+        }
+      }
+    };
+
     const handleKeydown = (event: KeyboardEvent) => {
       const mod = event.ctrlKey || event.metaKey;
 
@@ -924,14 +947,33 @@ function App() {
         }
       }
 
-      // Select all (Ctrl+A) - only when not in an input/editor
+      // Progressive Select all (Ctrl+A) - Dynalist-style cascade.
+      // Works both inside and outside the outline editor. Inside inputs/textareas
+      // (other than our outline editor), keep native Ctrl+A behavior.
       if (mod && event.key === 'a' && !event.shiftKey) {
         const activeElement = document.activeElement;
-        if (!activeElement?.closest('.outline-editor') && !activeElement?.closest('input') && !activeElement?.closest('textarea')) {
-          event.preventDefault();
-          selectAll();
+        const inOutlineEditor = !!activeElement?.closest('.outline-editor');
+        const inOtherInput = !inOutlineEditor && (!!activeElement?.closest('input') || !!activeElement?.closest('textarea'));
+        if (inOtherInput) {
+          // Let the browser do its thing in non-outline inputs (search, note field, etc.)
+          // and reset the cascade state.
+          useSelectionStore.getState().resetCtrlACascade();
           return;
         }
+
+        // `editorFullySelectedAtKeydown` is set by the capture-phase listener
+        // BEFORE ProseMirror's default selectAll handler runs, so it reflects
+        // the selection state at the moment the user pressed Ctrl+A.
+        const editorFullySelected = inOutlineEditor && editorFullySelectedAtKeydown;
+
+        const result = progressiveSelectAll({ editorFullySelected, inEditor: inOutlineEditor });
+        if (result === 'text-select') {
+          // Let TipTap/browser handle selecting all text in the editor.
+          return;
+        }
+        // For 'advanced' or 'noop', we override native Ctrl+A behavior.
+        event.preventDefault();
+        return;
       }
 
       // Select siblings (Ctrl+Shift+A) - only when not in an input/editor
@@ -1360,13 +1402,15 @@ function App() {
       }
     };
 
+    window.addEventListener('keydown', handleKeydownCapture, true);
     window.addEventListener('keydown', handleKeydown);
     window.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
+      window.removeEventListener('keydown', handleKeydownCapture, true);
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, toggleBookmarkBar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode, enterEditMode, addSiblingAfter, addSiblingBefore, swapWithPrevious, swapWithNext, extendSelection, deleteNode, toggleCheckbox, indentNode, outdentNode]);
+  }, [currentDocumentId, handleSave, toggleSidebar, toggleBookmarkBar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectSiblings, progressiveSelectAll, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode, enterEditMode, addSiblingAfter, addSiblingBefore, swapWithPrevious, swapWithNext, extendSelection, deleteNode, toggleCheckbox, indentNode, outdentNode]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
