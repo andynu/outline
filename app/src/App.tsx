@@ -17,7 +17,7 @@ import { QuickMove } from './components/ui/QuickMove';
 import { QuickCaptureModal } from './components/ui/QuickCaptureModal';
 import { ToastContainer } from './components/ui/ToastContainer';
 import { showToast } from './store/toastStore';
-import { useSettingsStore } from './store/settingsStore';
+import { useSettingsStore, NOTE_DISPLAY_OPTIONS } from './store/settingsStore';
 import { useBookmarkStore } from './store/bookmarkStore';
 import { useCustomEmojiStore } from './store/customEmojiStore';
 import { FilterBar } from './components/ui/FilterBar';
@@ -805,9 +805,16 @@ function App() {
   // View menu items
   const showShortIds = useSettingsStore(state => state.showShortIds);
   const viewMode = useSettingsStore(state => state.viewMode);
+  const noteDisplayMode = useSettingsStore(state => state.noteDisplayMode);
   const updateSettings = useSettingsStore(state => state.updateSettings);
   const toggleShortIds = useCallback(() => updateSettings({ showShortIds: !showShortIds }), [showShortIds, updateSettings]);
   const toggleViewMode = useCallback(() => updateSettings({ viewMode: viewMode === 'outline' ? 'article' : 'outline' }), [viewMode, updateSettings]);
+  const cycleNoteDisplayMode = useCallback(() => {
+    const next = noteDisplayMode === 'none' ? 'one-line'
+               : noteDisplayMode === 'one-line' ? 'full'
+               : 'none';
+    updateSettings({ noteDisplayMode: next });
+  }, [noteDisplayMode, updateSettings]);
   const isArticleView = viewMode === 'article';
   const viewMenuItems: MenuEntry[] = useMemo(() => [
     { label: 'Toggle Sidebar', shortcut: 'Ctrl+\\', action: toggleSidebar, separator: false },
@@ -1574,6 +1581,33 @@ function App() {
                 <line x1="10" y1="3" x2="8" y2="21"/>
                 <line x1="16" y1="3" x2="14" y2="21"/>
                 <line x1="2" y1="2" x2="22" y2="22"/>
+              </svg>
+            )}
+          </button>
+          <button
+            className={`toolbar-btn toolbar-collapsible note-display-toggle ${noteDisplayMode !== 'none' ? 'active' : ''}`}
+            onClick={cycleNoteDisplayMode}
+            title={`Notes: ${NOTE_DISPLAY_OPTIONS.find(o => o.value === noteDisplayMode)?.label ?? noteDisplayMode}. Click to cycle.`}
+            aria-label={`Notes: ${NOTE_DISPLAY_OPTIONS.find(o => o.value === noteDisplayMode)?.label ?? noteDisplayMode}. Click to cycle note display mode.`}
+            data-note-display-mode={noteDisplayMode}
+          >
+            {noteDisplayMode === 'none' ? (
+              // Crossed-out dot: "hidden"
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+                <line x1="4" y1="20" x2="20" y2="4"/>
+              </svg>
+            ) : noteDisplayMode === 'one-line' ? (
+              // Single dot: "one line"
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+              </svg>
+            ) : (
+              // Three dots (ellipsis): "full"
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="6" cy="12" r="1.5" fill="currentColor"/>
+                <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+                <circle cx="18" cy="12" r="1.5" fill="currentColor"/>
               </svg>
             )}
           </button>
