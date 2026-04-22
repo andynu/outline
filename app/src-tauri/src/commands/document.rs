@@ -71,14 +71,36 @@ pub fn load_document(
 
     let doc_dir = documents_dir().join(doc_uuid.to_string());
 
-    let mut doc = match decide_load_action(doc_id_explicit, is_default, doc_dir.exists()) {
-        LoadAction::Load => Document::load(doc_dir)?,
+    let folder_exists = doc_dir.exists();
+    let mut doc = match decide_load_action(doc_id_explicit, is_default, folder_exists) {
+        LoadAction::Load => {
+            let doc = Document::load(doc_dir)?;
+            log::info!(
+                "load_document: loaded existing {} (existed_on_disk=true, n_nodes={})",
+                doc_uuid,
+                doc.state.nodes.len()
+            );
+            doc
+        }
         LoadAction::SeedDefault => {
+            log::warn!(
+                "load_document: folder missing for {} (existed_on_disk=false), creating new doc with sample data",
+                doc_uuid
+            );
             let mut doc = Document::create(doc_dir)?;
             create_sample_data(&mut doc)?;
+            log::info!(
+                "load_document: seeded default {} (n_nodes={})",
+                doc_uuid,
+                doc.state.nodes.len()
+            );
             doc
         }
         LoadAction::MissingError => {
+            log::error!(
+                "load_document: folder missing for explicit doc {} (existed_on_disk=false), refusing to re-seed",
+                doc_uuid
+            );
             return Err(format!(
                 "Document {} not found on disk. It may have been deleted, unsynced, or moved. Use create_document to make a new document.",
                 doc_uuid
