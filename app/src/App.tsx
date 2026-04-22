@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef, useDeferredValue, useTransition } from 'react';
-import { useOutlineStore } from './store/outlineStore';
+import { useOutlineStore, registerScrollProvider } from './store/outlineStore';
 import { useSelectionStore } from './store/selectionStore';
 import { useZoomStore, reapplyZoom } from './store/zoomStore';
 import { OutlineItem } from './components/outline-item';
@@ -403,6 +403,21 @@ function App() {
     if (!effectiveDocumentId) return;
     savePerDocumentState(effectiveDocumentId, { zoomedNodeId: zoomedNodeId ?? undefined });
   }, [zoomedNodeId, effectiveDocumentId]);
+
+  // Register a scroll provider so the store can capture/restore scroll
+  // position when navigating zoom history (otl-5lm0). This decouples the
+  // store from the specific DOM node holding the scrollable viewport.
+  useEffect(() => {
+    registerScrollProvider({
+      getScrollTop: () => contentAreaRef.current?.scrollTop ?? 0,
+      setScrollTop: (top: number) => {
+        if (contentAreaRef.current) {
+          contentAreaRef.current.scrollTop = top;
+        }
+      },
+    });
+    return () => registerScrollProvider(null);
+  }, []);
 
   // Track scroll position with debounce (per-document)
   useEffect(() => {
