@@ -1315,7 +1315,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       }
 
       // Reload to get final state after all moves
-      const finalState = await api.loadDocument();
+      const finalState = await api.loadDocument(get().documentId ?? undefined);
       updateFromState(finalState);
 
       set({ focusedId: result.id });
@@ -1414,7 +1414,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       await api.deleteNode(nextSibling.id);
 
       // Reload state
-      const state = await api.loadDocument();
+      const state = await api.loadDocument(get().documentId ?? undefined);
       updateFromState(state);
 
       // Build undo entry for merge:
@@ -1501,7 +1501,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       await api.deleteNode(nodeId);
 
       // Reload state
-      const state = await api.loadDocument();
+      const state = await api.loadDocument(get().documentId ?? undefined);
       updateFromState(state);
 
       // Focus the previous sibling with cursor at merge point
@@ -2671,7 +2671,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
               tags: action.node.tags,
             });
           }
-          const state = await api.loadDocument();
+          const state = await api.loadDocument(get().documentId ?? undefined);
           updateFromState(state);
           set({ focusedId: action.node.id });
           return true;

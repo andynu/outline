@@ -232,7 +232,7 @@ export function useSuggestions({ editorRef, nodeId }: UseSuggestionsParams) {
     } else {
       await api.updateNode(nodeId, { date: date || '' });
     }
-    const state = await api.loadDocument();
+    const state = await api.loadDocument(useOutlineStore.getState().documentId ?? undefined);
     useOutlineStore.getState().updateFromState(state);
   }, [nodeId]);
 
@@ -271,7 +271,7 @@ export function useSuggestions({ editorRef, nodeId }: UseSuggestionsParams) {
       changes.recurrence_mode = mode === 'complete' ? 'complete' : '';
     }
     await api.updateNode(nodeId, changes);
-    const state = await api.loadDocument();
+    const state = await api.loadDocument(useOutlineStore.getState().documentId ?? undefined);
     useOutlineStore.getState().updateFromState(state);
   }, [nodeId]);
 

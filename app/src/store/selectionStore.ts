@@ -572,7 +572,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         await api.deleteNode(node.id);
       }
 
-      const state = await api.loadDocument();
+      const state = await api.loadDocument(outline().documentId ?? undefined);
       updateFromState(state);
 
       set({ selectedIds: new Set<string>() });
@@ -603,7 +603,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         });
       }
 
-      const state = await api.loadDocument();
+      const state = await api.loadDocument(outline().documentId ?? undefined);
       outline().updateFromState(state);
 
       return true;
@@ -628,7 +628,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         });
       }
 
-      const state = await api.loadDocument();
+      const state = await api.loadDocument(outline().documentId ?? undefined);
       outline().updateFromState(state);
 
       return true;
@@ -652,7 +652,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         }
       }
 
-      const state = await api.loadDocument();
+      const state = await api.loadDocument(outline().documentId ?? undefined);
       outline().updateFromState(state);
 
       return true;
@@ -679,7 +679,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         }
       }
 
-      const state = await api.loadDocument();
+      const state = await api.loadDocument(outline().documentId ?? undefined);
       outline().updateFromState(state);
 
       return true;
@@ -706,7 +706,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         }
       }
 
-      const state = await api.loadDocument();
+      const state = await api.loadDocument(outline().documentId ?? undefined);
       outline().updateFromState(state);
 
       return true;
@@ -733,7 +733,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         }
       }
 
-      const state = await api.loadDocument();
+      const state = await api.loadDocument(outline().documentId ?? undefined);
       outline().updateFromState(state);
 
       return true;
@@ -771,7 +771,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         }
       }
 
-      const state = await api.loadDocument();
+      const state = await api.loadDocument(outline().documentId ?? undefined);
       updateFromState(state);
 
       return true;
@@ -807,7 +807,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         await api.moveNode(node.id, parent.parent_id, newPosition);
       }
 
-      const state = await api.loadDocument();
+      const state = await api.loadDocument(outline().documentId ?? undefined);
       updateFromState(state);
 
       return true;
@@ -847,7 +847,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         await api.saveOps(allOps);
       }
 
-      const state = await api.loadDocument();
+      const state = await api.loadDocument(outline().documentId ?? undefined);
       outline().updateFromState(state);
 
       return true;
@@ -895,7 +895,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         }
       }
 
-      const state = await api.loadDocument();
+      const state = await api.loadDocument(outline().documentId ?? undefined);
       updateFromState(state);
 
       return true;
