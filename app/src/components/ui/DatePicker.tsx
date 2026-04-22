@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { parseNaturalDate, formatISODate } from '../../lib/dateUtils';
+import { placePopup } from '../../lib/popupPosition';
 
 export type DatePickerMode = 'due' | 'defer' | 'end';
 
@@ -38,30 +39,33 @@ export function DatePicker({ position, currentDate, currentDeferDate, currentDat
     }, 0);
   }, [currentDate, currentDeferDate, currentDateEnd]);
 
-  // Adjust position to stay in viewport using useLayoutEffect for synchronous update
+  // Adjust position to stay in viewport, accounting for CSS `zoom` on an
+  // ancestor container (see lib/popupPosition.ts).
   useEffect(() => {
     const popup = popupRef.current;
     if (!popup) return;
 
-    // Measure the popup's dimensions
+    // getBoundingClientRect returns actual viewport coords (already
+    // zoom-scaled), which is what placePopup expects.
     const rect = popup.getBoundingClientRect();
-    const viewportHeight = window.innerHeight;
-    const viewportWidth = window.innerWidth;
 
-    let newTop = position.y;
-    let newLeft = position.x;
+    // The incoming `position` was built as { x: trigger.left, y: trigger.bottom + 5 };
+    // recover a zero-height trigger rect at that point (the 5px gap is reapplied
+    // inside placePopup via `gap`).
+    const trigger = {
+      left: position.x,
+      right: position.x,
+      top: position.y - 5,
+      bottom: position.y - 5,
+    };
 
-    // If popup would go below viewport, position above the trigger
-    if (position.y + rect.height > viewportHeight) {
-      newTop = Math.max(10, viewportHeight - rect.height - 10);
-    }
+    const placed = placePopup(
+      trigger,
+      { width: rect.width, height: rect.height },
+      { preferBelow: true, gap: 5 }
+    );
 
-    // If popup would go outside right edge, shift left
-    if (position.x + rect.width > viewportWidth) {
-      newLeft = Math.max(10, viewportWidth - rect.width - 10);
-    }
-
-    setAdjustedPosition({ x: newLeft, y: newTop });
+    setAdjustedPosition({ x: placed.left, y: placed.top });
   }, [position]);
 
   // Focus input when position is set
