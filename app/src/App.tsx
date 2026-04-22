@@ -1134,6 +1134,13 @@ function App() {
         return;
       }
 
+      // Cycle Note Display Mode (Ctrl+Shift+N)
+      if (mod && event.shiftKey && event.key === 'N') {
+        event.preventDefault();
+        cycleNoteDisplayMode();
+        return;
+      }
+
       // Toggle collapse on focused item (Ctrl+.)
       if (mod && event.key === '.') {
         event.preventDefault();
@@ -1436,7 +1443,7 @@ function App() {
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, toggleBookmarkBar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectSiblings, progressiveSelectAll, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode, enterEditMode, addSiblingAfter, addSiblingBefore, swapWithPrevious, swapWithNext, extendSelection, deleteNode, toggleCheckbox, indentNode, outdentNode]);
+  }, [currentDocumentId, handleSave, toggleSidebar, toggleBookmarkBar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, cycleNoteDisplayMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectSiblings, progressiveSelectAll, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode, enterEditMode, addSiblingAfter, addSiblingBefore, swapWithPrevious, swapWithNext, extendSelection, deleteNode, toggleCheckbox, indentNode, outdentNode]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
@@ -1606,8 +1613,8 @@ function App() {
           <button
             className={`toolbar-btn toolbar-collapsible note-display-toggle ${noteDisplayMode !== 'none' ? 'active' : ''}`}
             onClick={cycleNoteDisplayMode}
-            title={`Notes: ${NOTE_DISPLAY_OPTIONS.find(o => o.value === noteDisplayMode)?.label ?? noteDisplayMode}. Click to cycle.`}
-            aria-label={`Notes: ${NOTE_DISPLAY_OPTIONS.find(o => o.value === noteDisplayMode)?.label ?? noteDisplayMode}. Click to cycle note display mode.`}
+            title={`Notes: ${NOTE_DISPLAY_OPTIONS.find(o => o.value === noteDisplayMode)?.label ?? noteDisplayMode}. Click to cycle (Ctrl+Shift+N).`}
+            aria-label={`Notes: ${NOTE_DISPLAY_OPTIONS.find(o => o.value === noteDisplayMode)?.label ?? noteDisplayMode}. Click to cycle note display mode (Ctrl+Shift+N).`}
             data-note-display-mode={noteDisplayMode}
           >
             {noteDisplayMode === 'none' ? (

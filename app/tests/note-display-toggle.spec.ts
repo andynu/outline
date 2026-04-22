@@ -114,6 +114,43 @@ test.describe('Note display toolbar toggle', () => {
     await expect(firstItem.locator('.note-preview')).toBeVisible();
   });
 
+  test('Ctrl+Shift+N cycles noteDisplayMode: one-line -> full -> none -> one-line', async ({ page }) => {
+    const btn = page.locator('.toolbar-btn.note-display-toggle');
+
+    // starts as one-line (per beforeEach)
+    await expect(btn).toHaveAttribute('data-note-display-mode', 'one-line');
+
+    // Press from body (not focused on an item) to verify it works globally.
+    await page.locator('body').click();
+    await page.keyboard.press('Control+Shift+N');
+    await expect(btn).toHaveAttribute('data-note-display-mode', 'full');
+
+    await page.keyboard.press('Control+Shift+N');
+    await expect(btn).toHaveAttribute('data-note-display-mode', 'none');
+
+    await page.keyboard.press('Control+Shift+N');
+    await expect(btn).toHaveAttribute('data-note-display-mode', 'one-line');
+  });
+
+  test('Ctrl+Shift+N works while an outline item is focused for editing', async ({ page }) => {
+    const btn = page.locator('.toolbar-btn.note-display-toggle');
+    await expect(btn).toHaveAttribute('data-note-display-mode', 'one-line');
+
+    // Focus an item into edit mode.
+    const firstItem = page.locator('.outline-item').first();
+    await firstItem.click();
+    await page.waitForSelector('.outline-item.focused');
+
+    await page.keyboard.press('Control+Shift+N');
+    await expect(btn).toHaveAttribute('data-note-display-mode', 'full');
+  });
+
+  test('toolbar button title mentions the keyboard shortcut', async ({ page }) => {
+    const btn = page.locator('.toolbar-btn.note-display-toggle');
+    await expect(btn).toHaveAttribute('title', /Ctrl\+Shift\+N/);
+    await expect(btn).toHaveAttribute('aria-label', /Ctrl\+Shift\+N/);
+  });
+
   test('active class reflects whether notes are visible', async ({ page }) => {
     const btn = page.locator('.toolbar-btn.note-display-toggle');
 
