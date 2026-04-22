@@ -37,6 +37,7 @@ import {
 } from './lib/sessionState';
 import type { Node, TreeNode } from './lib/types';
 import * as api from './lib/api';
+import { useRangeDragSelection } from './lib/useRangeDragSelection';
 import React from 'react';
 
 // Note: Tree building is now handled by the store's getTree() method
@@ -284,6 +285,11 @@ function App() {
 
   // Sidebar ref for refresh
   const sidebarRef = React.useRef<SidebarRef>(null);
+
+  // Ref for the outline container — used by the click-and-drag range
+  // selection gesture to attach its delegated mousedown listener.
+  const outlineContainerRef = useRef<HTMLDivElement>(null);
+  useRangeDragSelection(outlineContainerRef);
 
   // Load document on mount - restore from session state if available
   useEffect(() => {
@@ -1787,7 +1793,7 @@ function App() {
                       {zoomedNodeId && tree.length === 0 ? (
                         <ZoomedLeafNoteEditor nodeId={zoomedNodeId} />
                       ) : (
-                        <div className="outline-container">
+                        <div className="outline-container" ref={outlineContainerRef}>
                           {(zoomedNodeId ? tree : tree.slice(1)).map(item => (
                             <TreeItemRenderer
                               key={item.node.id}

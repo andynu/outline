@@ -32,6 +32,7 @@ interface SelectionState {
   isSelected: (nodeId: string) => boolean;
   toggleSelection: (nodeId: string) => void;
   selectRange: (toId: string) => void;
+  selectRangeFromAnchor: (fromId: string, toId: string) => void;
   clearSelection: () => void;
   selectAll: () => void;
   selectSiblings: () => void;
@@ -153,6 +154,32 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
     }
     set({ selectedIds: newSet });
     useOutlineStore.setState({ focusedId: toId });
+  },
+
+  // Like selectRange, but uses an explicit anchor and does NOT move focusedId.
+  // Used for click-and-drag range selection where the anchor stays fixed at
+  // the mousedown origin while the user drags the cursor across items.
+  selectRangeFromAnchor: (fromId: string, toId: string) => {
+    const visible = outline().getVisibleNodes();
+    const fromIdx = visible.findIndex(n => n.id === fromId);
+    const toIdx = visible.findIndex(n => n.id === toId);
+
+    if (fromIdx < 0 || toIdx < 0) {
+      // Fallback to at least the anchor if something's invalid.
+      const fallback = new Set<string>();
+      if (fromIdx >= 0) fallback.add(fromId);
+      if (toIdx >= 0) fallback.add(toId);
+      set({ selectedIds: fallback, _selectionAnchorId: fromId });
+      return;
+    }
+
+    const startIdx = Math.min(fromIdx, toIdx);
+    const endIdx = Math.max(fromIdx, toIdx);
+    const newSet = new Set<string>();
+    for (let i = startIdx; i <= endIdx; i++) {
+      newSet.add(visible[i].id);
+    }
+    set({ selectedIds: newSet, _selectionAnchorId: fromId });
   },
 
   clearSelection: () => {
