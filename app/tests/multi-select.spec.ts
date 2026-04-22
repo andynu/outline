@@ -103,22 +103,24 @@ test.describe('Multi-select', () => {
     await expect(firstItem).not.toHaveClass(/selected/);
   });
 
-  test('Ctrl+A selects all items', async ({ page }) => {
+  test('Ctrl+A progressively selects all items (Dynalist-style cascade)', async ({ page }) => {
     const items = page.locator('.outline-item');
+    const itemCount = await items.count();
 
     // First blur any editor (click somewhere neutral)
     await page.locator('.content-area').click({ position: { x: 10, y: 10 } });
     await page.waitForTimeout(50);
 
-    // Press Ctrl+A to select all
-    await page.keyboard.press('Control+a');
-    await page.waitForTimeout(50);
-
-    // All items should be selected
-    const itemCount = await items.count();
-    for (let i = 0; i < itemCount; i++) {
-      await expect(items.nth(i)).toHaveClass(/selected/);
+    // Press Ctrl+A repeatedly until all items are selected. The progressive
+    // cascade walks up the hierarchy; for the seed document it reaches
+    // "all visible" within a handful of presses.
+    for (let attempt = 0; attempt < 8; attempt++) {
+      await page.keyboard.press('Control+a');
+      await page.waitForTimeout(80);
+      const selectedCount = await page.locator('.outline-item.selected').count();
+      if (selectedCount === itemCount) return;
     }
+    throw new Error('Expected all items to become selected after ≤8 Ctrl+A presses');
   });
 
   test('selected items have visual styling', async ({ page }) => {

@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo, useCallback, useRef, useDeferredValue, useTransition } from 'react';
-import { useOutlineStore } from './store/outlineStore';
+import { useOutlineStore, registerScrollProvider } from './store/outlineStore';
 import { useSelectionStore } from './store/selectionStore';
 import { useZoomStore, reapplyZoom } from './store/zoomStore';
-import { OutlineItem } from './components/OutlineItem';
+import { OutlineItem } from './components/outline-item';
 import { OutlineItemStatic } from './components/OutlineItemStatic';
 import { Sidebar, SidebarRef } from './components/Sidebar';
 import { MenuDropdown, type MenuEntry } from './components/ui/MenuDropdown';
@@ -17,7 +17,7 @@ import { QuickMove } from './components/ui/QuickMove';
 import { QuickCaptureModal } from './components/ui/QuickCaptureModal';
 import { ToastContainer } from './components/ui/ToastContainer';
 import { showToast } from './store/toastStore';
-import { useSettingsStore } from './store/settingsStore';
+import { useSettingsStore, NOTE_DISPLAY_OPTIONS } from './store/settingsStore';
 import { useBookmarkStore } from './store/bookmarkStore';
 import { useCustomEmojiStore } from './store/customEmojiStore';
 import { FilterBar } from './components/ui/FilterBar';
@@ -28,9 +28,16 @@ import { ArticleView } from './components/ArticleView';
 import { ZoomedLeafNoteEditor } from './components/ZoomedLeafNoteEditor';
 import { DocumentTitle } from './components/DocumentTitle';
 import { BookmarkBar } from './components/BookmarkBar';
-import { loadSessionState, saveSessionState } from './lib/sessionState';
+import {
+  loadSessionState,
+  saveSessionState,
+  savePerDocumentState,
+  flushSessionState,
+  getDocumentState,
+} from './lib/sessionState';
 import type { Node, TreeNode } from './lib/types';
 import * as api from './lib/api';
+import { useRangeDragSelection } from './lib/useRangeDragSelection';
 import React from 'react';
 
 // Note: Tree building is now handled by the store's getTree() method
@@ -158,6 +165,12 @@ function App() {
     return true;
   });
   const [currentDocumentId, setCurrentDocumentId] = useState<string | undefined>();
+  // The store knows the loaded doc id (Rust populates it; mock uses a stable
+  // sentinel). We prefer the local `currentDocumentId` for UI semantics, but
+  // fall back to the store id so per-document session persistence works even
+  // when no explicit selection has happened yet (initial load / browser mock).
+  const storeDocumentId = useOutlineStore(state => state.documentId);
+  const effectiveDocumentId = currentDocumentId ?? storeDocumentId ?? undefined;
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -213,8 +226,8 @@ function App() {
   const outdentSelectedNodes = useSelectionStore(state => state.outdentSelectedNodes);
   const copySelectedAsMarkdown = useSelectionStore(state => state.copySelectedAsMarkdown);
   const copyTreeAsMarkdown = useSelectionStore(state => state.copyTreeAsMarkdown);
-  const selectAll = useSelectionStore(state => state.selectAll);
   const selectSiblings = useSelectionStore(state => state.selectSiblings);
+  const progressiveSelectAll = useSelectionStore(state => state.progressiveSelectAll);
   const clearSelection = useSelectionStore(state => state.clearSelection);
   const zoomReset = useOutlineStore(state => state.zoomReset);
   const zoomToParent = useOutlineStore(state => state.zoomToParent);
@@ -273,15 +286,21 @@ function App() {
   // Sidebar ref for refresh
   const sidebarRef = React.useRef<SidebarRef>(null);
 
+  // Ref for the outline container — used by the click-and-drag range
+  // selection gesture to attach its delegated mousedown listener.
+  const outlineContainerRef = useRef<HTMLDivElement>(null);
+  useRangeDragSelection(outlineContainerRef);
+
   // Load document on mount - restore from session state if available
   useEffect(() => {
     const restoreSession = async () => {
       const session = loadSessionState();
 
       // Load document (from session or default)
-      if (session?.documentId) {
-        setCurrentDocumentId(session.documentId);
-        await load(session.documentId);
+      const docIdToLoad = session?.documentId;
+      if (docIdToLoad) {
+        setCurrentDocumentId(docIdToLoad);
+        await load(docIdToLoad);
       } else {
         await load();
       }
@@ -289,26 +308,39 @@ function App() {
       // Get the store state to validate node IDs
       const store = useOutlineStore.getState();
 
+      // Look up per-document state for the doc we just loaded. When the session
+      // didn't know which doc to open (first run), fall back to whatever doc the
+      // store settled on (the backend's default doc).
+      const loadedDocId = docIdToLoad ?? store.documentId ?? undefined;
+      const perDoc = getDocumentState(session, loadedDocId);
+
       // Restore zoom state after document loads (only if node exists)
-      if (session?.zoomedNodeId && store.getNode(session.zoomedNodeId)) {
-        zoomTo(session.zoomedNodeId);
+      if (perDoc.zoomedNodeId && store.getNode(perDoc.zoomedNodeId)) {
+        zoomTo(perDoc.zoomedNodeId);
       }
 
       // Restore focus state after document loads (only if node exists)
-      if (session?.focusedNodeId && store.getNode(session.focusedNodeId)) {
-        setFocusedId(session.focusedNodeId);
+      if (perDoc.focusedNodeId && store.getNode(perDoc.focusedNodeId)) {
+        setFocusedId(perDoc.focusedNodeId);
       }
 
       // Restore scroll position after a brief delay for DOM to settle
-      if (session?.scrollTop !== undefined && contentAreaRef.current) {
+      if (perDoc.scrollTop !== undefined && contentAreaRef.current) {
+        const scrollTop = perDoc.scrollTop;
         setTimeout(() => {
           if (contentAreaRef.current) {
-            contentAreaRef.current.scrollTop = session.scrollTop || 0;
+            contentAreaRef.current.scrollTop = scrollTop || 0;
           }
         }, 100);
       }
 
       sessionRestored.current = true;
+
+      // Ensure the loaded doc id gets persisted even if effectiveDocumentId
+      // didn't change after the sessionRestored flip (initial mount case).
+      if (loadedDocId) {
+        saveSessionState({ documentId: loadedDocId });
+      }
     };
 
     restoreSession();
@@ -353,24 +385,41 @@ function App() {
   // Save session state when document changes
   useEffect(() => {
     if (!sessionRestored.current) return;
-    if (currentDocumentId) {
-      saveSessionState({ documentId: currentDocumentId });
+    if (effectiveDocumentId) {
+      saveSessionState({ documentId: effectiveDocumentId });
     }
-  }, [currentDocumentId]);
+  }, [effectiveDocumentId]);
 
-  // Save session state when focus changes
+  // Save session state when focus changes (per-document)
   useEffect(() => {
     if (!sessionRestored.current) return;
-    saveSessionState({ focusedNodeId: focusedId ?? undefined });
-  }, [focusedId]);
+    if (!effectiveDocumentId) return;
+    savePerDocumentState(effectiveDocumentId, { focusedNodeId: focusedId ?? undefined });
+  }, [focusedId, effectiveDocumentId]);
 
-  // Save session state when zoom changes
+  // Save session state when zoom changes (per-document)
   useEffect(() => {
     if (!sessionRestored.current) return;
-    saveSessionState({ zoomedNodeId: zoomedNodeId ?? undefined });
-  }, [zoomedNodeId]);
+    if (!effectiveDocumentId) return;
+    savePerDocumentState(effectiveDocumentId, { zoomedNodeId: zoomedNodeId ?? undefined });
+  }, [zoomedNodeId, effectiveDocumentId]);
 
-  // Track scroll position with debounce
+  // Register a scroll provider so the store can capture/restore scroll
+  // position when navigating zoom history (otl-5lm0). This decouples the
+  // store from the specific DOM node holding the scrollable viewport.
+  useEffect(() => {
+    registerScrollProvider({
+      getScrollTop: () => contentAreaRef.current?.scrollTop ?? 0,
+      setScrollTop: (top: number) => {
+        if (contentAreaRef.current) {
+          contentAreaRef.current.scrollTop = top;
+        }
+      },
+    });
+    return () => registerScrollProvider(null);
+  }, []);
+
+  // Track scroll position with debounce (per-document)
   useEffect(() => {
     const contentArea = contentAreaRef.current;
     if (!contentArea) return;
@@ -379,13 +428,14 @@ function App() {
 
     const handleScroll = () => {
       if (!sessionRestored.current) return;
+      if (!effectiveDocumentId) return;
 
       // Debounce scroll saves by 300ms
       if (scrollTimeout) {
         clearTimeout(scrollTimeout);
       }
       scrollTimeout = setTimeout(() => {
-        saveSessionState({ scrollTop: contentArea.scrollTop });
+        savePerDocumentState(effectiveDocumentId, { scrollTop: contentArea.scrollTop });
         scrollTimeout = null;
       }, 300);
     };
@@ -397,6 +447,25 @@ function App() {
       if (scrollTimeout) {
         clearTimeout(scrollTimeout);
       }
+    };
+  }, [effectiveDocumentId]);
+
+  // Global drag/drop hardening. Prevent the webview from navigating away
+  // when the user drops a URL / file / text onto the app. Without this, a
+  // drag-paste of a URL onto any region without a preventDefault'ing drop
+  // handler causes the Tauri webview (or plain browser) to navigate to the
+  // dropped URL, which looks like a "full page reload" and loses unsaved
+  // state. Specific drop targets (drag handles, bookmark bar) can opt out
+  // by calling stopPropagation in their own handlers.
+  useEffect(() => {
+    const preventDefaultDrag = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('dragover', preventDefaultDrag);
+    window.addEventListener('drop', preventDefaultDrag);
+    return () => {
+      window.removeEventListener('dragover', preventDefaultDrag);
+      window.removeEventListener('drop', preventDefaultDrag);
     };
   }, []);
 
@@ -449,6 +518,53 @@ function App() {
     });
   }, []);
 
+  // Switch to a different document while preserving per-document session
+  // state. This is the single gateway used by all doc-switch call sites so
+  // that:
+  //   1. Pending focus/zoom/scroll writes for the outgoing doc are flushed
+  //      before the new doc takes over the "live" values.
+  //   2. After the new doc loads, its previously saved focus/zoom/scroll are
+  //      restored (if the referenced nodes still exist).
+  //
+  // `afterLoad` runs after the new doc's state has been loaded and restored,
+  // so callers can override focus (e.g. navigate to a specific node).
+  const switchDocument = useCallback(async (
+    newDocId: string,
+    afterLoad?: () => void,
+  ) => {
+    // Flush any pending per-doc writes for the outgoing document.
+    flushSessionState();
+
+    setCurrentDocumentId(newDocId);
+    await load(newDocId);
+
+    // Restore the new doc's saved state (if any).
+    const session = loadSessionState();
+    const perDoc = getDocumentState(session, newDocId);
+    const store = useOutlineStore.getState();
+
+    if (perDoc.zoomedNodeId && store.getNode(perDoc.zoomedNodeId)) {
+      store.zoomTo(perDoc.zoomedNodeId);
+    } else {
+      store.zoomReset();
+    }
+
+    if (perDoc.focusedNodeId && store.getNode(perDoc.focusedNodeId)) {
+      store.setFocusedId(perDoc.focusedNodeId);
+    }
+
+    if (perDoc.scrollTop !== undefined && contentAreaRef.current) {
+      const scrollTop = perDoc.scrollTop;
+      setTimeout(() => {
+        if (contentAreaRef.current) {
+          contentAreaRef.current.scrollTop = scrollTop || 0;
+        }
+      }, 100);
+    }
+
+    if (afterLoad) afterLoad();
+  }, [load]);
+
   // Handle save
   const handleSave = useCallback(async () => {
     setSaveStatus('saving');
@@ -465,22 +581,20 @@ function App() {
 
   // Handle document selection
   const handleSelectDocument = useCallback(async (docId: string) => {
-    setCurrentDocumentId(docId);
-    await load(docId);
-  }, [load]);
+    await switchDocument(docId);
+  }, [switchDocument]);
 
   // Handle new document
   const handleNewDocument = useCallback(async () => {
     try {
       const newId = await api.createDocument();
-      setCurrentDocumentId(newId);
-      await load(newId);
+      await switchDocument(newId);
       sidebarRef.current?.refresh();
     } catch (e) {
       console.error('Failed to create document:', e);
       showToast('Failed to create document');
     }
-  }, [load]);
+  }, [switchDocument]);
 
   // Handle document deletion - switch to another document or create new
   const handleDeleteDocument = useCallback(async (deletedDocId: string) => {
@@ -488,8 +602,7 @@ function App() {
       const docs = await api.listDocuments();
       const remaining = docs.filter((d) => d.id !== deletedDocId);
       if (remaining.length > 0) {
-        setCurrentDocumentId(remaining[0].id);
-        await load(remaining[0].id);
+        await switchDocument(remaining[0].id);
       } else {
         await handleNewDocument();
       }
@@ -497,43 +610,42 @@ function App() {
       console.error('Failed to switch after delete:', e);
       await handleNewDocument();
     }
-  }, [load, handleNewDocument]);
+  }, [switchDocument, handleNewDocument]);
 
   // Handle search navigation
-  const handleSearchNavigate = useCallback((nodeId: string, documentId: string) => {
+  const handleSearchNavigate = useCallback(async (nodeId: string, documentId: string) => {
     if (documentId !== currentDocumentId) {
-      setCurrentDocumentId(documentId);
-      load(documentId);
+      await switchDocument(documentId, () => {
+        useOutlineStore.getState().setFocusedId(nodeId);
+      });
+    } else {
+      useOutlineStore.getState().setFocusedId(nodeId);
     }
-    // Focus the node
-    useOutlineStore.getState().setFocusedId(nodeId);
     setShowSearchModal(false);
-  }, [currentDocumentId, load]);
+  }, [currentDocumentId, switchDocument]);
 
   // Handle date views navigation (cross-document)
-  const handleDateViewNavigate = useCallback((nodeId: string, documentId: string) => {
+  const handleDateViewNavigate = useCallback(async (nodeId: string, documentId: string) => {
     if (documentId !== currentDocumentId) {
-      setCurrentDocumentId(documentId);
-      load(documentId).then(() => {
+      await switchDocument(documentId, () => {
         useOutlineStore.getState().setFocusedId(nodeId);
       });
     } else {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
     setShowDateViews(false);
-  }, [currentDocumentId, load]);
+  }, [currentDocumentId, switchDocument]);
 
   // Handle today panel navigation (cross-document, keeps panel open)
-  const handleTodayNavigate = useCallback((nodeId: string, documentId: string) => {
+  const handleTodayNavigate = useCallback(async (nodeId: string, documentId: string) => {
     if (documentId !== currentDocumentId) {
-      setCurrentDocumentId(documentId);
-      load(documentId).then(() => {
+      await switchDocument(documentId, () => {
         useOutlineStore.getState().setFocusedId(nodeId);
       });
     } else {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
-  }, [currentDocumentId, load]);
+  }, [currentDocumentId, switchDocument]);
 
   // Handle tags panel navigation (same document only)
   const handleTagsNavigate = useCallback((nodeId: string) => {
@@ -542,28 +654,26 @@ function App() {
   }, []);
 
   // Handle backlinks panel navigation (cross-document)
-  const handleBacklinksNavigate = useCallback((nodeId: string, documentId: string) => {
+  const handleBacklinksNavigate = useCallback(async (nodeId: string, documentId: string) => {
     if (documentId !== currentDocumentId) {
-      setCurrentDocumentId(documentId);
-      load(documentId).then(() => {
+      await switchDocument(documentId, () => {
         useOutlineStore.getState().setFocusedId(nodeId);
       });
     } else {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
-  }, [currentDocumentId, load]);
+  }, [currentDocumentId, switchDocument]);
 
   // Handle bookmark navigation (cross-document)
-  const handleBookmarkNavigate = useCallback((nodeId: string, documentId: string) => {
+  const handleBookmarkNavigate = useCallback(async (nodeId: string, documentId: string) => {
     if (documentId !== currentDocumentId) {
-      setCurrentDocumentId(documentId);
-      load(documentId).then(() => {
+      await switchDocument(documentId, () => {
         useOutlineStore.getState().setFocusedId(nodeId);
       });
     } else {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
-  }, [currentDocumentId, load]);
+  }, [currentDocumentId, switchDocument]);
 
   // Handle tag search from tags panel - use filter instead of search
   const handleTagSearch = useCallback((tag: string) => {
@@ -572,16 +682,18 @@ function App() {
   }, [setFilterQuery]);
 
   // Handle quick navigator navigation
-  const handleQuickNavigate = useCallback((nodeId: string, documentId: string) => {
+  const handleQuickNavigate = useCallback(async (nodeId: string, documentId: string) => {
     if (documentId && documentId !== currentDocumentId) {
-      setCurrentDocumentId(documentId);
-      load(documentId);
-    }
-    if (nodeId) {
+      await switchDocument(documentId, () => {
+        if (nodeId) {
+          useOutlineStore.getState().setFocusedId(nodeId);
+        }
+      });
+    } else if (nodeId) {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
     setShowQuickNavigator(false);
-  }, [currentDocumentId, load]);
+  }, [currentDocumentId, switchDocument]);
 
   // Menu dropdown handlers
   const openMenuDropdown = useCallback((menu: string) => {
@@ -664,8 +776,7 @@ function App() {
       const result = await api.importOpmlFromPicker();
       if (result) {
         // Navigate to the newly imported document
-        setCurrentDocumentId(result.doc_id);
-        await load(result.doc_id);
+        await switchDocument(result.doc_id);
         // Refresh sidebar
         sidebarRef.current?.refresh();
       }
@@ -673,7 +784,7 @@ function App() {
       console.error('Import OPML failed:', e);
       showToast('Import failed');
     }
-  }, [load]);
+  }, [switchDocument]);
 
   const handleImportOpmlMerge = useCallback(async () => {
     try {
@@ -734,9 +845,16 @@ function App() {
   // View menu items
   const showShortIds = useSettingsStore(state => state.showShortIds);
   const viewMode = useSettingsStore(state => state.viewMode);
+  const noteDisplayMode = useSettingsStore(state => state.noteDisplayMode);
   const updateSettings = useSettingsStore(state => state.updateSettings);
   const toggleShortIds = useCallback(() => updateSettings({ showShortIds: !showShortIds }), [showShortIds, updateSettings]);
   const toggleViewMode = useCallback(() => updateSettings({ viewMode: viewMode === 'outline' ? 'article' : 'outline' }), [viewMode, updateSettings]);
+  const cycleNoteDisplayMode = useCallback(() => {
+    const next = noteDisplayMode === 'none' ? 'one-line'
+               : noteDisplayMode === 'one-line' ? 'full'
+               : 'none';
+    updateSettings({ noteDisplayMode: next });
+  }, [noteDisplayMode, updateSettings]);
   const isArticleView = viewMode === 'article';
   const viewMenuItems: MenuEntry[] = useMemo(() => [
     { label: 'Toggle Sidebar', shortcut: 'Ctrl+\\', action: toggleSidebar, separator: false },
@@ -771,6 +889,29 @@ function App() {
 
   // Global keyboard shortcuts
   useEffect(() => {
+    // Tracks whether the outline editor's text was fully selected at the moment
+    // the current Ctrl+A keydown fired (captured BEFORE ProseMirror's selectAll
+    // command runs during the bubble phase).
+    let editorFullySelectedAtKeydown = false;
+
+    const handleKeydownCapture = (event: KeyboardEvent) => {
+      const mod = event.ctrlKey || event.metaKey;
+      if (mod && event.key === 'a' && !event.shiftKey) {
+        const active = document.activeElement;
+        const editorEl = active?.closest('.outline-editor') as HTMLElement | null;
+        editorFullySelectedAtKeydown = false;
+        if (editorEl) {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+            const txt = editorEl.textContent ?? '';
+            if (txt.length > 0 && sel.toString().length === txt.length) {
+              editorFullySelectedAtKeydown = true;
+            }
+          }
+        }
+      }
+    };
+
     const handleKeydown = (event: KeyboardEvent) => {
       const mod = event.ctrlKey || event.metaKey;
 
@@ -853,14 +994,33 @@ function App() {
         }
       }
 
-      // Select all (Ctrl+A) - only when not in an input/editor
+      // Progressive Select all (Ctrl+A) - Dynalist-style cascade.
+      // Works both inside and outside the outline editor. Inside inputs/textareas
+      // (other than our outline editor), keep native Ctrl+A behavior.
       if (mod && event.key === 'a' && !event.shiftKey) {
         const activeElement = document.activeElement;
-        if (!activeElement?.closest('.outline-editor') && !activeElement?.closest('input') && !activeElement?.closest('textarea')) {
-          event.preventDefault();
-          selectAll();
+        const inOutlineEditor = !!activeElement?.closest('.outline-editor');
+        const inOtherInput = !inOutlineEditor && (!!activeElement?.closest('input') || !!activeElement?.closest('textarea'));
+        if (inOtherInput) {
+          // Let the browser do its thing in non-outline inputs (search, note field, etc.)
+          // and reset the cascade state.
+          useSelectionStore.getState().resetCtrlACascade();
           return;
         }
+
+        // `editorFullySelectedAtKeydown` is set by the capture-phase listener
+        // BEFORE ProseMirror's default selectAll handler runs, so it reflects
+        // the selection state at the moment the user pressed Ctrl+A.
+        const editorFullySelected = inOutlineEditor && editorFullySelectedAtKeydown;
+
+        const result = progressiveSelectAll({ editorFullySelected, inEditor: inOutlineEditor });
+        if (result === 'text-select') {
+          // Let TipTap/browser handle selecting all text in the editor.
+          return;
+        }
+        // For 'advanced' or 'noop', we override native Ctrl+A behavior.
+        event.preventDefault();
+        return;
       }
 
       // Select siblings (Ctrl+Shift+A) - only when not in an input/editor
@@ -992,6 +1152,13 @@ function App() {
       if (mod && event.shiftKey && event.key === 'D') {
         event.preventDefault();
         toggleHideDeferred();
+        return;
+      }
+
+      // Cycle Note Display Mode (Ctrl+Shift+N)
+      if (mod && event.shiftKey && event.key === 'N') {
+        event.preventDefault();
+        cycleNoteDisplayMode();
         return;
       }
 
@@ -1192,7 +1359,16 @@ function App() {
         if (selectedIds.size > 0) {
           toggleSelectedCheckboxes();
         } else {
+          // Determine next/prev visible node before toggling (item may vanish if hide-completed is on)
+          const visible = getVisibleNodes();
+          const idx = visible.findIndex(n => n.id === focusedId);
+          const nextId = idx >= 0 && idx < visible.length - 1 ? visible[idx + 1].id
+                       : idx > 0 ? visible[idx - 1].id
+                       : null;
           toggleCheckbox(focusedId);
+          if (nextId) {
+            useOutlineStore.setState({ focusedId: nextId });
+          }
         }
         return;
       }
@@ -1280,13 +1456,15 @@ function App() {
       }
     };
 
+    window.addEventListener('keydown', handleKeydownCapture, true);
     window.addEventListener('keydown', handleKeydown);
     window.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
+      window.removeEventListener('keydown', handleKeydownCapture, true);
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [currentDocumentId, handleSave, toggleSidebar, toggleBookmarkBar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectAll, selectSiblings, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode, enterEditMode, addSiblingAfter, addSiblingBefore, swapWithPrevious, swapWithNext, extendSelection, deleteNode, toggleCheckbox, indentNode, outdentNode]);
+  }, [currentDocumentId, handleSave, toggleSidebar, toggleBookmarkBar, collapseAll, expandAll, toggleFocusedCollapse, toggleHideCompleted, toggleHideDeferred, toggleViewMode, cycleNoteDisplayMode, filterQuery, clearFilter, zoomedNodeId, zoomReset, zoomToParent, zoomGoBack, zoomGoForward, showSearchModal, showQuickNavigator, showQuickMove, showQuickCapture, showDateViews, showTodayPanel, showTagsPanel, showKeyboardShortcuts, showSettings, undo, redo, selectedIds, deleteSelectedNodes, toggleSelectedCheckboxes, indentSelectedNodes, outdentSelectedNodes, copySelectedAsMarkdown, copyTreeAsMarkdown, selectSiblings, progressiveSelectAll, zoomIn, zoomOut, resetZoom, moveToParent, moveToFirstChild, moveToNextSibling, moveToPrevSibling, moveToPrevious, moveToNext, moveToFirst, moveToLast, getVisibleNodes, focusedId, openNoteEditor, keyboardMode, enterNavigateMode, enterEditMode, addSiblingAfter, addSiblingBefore, swapWithPrevious, swapWithNext, extendSelection, deleteNode, toggleCheckbox, indentNode, outdentNode]);
 
   // Compute tree from nodes with useMemo for performance
   // Use store's getTree() which handles hideCompleted, filterQuery, and zoomedNodeId
@@ -1427,6 +1605,56 @@ function App() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                 <circle cx="12" cy="12" r="3"/>
+              </svg>
+            )}
+          </button>
+          <button
+            className={`toolbar-btn toolbar-collapsible short-ids-toggle ${showShortIds ? 'active' : ''}`}
+            onClick={toggleShortIds}
+            title={showShortIds ? "Hide short IDs" : "Show short IDs"}
+            aria-label={showShortIds ? "Hide short IDs" : "Show short IDs"}
+          >
+            {showShortIds ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="4" y1="9" x2="20" y2="9"/>
+                <line x1="4" y1="15" x2="20" y2="15"/>
+                <line x1="10" y1="3" x2="8" y2="21"/>
+                <line x1="16" y1="3" x2="14" y2="21"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="4" y1="9" x2="20" y2="9"/>
+                <line x1="4" y1="15" x2="20" y2="15"/>
+                <line x1="10" y1="3" x2="8" y2="21"/>
+                <line x1="16" y1="3" x2="14" y2="21"/>
+                <line x1="2" y1="2" x2="22" y2="22"/>
+              </svg>
+            )}
+          </button>
+          <button
+            className={`toolbar-btn toolbar-collapsible note-display-toggle ${noteDisplayMode !== 'none' ? 'active' : ''}`}
+            onClick={cycleNoteDisplayMode}
+            title={`Notes: ${NOTE_DISPLAY_OPTIONS.find(o => o.value === noteDisplayMode)?.label ?? noteDisplayMode}. Click to cycle (Ctrl+Shift+N).`}
+            aria-label={`Notes: ${NOTE_DISPLAY_OPTIONS.find(o => o.value === noteDisplayMode)?.label ?? noteDisplayMode}. Click to cycle note display mode (Ctrl+Shift+N).`}
+            data-note-display-mode={noteDisplayMode}
+          >
+            {noteDisplayMode === 'none' ? (
+              // Crossed-out dot: "hidden"
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+                <line x1="4" y1="20" x2="20" y2="4"/>
+              </svg>
+            ) : noteDisplayMode === 'one-line' ? (
+              // Single dot: "one line"
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+              </svg>
+            ) : (
+              // Three dots (ellipsis): "full"
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="6" cy="12" r="1.5" fill="currentColor"/>
+                <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+                <circle cx="18" cy="12" r="1.5" fill="currentColor"/>
               </svg>
             )}
           </button>
@@ -1580,7 +1808,7 @@ function App() {
                       {zoomedNodeId && tree.length === 0 ? (
                         <ZoomedLeafNoteEditor nodeId={zoomedNodeId} />
                       ) : (
-                        <div className="outline-container">
+                        <div className="outline-container" ref={outlineContainerRef}>
                           {(zoomedNodeId ? tree : tree.slice(1)).map(item => (
                             <TreeItemRenderer
                               key={item.node.id}

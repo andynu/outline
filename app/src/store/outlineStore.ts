@@ -57,6 +57,46 @@ export interface FlatItem {
   hasChildren: boolean;
 }
 
+// Snapshot of a zoom "view state" used to restore focus + scroll when navigating
+// back/forward in zoom history (otl-5lm0).
+export interface ZoomHistoryEntry {
+  zoomedNodeId: string | null;
+  focusedId: string | null;
+  scrollTop: number;
+}
+
+// Pluggable scroll provider. App.tsx registers a getter/setter backed by the
+// main content-area ref so the store can capture/restore scroll position
+// without importing any DOM refs.
+type ScrollProvider = {
+  getScrollTop: () => number;
+  setScrollTop: (top: number) => void;
+};
+
+let scrollProvider: ScrollProvider | null = null;
+
+export function registerScrollProvider(provider: ScrollProvider | null): void {
+  scrollProvider = provider;
+}
+
+function captureScrollTop(): number {
+  return scrollProvider ? scrollProvider.getScrollTop() : 0;
+}
+
+function restoreScrollTop(top: number): void {
+  if (!scrollProvider) return;
+  // Restore immediately, then again on next frames. The virtualized list may
+  // not have rendered enough rows to reach `top` on the first tick, so we
+  // reapply across a few frames to let @tanstack/react-virtual catch up.
+  scrollProvider.setScrollTop(top);
+  requestAnimationFrame(() => {
+    if (scrollProvider) scrollProvider.setScrollTop(top);
+    requestAnimationFrame(() => {
+      if (scrollProvider) scrollProvider.setScrollTop(top);
+    });
+  });
+}
+
 interface OutlineState {
   // Core state
   nodes: Node[];
@@ -75,9 +115,11 @@ interface OutlineState {
   docPrefix: string | null;  // Document prefix for short IDs (e.g., "inbox")
   keyboardMode: 'edit' | 'navigate';  // edit = TipTap active, navigate = item-level operations
   titleFocusRequested: boolean;  // Flag to request focus on the document title editor
-  // Zoom navigation history
-  _zoomHistoryBack: (string | null)[];   // Stack of previous zoom targets
-  _zoomHistoryForward: (string | null)[];  // Stack of "undone" zoom targets
+  // Zoom navigation history. Each entry captures the full view state so
+  // back/forward can restore focused item and scroll position, not just the
+  // zoom target (otl-5lm0).
+  _zoomHistoryBack: ZoomHistoryEntry[];
+  _zoomHistoryForward: ZoomHistoryEntry[];
 
   // Undo/Redo stacks
   _undoStack: UndoEntry[];
@@ -498,13 +540,18 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   zoomTo: (nodeId: string | null) => {
-    const { zoomedNodeId, childrenOf, setFocusedId, _zoomHistoryBack } = get();
+    const { zoomedNodeId, focusedId, childrenOf, setFocusedId, _zoomHistoryBack } = get();
     // Don't push history if navigating to the same node
     if (nodeId === zoomedNodeId) return;
-    // Push current zoom target onto back stack, clear forward stack
+    // Capture current view state onto back stack, clear forward stack
+    const entry: ZoomHistoryEntry = {
+      zoomedNodeId,
+      focusedId,
+      scrollTop: captureScrollTop(),
+    };
     set({
       zoomedNodeId: nodeId,
-      _zoomHistoryBack: [..._zoomHistoryBack, zoomedNodeId],
+      _zoomHistoryBack: [..._zoomHistoryBack, entry],
       _zoomHistoryForward: [],
     });
     // When zooming into a node, focus its first child if it has children
@@ -514,71 +561,102 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         setFocusedId(children[0].id);
       }
     }
+    // Scroll to top on fresh zoom-in (no prior scroll state for new target)
+    restoreScrollTop(0);
   },
 
   zoomToParent: () => {
-    const { zoomedNodeId, _nodesById, _zoomHistoryBack } = get();
+    const { zoomedNodeId, focusedId, _nodesById, _zoomHistoryBack } = get();
     if (!zoomedNodeId) return;  // Already at root
 
     const zoomedNode = _nodesById.get(zoomedNodeId);
     if (!zoomedNode) return;
 
     const parentId = zoomedNode.parent_id ?? null;
-    // Push current zoom target onto back stack, clear forward stack
+    // Capture current view state onto back stack, clear forward stack
+    const entry: ZoomHistoryEntry = {
+      zoomedNodeId,
+      focusedId,
+      scrollTop: captureScrollTop(),
+    };
     set({
       zoomedNodeId: parentId,
-      _zoomHistoryBack: [..._zoomHistoryBack, zoomedNodeId],
+      _zoomHistoryBack: [..._zoomHistoryBack, entry],
       _zoomHistoryForward: [],
     });
   },
 
   zoomReset: () => {
-    const { zoomedNodeId, _zoomHistoryBack } = get();
+    const { zoomedNodeId, focusedId, _zoomHistoryBack } = get();
     if (zoomedNodeId == null) return;  // Already at root
-    // Push current zoom target onto back stack, clear forward stack
+    // Capture current view state onto back stack, clear forward stack
+    const entry: ZoomHistoryEntry = {
+      zoomedNodeId,
+      focusedId,
+      scrollTop: captureScrollTop(),
+    };
     set({
       zoomedNodeId: null,
-      _zoomHistoryBack: [..._zoomHistoryBack, zoomedNodeId],
+      _zoomHistoryBack: [..._zoomHistoryBack, entry],
       _zoomHistoryForward: [],
     });
   },
 
   zoomGoBack: () => {
-    const { zoomedNodeId, _zoomHistoryBack, _zoomHistoryForward, childrenOf, setFocusedId } = get();
+    const { zoomedNodeId, focusedId, _zoomHistoryBack, _zoomHistoryForward, setFocusedId } = get();
     if (_zoomHistoryBack.length === 0) return;
     const newBack = [..._zoomHistoryBack];
     const target = newBack.pop()!;
+    // Capture the current view state onto the forward stack so zoomGoForward
+    // can restore the exact focused item + scrollTop the user had just before
+    // hitting back.
+    const currentEntry: ZoomHistoryEntry = {
+      zoomedNodeId,
+      focusedId,
+      scrollTop: captureScrollTop(),
+    };
     set({
-      zoomedNodeId: target,
+      zoomedNodeId: target.zoomedNodeId,
       _zoomHistoryBack: newBack,
-      _zoomHistoryForward: [..._zoomHistoryForward, zoomedNodeId],
+      _zoomHistoryForward: [..._zoomHistoryForward, currentEntry],
     });
-    // When navigating back to a zoomed node, focus its first child
-    if (target) {
-      const children = childrenOf(target);
-      if (children.length > 0) {
-        setFocusedId(children[0].id);
-      }
+    // Restore the focused item from the captured entry (falls back to first
+    // child if the captured focus node is gone, preserving legacy behavior).
+    const restoredFocusId = target.focusedId;
+    if (restoredFocusId && get().getNode(restoredFocusId)) {
+      setFocusedId(restoredFocusId);
+    } else if (target.zoomedNodeId) {
+      const children = get().childrenOf(target.zoomedNodeId);
+      if (children.length > 0) setFocusedId(children[0].id);
     }
+    restoreScrollTop(target.scrollTop);
   },
 
   zoomGoForward: () => {
-    const { zoomedNodeId, _zoomHistoryBack, _zoomHistoryForward, childrenOf, setFocusedId } = get();
+    const { zoomedNodeId, focusedId, _zoomHistoryBack, _zoomHistoryForward, setFocusedId } = get();
     if (_zoomHistoryForward.length === 0) return;
     const newForward = [..._zoomHistoryForward];
     const target = newForward.pop()!;
+    // Capture the current view state onto the back stack so zoomGoBack can
+    // undo the forward navigation precisely.
+    const currentEntry: ZoomHistoryEntry = {
+      zoomedNodeId,
+      focusedId,
+      scrollTop: captureScrollTop(),
+    };
     set({
-      zoomedNodeId: target,
-      _zoomHistoryBack: [..._zoomHistoryBack, zoomedNodeId],
+      zoomedNodeId: target.zoomedNodeId,
+      _zoomHistoryBack: [..._zoomHistoryBack, currentEntry],
       _zoomHistoryForward: newForward,
     });
-    // When navigating forward to a zoomed node, focus its first child
-    if (target) {
-      const children = childrenOf(target);
-      if (children.length > 0) {
-        setFocusedId(children[0].id);
-      }
+    const restoredFocusId = target.focusedId;
+    if (restoredFocusId && get().getNode(restoredFocusId)) {
+      setFocusedId(restoredFocusId);
+    } else if (target.zoomedNodeId) {
+      const children = get().childrenOf(target.zoomedNodeId);
+      if (children.length > 0) setFocusedId(children[0].id);
     }
+    restoreScrollTop(target.scrollTop);
   },
 
   canZoomGoBack: () => {
@@ -703,7 +781,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   getSiblings: (nodeId) => {
     const node = get()._nodesById.get(nodeId);
     if (!node) return [];
-    return node.parent_id === null
+    return node.parent_id == null
       ? get().rootNodes()
       : get().childrenOf(node.parent_id);
   },
@@ -947,17 +1025,24 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
     const siblings = getSiblings(nodeId);
     const idx = siblings.findIndex(n => n.id === nodeId);
-    const newPosition = idx + 1;
+    // Base the new position on the anchor's actual position rather than its
+    // array index, so that any pre-existing position gaps or duplicates among
+    // siblings cannot cause the new node to collide and sort into the middle.
+    // (See otl-o38c regression: Enter on last root landing mid-list.)
+    const anchorPos = siblings[idx]?.position ?? idx;
+    const newPosition = anchorPos + 1;
 
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      // Batch shift siblings after insertion point in a single IPC call
+      // Batch shift siblings after the insertion point in a single IPC call.
+      // Pack them to consecutive positions starting at newPosition + 1 so we
+      // never collide with the newly-created node or with each other.
       const now = new Date().toISOString();
       const moveOps = siblings.slice(idx + 1).map((s, i) => ({
         op: 'move' as const,
         id: s.id,
         parent_id: node.parent_id,
-        position: idx + 2 + i,
+        position: newPosition + 1 + i,
         updated_at: now,
       }));
       if (moveOps.length > 0) {
@@ -995,23 +1080,29 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
     const siblings = getSiblings(nodeId);
     const idx = siblings.findIndex(n => n.id === nodeId);
+    // Base the new position on the anchor's actual position rather than the
+    // array index; see otl-o38c for why array-index math collides when
+    // sibling positions have gaps or duplicates.
+    const anchorPos = siblings[idx]?.position ?? idx;
+    const newPosition = anchorPos;
 
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      // Batch shift current node and all siblings after it in a single IPC call
+      // Batch shift current node and all siblings after it to consecutive
+      // positions starting at newPosition + 1, guaranteeing no collision.
       const now = new Date().toISOString();
       const moveOps = siblings.slice(idx).map((s, i) => ({
         op: 'move' as const,
         id: s.id,
         parent_id: node.parent_id,
-        position: idx + 1 + i,
+        position: newPosition + 1 + i,
         updated_at: now,
       }));
       if (moveOps.length > 0) {
         await api.saveOps(moveOps);
       }
 
-      const result = await api.createNode(node.parent_id, idx, '');
+      const result = await api.createNode(node.parent_id, newPosition, '');
       updateFromState(result.state);
       set({ focusedId: result.id, keyboardMode: 'edit' });
 
@@ -1173,7 +1264,10 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
     const siblings = getSiblings(nodeId);
     const idx = siblings.findIndex(n => n.id === nodeId);
-    const newPosition = idx + 1;
+    // Anchor on the actual sibling position (not array index) to avoid
+    // collisions when sibling positions have gaps. See otl-o38c.
+    const anchorPos = siblings[idx]?.position ?? idx;
+    const newPosition = anchorPos + 1;
 
     // Get children to move to new node
     const children = childrenOf(nodeId);
@@ -1190,13 +1284,15 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       // Update current node with "before" content
       await api.updateNode(nodeId, { content: beforeContent });
 
-      // Batch shift siblings after insertion point
+      // Batch shift siblings after insertion point. Pack trailing siblings
+      // to newPosition + 1, + 2, ... so they never collide with the newly
+      // created node or each other.
       const now = new Date().toISOString();
       const siblingMoveOps = siblings.slice(idx + 1).map((s, i) => ({
         op: 'move' as const,
         id: s.id,
         parent_id: node.parent_id,
-        position: idx + 2 + i,
+        position: newPosition + 1 + i,
         updated_at: now,
       }));
       if (siblingMoveOps.length > 0) {
@@ -1914,7 +2010,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     const oldPosition = node.position;
 
     // Position after parent in grandparent's children
-    const grandparentChildren = parent.parent_id === null
+    const grandparentChildren = parent.parent_id == null
       ? rootNodes()
       : childrenOf(parent.parent_id);
     const parentIdx = grandparentChildren.findIndex(n => n.id === parent.id);

@@ -2,7 +2,7 @@
 members = [".", "crates/outline-core", "crates/outline-cli"]
 
 [package]
-name = "app"
+name = "outline"
 version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]

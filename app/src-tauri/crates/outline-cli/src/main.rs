@@ -630,7 +630,7 @@ fn cmd_doc_delete(_out: &OutputMode, id: &str) -> Result<(), String> {
 // -- Node commands --
 
 fn cmd_node_create(out: &OutputMode, doc_id: &str, parent_uuid: uuid::Uuid, content: &str, position: Option<i32>, node_type: &str, note: Option<&str>) -> Result<(), String> {
-    use outline_core::data::{documents_dir, Document, NodeType, NodeChanges, create_op_with_id, update_op};
+    use outline_core::data::{documents_dir, short_ids, Document, NodeType, NodeChanges, create_op_with_id, update_op};
 
     let doc_dir = documents_dir().join(doc_id);
     let mut doc = Document::load(doc_dir)?;
@@ -663,12 +663,25 @@ fn cmd_node_create(out: &OutputMode, doc_id: &str, parent_uuid: uuid::Uuid, cont
         note_op.apply(&mut doc.state);
     }
 
+    // Ensure the new node has a short ID and it's persisted to state.json.
+    // This lets the caller reference the new node by short ID immediately.
+    let prefix = short_ids::ensure_short_ids(&mut doc)?;
+
     if out.is_json() {
         let node = doc.state.nodes.iter().find(|n| n.id == new_id);
+        let short_id = node.and_then(|n| n.short_id.clone());
+        let full_short_id = short_id.as_ref().map(|sid| format!("{}-{}", prefix, sid));
         out.print_json(&serde_json::json!({
             "id": new_id.to_string(),
+            "short_id": full_short_id,
             "node": node,
         }));
+    } else if let Some(node) = doc.state.nodes.iter().find(|n| n.id == new_id) {
+        if let Some(sid) = &node.short_id {
+            println!("{}-{}\t{}", prefix, sid, new_id);
+        } else {
+            println!("{}", new_id);
+        }
     } else {
         println!("{}", new_id);
     }

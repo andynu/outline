@@ -3,15 +3,36 @@ import type { Node, DocumentState, UndoAction } from '../lib/types';
 import * as api from '../lib/api';
 import { useOutlineStore } from './outlineStore';
 
+// Progressive Ctrl+A (Dynalist-style) cascade state
+// Level 0 = inactive / not in a cascade
+// Level 1 = editor text fully selected (current item text)
+// Level 2 = current node selected (navigate)
+// Level 3 = siblings of anchor selected
+// Level 4+ alternates: 'include next ancestor' / 'include siblings at that level'
+interface CtrlACascadeState {
+  level: number;
+  anchorNodeId: string | null;
+  // Highest ancestor currently included (null until level >= 4)
+  lastAncestorId: string | null;
+  // Snapshot of selectedIds we last wrote — used to detect external mutations.
+  snapshotIds: Set<string> | null;
+  // Snapshot of focusedId we last observed — any change means the cascade is stale.
+  snapshotFocusedId: string | null;
+  // True when cascade has reached "all visible" — further presses no-op.
+  capped: boolean;
+}
+
 interface SelectionState {
   // State
   selectedIds: Set<string>;
   _selectionAnchorId: string | null;
+  _ctrlACascade: CtrlACascadeState;
 
   // Selection management
   isSelected: (nodeId: string) => boolean;
   toggleSelection: (nodeId: string) => void;
   selectRange: (toId: string) => void;
+  selectRangeFromAnchor: (fromId: string, toId: string) => void;
   clearSelection: () => void;
   selectAll: () => void;
   selectSiblings: () => void;
@@ -19,6 +40,10 @@ interface SelectionState {
   invertSelection: () => void;
   getSelectedNodes: () => Node[];
   extendSelection: (direction: 'up' | 'down') => void;
+
+  // Progressive Ctrl+A cascade (Dynalist-style)
+  progressiveSelectAll: (opts: { editorFullySelected: boolean; inEditor: boolean }) => 'text-select' | 'advanced' | 'noop';
+  resetCtrlACascade: () => void;
 
   // Bulk operations on selection
   deleteSelectedNodes: () => Promise<string | null>;
@@ -66,9 +91,25 @@ interface SelectionState {
 // Helper to access the outline store
 const outline = () => useOutlineStore.getState();
 
+function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
+  if (a.size !== b.size) return false;
+  for (const v of a) if (!b.has(v)) return false;
+  return true;
+}
+
+const INITIAL_CASCADE: CtrlACascadeState = {
+  level: 0,
+  anchorNodeId: null,
+  lastAncestorId: null,
+  snapshotIds: null,
+  snapshotFocusedId: null,
+  capped: false,
+};
+
 export const useSelectionStore = create<SelectionState>((set, get) => ({
   selectedIds: new Set<string>(),
   _selectionAnchorId: null,
+  _ctrlACascade: { ...INITIAL_CASCADE },
 
   // === Selection Management ===
 
@@ -115,10 +156,36 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
     useOutlineStore.setState({ focusedId: toId });
   },
 
+  // Like selectRange, but uses an explicit anchor and does NOT move focusedId.
+  // Used for click-and-drag range selection where the anchor stays fixed at
+  // the mousedown origin while the user drags the cursor across items.
+  selectRangeFromAnchor: (fromId: string, toId: string) => {
+    const visible = outline().getVisibleNodes();
+    const fromIdx = visible.findIndex(n => n.id === fromId);
+    const toIdx = visible.findIndex(n => n.id === toId);
+
+    if (fromIdx < 0 || toIdx < 0) {
+      // Fallback to at least the anchor if something's invalid.
+      const fallback = new Set<string>();
+      if (fromIdx >= 0) fallback.add(fromId);
+      if (toIdx >= 0) fallback.add(toId);
+      set({ selectedIds: fallback, _selectionAnchorId: fromId });
+      return;
+    }
+
+    const startIdx = Math.min(fromIdx, toIdx);
+    const endIdx = Math.max(fromIdx, toIdx);
+    const newSet = new Set<string>();
+    for (let i = startIdx; i <= endIdx; i++) {
+      newSet.add(visible[i].id);
+    }
+    set({ selectedIds: newSet, _selectionAnchorId: fromId });
+  },
+
   clearSelection: () => {
-    const { selectedIds } = get();
-    if (selectedIds.size > 0) {
-      set({ selectedIds: new Set<string>(), _selectionAnchorId: null });
+    const { selectedIds, _ctrlACascade } = get();
+    if (selectedIds.size > 0 || _ctrlACascade.level !== 0 || _ctrlACascade.capped) {
+      set({ selectedIds: new Set<string>(), _selectionAnchorId: null, _ctrlACascade: { ...INITIAL_CASCADE } });
     }
   },
 
@@ -232,6 +299,249 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
 
     set({ selectedIds: newSet, _selectionAnchorId: anchorId });
     useOutlineStore.setState({ focusedId: newFocusId });
+  },
+
+  // === Progressive Ctrl+A Cascade (Dynalist-style) ===
+
+  resetCtrlACascade: () => {
+    const { _ctrlACascade } = get();
+    if (_ctrlACascade.level === 0 && !_ctrlACascade.capped) return;
+    set({ _ctrlACascade: { ...INITIAL_CASCADE } });
+  },
+
+  progressiveSelectAll: ({ editorFullySelected, inEditor }) => {
+    const { _ctrlACascade, selectedIds } = get();
+    const { focusedId, getNode, getSiblings, getVisibleNodes, zoomedNodeId } = outline();
+
+    // Detect a stale cascade: focus moved, or external code mutated selectedIds.
+    let cascade = _ctrlACascade;
+    const stale = cascade.level !== 0 && (
+      cascade.snapshotFocusedId !== focusedId ||
+      (cascade.snapshotIds != null && !setsEqual(cascade.snapshotIds, selectedIds))
+    );
+    if (stale) {
+      cascade = { ...INITIAL_CASCADE };
+    }
+
+    if (cascade.capped) {
+      // Already at all-visible; further Ctrl+A is a no-op until reset.
+      return 'noop';
+    }
+
+    // --- Level 0 → 1: fresh press ---
+    if (cascade.level === 0) {
+      const anchorId = focusedId;
+      if (inEditor) {
+        if (editorFullySelected && anchorId) {
+          // Spec: skip straight to level 2 if text is already fully selected.
+          const nextIds = new Set<string>([anchorId]);
+          set({
+            selectedIds: nextIds,
+            _ctrlACascade: {
+              level: 2,
+              anchorNodeId: anchorId,
+              lastAncestorId: null,
+              snapshotIds: new Set(nextIds),
+              snapshotFocusedId: focusedId,
+              capped: false,
+            },
+          });
+          useOutlineStore.getState().enterNavigateMode();
+          return 'advanced';
+        }
+        // Enter level 1 and let TipTap handle the actual text selection.
+        set({
+          _ctrlACascade: {
+            level: 1,
+            anchorNodeId: anchorId,
+            lastAncestorId: null,
+            snapshotIds: null,
+            snapshotFocusedId: focusedId,
+            capped: false,
+          },
+        });
+        return 'text-select';
+      }
+      // Not in an editor (e.g., already in navigate mode). Jump to level 2 directly.
+      if (!anchorId) {
+        // No focus — behave like plain selectAll.
+        const visible = getVisibleNodes();
+        const nextIds = new Set(visible.map(n => n.id));
+        set({
+          selectedIds: nextIds,
+          _ctrlACascade: { ...INITIAL_CASCADE, capped: true, snapshotIds: new Set(nextIds), snapshotFocusedId: focusedId },
+        });
+        return 'advanced';
+      }
+      const nextIds = new Set<string>([anchorId]);
+      set({
+        selectedIds: nextIds,
+        _ctrlACascade: {
+          level: 2,
+          anchorNodeId: anchorId,
+          lastAncestorId: null,
+          snapshotIds: new Set(nextIds),
+          snapshotFocusedId: focusedId,
+          capped: false,
+        },
+      });
+      return 'advanced';
+    }
+
+    // --- Level 1 → 2: blur editor, select anchor node ---
+    if (cascade.level === 1) {
+      const anchorId = cascade.anchorNodeId ?? focusedId;
+      if (!anchorId) {
+        set({ _ctrlACascade: { ...INITIAL_CASCADE } });
+        return 'noop';
+      }
+      const nextIds = new Set<string>([anchorId]);
+      set({
+        selectedIds: nextIds,
+        _ctrlACascade: {
+          ...cascade,
+          level: 2,
+          anchorNodeId: anchorId,
+          snapshotIds: new Set(nextIds),
+          snapshotFocusedId: focusedId,
+        },
+      });
+      useOutlineStore.getState().enterNavigateMode();
+      return 'advanced';
+    }
+
+    const anchorId = cascade.anchorNodeId;
+    if (!anchorId) {
+      set({ _ctrlACascade: { ...INITIAL_CASCADE } });
+      return 'noop';
+    }
+
+    const anchorNode = getNode(anchorId);
+    if (!anchorNode) {
+      set({ _ctrlACascade: { ...INITIAL_CASCADE } });
+      return 'noop';
+    }
+
+    // Helpers
+    const visibleNodes = getVisibleNodes();
+    const zoomRootId = zoomedNodeId ?? null;
+
+    const capToAllVisible = (nextIds: Set<string>): void => {
+      set({
+        selectedIds: nextIds,
+        _ctrlACascade: {
+          ...cascade,
+          capped: true,
+          snapshotIds: new Set(nextIds),
+          snapshotFocusedId: focusedId,
+        },
+      });
+    };
+
+    // --- Level 2 → 3: include siblings of anchor ---
+    if (cascade.level === 2) {
+      const siblings = getSiblings(anchorId);
+      const nextIds = new Set<string>(selectedIds);
+      for (const s of siblings) nextIds.add(s.id);
+
+      // lastAncestorId tracks where the "current frontier" is; at level 3 it's
+      // still the anchor's parent (we'll include it when we climb).
+      const anchorParentId = anchorNode.parent_id ?? null;
+
+      // If anchor has no parent (it's a root under current zoom), cap immediately to all visible.
+      if (anchorParentId == null || anchorParentId === zoomRootId) {
+        // Siblings set ~= all roots. Next press should include... nothing above.
+        // Advance to all visible and cap.
+        const allVisible = new Set(visibleNodes.map(n => n.id));
+        capToAllVisible(allVisible);
+        return 'advanced';
+      }
+
+      set({
+        selectedIds: nextIds,
+        _ctrlACascade: {
+          ...cascade,
+          level: 3,
+          lastAncestorId: anchorParentId,
+          snapshotIds: new Set(nextIds),
+          snapshotFocusedId: focusedId,
+        },
+      });
+      return 'advanced';
+    }
+
+    // --- Level 3+ : alternate "include parent" / "include siblings of parent" ---
+    // Even levels >=4: include siblings of lastAncestorId's level
+    // Odd levels >=3: have already included siblings of anchor/parent; next step climbs.
+    // We structure it as:
+    //   level 3 → 4: include the frontier ancestor itself (lastAncestorId)
+    //   level 4 → 5: include siblings of frontier ancestor
+    //   level 5 → 6: climb; frontier = frontier.parent; include it
+    //   level 6 → 7: include siblings of new frontier
+    //   ... etc.
+
+    const frontierId = cascade.lastAncestorId;
+    if (!frontierId) {
+      set({ _ctrlACascade: { ...INITIAL_CASCADE } });
+      return 'noop';
+    }
+
+    const frontierNode = getNode(frontierId);
+    if (!frontierNode) {
+      set({ _ctrlACascade: { ...INITIAL_CASCADE } });
+      return 'noop';
+    }
+
+    const nextIds = new Set<string>(selectedIds);
+    let newFrontierId = frontierId;
+    let capped = false;
+
+    // Step type: "include the ancestor" vs "include siblings of ancestor"
+    // At level 3, next step (→4) is "include lastAncestorId (the parent)".
+    // At even levels ≥4, next step is "include siblings".
+    // At odd levels ≥5, next step is "climb one up and include that node".
+    const stepType: 'include-ancestor' | 'include-siblings' =
+      cascade.level === 3 || cascade.level % 2 === 1 ? 'include-ancestor' : 'include-siblings';
+
+    if (stepType === 'include-ancestor') {
+      nextIds.add(newFrontierId);
+      // If we're above the zoom root, we stop.
+      if (newFrontierId === zoomRootId) {
+        capped = true;
+      }
+    } else {
+      // include-siblings: siblings of current frontier
+      const sibs = getSiblings(newFrontierId);
+      for (const s of sibs) nextIds.add(s.id);
+
+      // Next press should climb. If the frontier's parent is null or zoom root, we cap to all visible.
+      const parentId = frontierNode.parent_id ?? null;
+      if (parentId == null || parentId === zoomRootId) {
+        // Cap: next press (or this state) should really be "all visible".
+        // Expand to all visible now.
+        for (const v of visibleNodes) nextIds.add(v.id);
+        capped = true;
+      } else {
+        newFrontierId = parentId;
+      }
+    }
+
+    if (capped) {
+      capToAllVisible(nextIds);
+      return 'advanced';
+    }
+
+    set({
+      selectedIds: nextIds,
+      _ctrlACascade: {
+        ...cascade,
+        level: cascade.level + 1,
+        lastAncestorId: newFrontierId,
+        snapshotIds: new Set(nextIds),
+        snapshotFocusedId: focusedId,
+      },
+    });
+    return 'advanced';
   },
 
   // === Bulk Operations on Selection ===
@@ -488,7 +798,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         const parent = getParent(node.id);
         if (!parent) continue;
 
-        const grandparentChildren = parent.parent_id === null
+        const grandparentChildren = parent.parent_id == null
           ? rootNodes()
           : childrenOf(parent.parent_id);
         const parentIdx = grandparentChildren.findIndex(n => n.id === parent.id);
@@ -569,7 +879,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
       for (const [parentId, nodes] of nodesByParent) {
         nodes.sort((a, b) => a.position - b.position);
 
-        const siblings = parentId === null ? rootNodes() : childrenOf(parentId);
+        const siblings = parentId == null ? rootNodes() : childrenOf(parentId);
         let bottomPosition = siblings.length;
 
         const batchNow = new Date().toISOString();
