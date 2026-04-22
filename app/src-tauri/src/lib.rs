@@ -37,13 +37,13 @@ pub fn run() {
         .manage(AppState::new())
         .manage(WatcherState::new())
         .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+            app.handle().plugin(
+                tauri_plugin_log::Builder::default()
+                    .level(log::LevelFilter::Info)
+                    .max_file_size(2_000_000)
+                    .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                    .build(),
+            )?;
 
             // Create the main window with a navigation guard. This is defense
             // in depth against any code path (drag/drop, paste, link click)
