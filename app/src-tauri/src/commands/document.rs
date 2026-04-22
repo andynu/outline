@@ -27,17 +27,30 @@ const DEFAULT_DOC_UUID: &str = "00000000-0000-0000-0000-000000000001";
 enum LoadAction {
     /// Folder exists — load it.
     Load,
-    /// First-run of the default document — seed with sample data.
-    SeedDefault,
+    /// First-ever launch (no other docs exist) — seed with the sample
+    /// Welcome/Getting Started/Features tree.
+    SeedSampleData,
+    /// Default-doc folder missing but other docs exist — seed an empty
+    /// single-bullet doc (user has already past the onboarding point).
+    SeedEmpty,
     /// Explicit doc_id whose folder is missing — caller-facing error.
     MissingError,
 }
 
-fn decide_load_action(doc_id_explicit: bool, is_default: bool, folder_exists: bool) -> LoadAction {
+fn decide_load_action(
+    doc_id_explicit: bool,
+    is_default: bool,
+    folder_exists: bool,
+    other_docs_exist: bool,
+) -> LoadAction {
     if folder_exists {
         LoadAction::Load
     } else if !doc_id_explicit || is_default {
-        LoadAction::SeedDefault
+        if other_docs_exist {
+            LoadAction::SeedEmpty
+        } else {
+            LoadAction::SeedSampleData
+        }
     } else {
         LoadAction::MissingError
     }
@@ -72,7 +85,13 @@ pub fn load_document(
     let doc_dir = documents_dir().join(doc_uuid.to_string());
 
     let folder_exists = doc_dir.exists();
-    let mut doc = match decide_load_action(doc_id_explicit, is_default, folder_exists) {
+    let other_docs_exist = other_docs_exist_excluding(&doc_uuid);
+    let mut doc = match decide_load_action(
+        doc_id_explicit,
+        is_default,
+        folder_exists,
+        other_docs_exist,
+    ) {
         LoadAction::Load => {
             let doc = Document::load(doc_dir)?;
             log::info!(
@@ -82,15 +101,31 @@ pub fn load_document(
             );
             doc
         }
-        LoadAction::SeedDefault => {
+        LoadAction::SeedSampleData => {
             log::warn!(
-                "load_document: folder missing for {} (existed_on_disk=false), creating new doc with sample data",
+                "load_document: folder missing for {} (existed_on_disk=false), first-ever launch — seeding sample data",
                 doc_uuid
             );
             let mut doc = Document::create(doc_dir)?;
             create_sample_data(&mut doc)?;
             log::info!(
-                "load_document: seeded default {} (n_nodes={})",
+                "load_document: seeded default {} with sample data (n_nodes={})",
+                doc_uuid,
+                doc.state.nodes.len()
+            );
+            doc
+        }
+        LoadAction::SeedEmpty => {
+            log::warn!(
+                "load_document: folder missing for {} (existed_on_disk=false) but other docs exist — seeding empty single-bullet doc",
+                doc_uuid
+            );
+            let mut doc = Document::create(doc_dir)?;
+            let root = Node::new(String::new());
+            doc.state.nodes = vec![root];
+            doc.save_state()?;
+            log::info!(
+                "load_document: seeded empty {} (n_nodes={})",
                 doc_uuid,
                 doc.state.nodes.len()
             );
@@ -360,6 +395,19 @@ pub fn get_all_dated_nodes() -> Result<Vec<DatedNodeInfo>, String> {
     Ok(results)
 }
 
+/// Check whether any document folders exist on disk other than `exclude`.
+///
+/// Used by load_document to decide between seeding the full sample
+/// Welcome/Getting Started/Features tree (true first-run) vs an empty
+/// single-bullet doc (subsequent new docs — user already has content).
+fn other_docs_exist_excluding(exclude: &Uuid) -> bool {
+    use outline_core::data::list_documents as list_doc_ids;
+    match list_doc_ids() {
+        Ok(ids) => ids.iter().any(|id| id != exclude),
+        Err(_) => false,
+    }
+}
+
 /// Create sample data for a new document
 fn create_sample_data(doc: &mut Document) -> Result<(), String> {
     let root1 = Node::new("Welcome to Outline".to_string());
@@ -433,28 +481,29 @@ mod tests {
     // a sample-data doc when an explicit doc_id points at a missing folder.
 
     #[test]
-    fn no_args_first_run_seeds_default() {
-        // load_document() with no doc_id, folder absent -> seed the default doc.
+    fn no_args_first_run_seeds_sample_data() {
+        // load_document() with no doc_id, folder absent, no other docs ->
+        // seed the default doc with the Welcome sample tree.
         assert_eq!(
-            decide_load_action(false, true, false),
-            LoadAction::SeedDefault
+            decide_load_action(false, true, false, false),
+            LoadAction::SeedSampleData
         );
     }
 
     #[test]
     fn no_args_with_folder_loads() {
         assert_eq!(
-            decide_load_action(false, true, true),
+            decide_load_action(false, true, true, false),
             LoadAction::Load
         );
     }
 
     #[test]
-    fn explicit_default_uuid_missing_still_seeds() {
+    fn explicit_default_uuid_missing_first_run_seeds_sample() {
         // Passing the default UUID explicitly is still a valid first-run path.
         assert_eq!(
-            decide_load_action(true, true, false),
-            LoadAction::SeedDefault
+            decide_load_action(true, true, false, false),
+            LoadAction::SeedSampleData
         );
     }
 
@@ -464,7 +513,13 @@ mod tests {
         // not silently produce a fresh Welcome doc that the user could then
         // unknowingly edit or wipe.
         assert_eq!(
-            decide_load_action(true, false, false),
+            decide_load_action(true, false, false, false),
+            LoadAction::MissingError
+        );
+        // Even when other docs exist, a missing explicit non-default should
+        // error rather than re-seed.
+        assert_eq!(
+            decide_load_action(true, false, false, true),
             LoadAction::MissingError
         );
     }
@@ -472,8 +527,26 @@ mod tests {
     #[test]
     fn explicit_other_uuid_present_loads() {
         assert_eq!(
-            decide_load_action(true, false, true),
+            decide_load_action(true, false, true, false),
             LoadAction::Load
+        );
+    }
+
+    // Regression tests for otl-x526: subsequent new docs (created when
+    // other docs already exist) must NOT re-seed the Welcome sample tree.
+
+    #[test]
+    fn default_doc_missing_with_other_docs_seeds_empty_not_sample() {
+        // If the default doc's folder is missing but the user has other
+        // docs, they've clearly moved past the onboarding phase — seed an
+        // empty single-bullet doc rather than re-injecting sample clutter.
+        assert_eq!(
+            decide_load_action(false, true, false, true),
+            LoadAction::SeedEmpty
+        );
+        assert_eq!(
+            decide_load_action(true, true, false, true),
+            LoadAction::SeedEmpty
         );
     }
 }
