@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { placePopup } from '../../lib/popupPosition';
 
 export type RecurrenceMode = 'schedule' | 'complete';
 
@@ -74,6 +75,34 @@ export function RecurrencePicker({ position, currentRecurrence, currentMode, onS
   const [interval, setInterval] = useState(initialState.interval);
   const [weekdays, setWeekdays] = useState<string[]>(initialState.weekdays);
   const [mode, setMode] = useState<RecurrenceMode>(currentMode ?? 'schedule');
+  const [adjustedPosition, setAdjustedPosition] = useState<{ x: number; y: number } | null>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  // Adjust position to stay in viewport, accounting for CSS `zoom` on an
+  // ancestor container (see lib/popupPosition.ts).
+  useEffect(() => {
+    const popup = popupRef.current;
+    if (!popup) return;
+
+    const rect = popup.getBoundingClientRect();
+
+    // Recover a zero-height trigger rect at the incoming position; placePopup
+    // reapplies the gap below.
+    const trigger = {
+      left: position.x,
+      right: position.x,
+      top: position.y - 5,
+      bottom: position.y - 5,
+    };
+
+    const placed = placePopup(
+      trigger,
+      { width: rect.width, height: rect.height },
+      { preferBelow: true, gap: 5 }
+    );
+
+    setAdjustedPosition({ x: placed.left, y: placed.top });
+  }, [position]);
 
   // Click outside handler
   useEffect(() => {
@@ -160,10 +189,19 @@ export function RecurrencePicker({ position, currentRecurrence, currentMode, onS
     }
   };
 
+  const displayPosition = adjustedPosition || position;
+  const isPositioned = adjustedPosition !== null;
+
   return (
     <div
+      ref={popupRef}
       className="recurrence-picker"
-      style={{ left: position.x, top: position.y }}
+      style={{
+        left: displayPosition.x,
+        top: displayPosition.y,
+        opacity: isPositioned ? 1 : 0,
+        pointerEvents: isPositioned ? 'auto' : 'none',
+      }}
       onKeyDown={handleKeyDown}
     >
       <div className="picker-header">
