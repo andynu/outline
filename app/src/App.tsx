@@ -429,6 +429,25 @@ function App() {
     };
   }, [effectiveDocumentId]);
 
+  // Global drag/drop hardening. Prevent the webview from navigating away
+  // when the user drops a URL / file / text onto the app. Without this, a
+  // drag-paste of a URL onto any region without a preventDefault'ing drop
+  // handler causes the Tauri webview (or plain browser) to navigate to the
+  // dropped URL, which looks like a "full page reload" and loses unsaved
+  // state. Specific drop targets (drag handles, bookmark bar) can opt out
+  // by calling stopPropagation in their own handlers.
+  useEffect(() => {
+    const preventDefaultDrag = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('dragover', preventDefaultDrag);
+    window.addEventListener('drop', preventDefaultDrag);
+    return () => {
+      window.removeEventListener('dragover', preventDefaultDrag);
+      window.removeEventListener('drop', preventDefaultDrag);
+    };
+  }, []);
+
   // Poll for external changes (Dropbox/Syncthing sync)
   useEffect(() => {
     const updateFromState = useOutlineStore.getState().updateFromState;

@@ -2,8 +2,28 @@ mod commands;
 mod watcher;
 
 use commands::AppState;
-use tauri::Manager;
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use watcher::WatcherState;
+
+/// Returns `true` if the webview is allowed to navigate to the given URL.
+///
+/// We deny any navigation away from the app origin. This prevents the
+/// Tauri webview from navigating to a URL that was pasted or dropped into
+/// the app (which would otherwise wipe the SPA state and look like a full
+/// page reload to the user). External URLs should be opened via the shell
+/// plugin's `openUrl` API instead.
+fn is_navigation_allowed(url: &tauri::Url) -> bool {
+    match url.scheme() {
+        // Internal Tauri schemes (production builds)
+        "tauri" | "tauri-localhost" => true,
+        // Dev server (vite)
+        "http" | "https" => matches!(
+            url.host_str(),
+            Some("localhost") | Some("127.0.0.1") | Some("tauri.localhost")
+        ),
+        _ => false,
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -24,6 +44,24 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // Create the main window with a navigation guard. This is defense
+            // in depth against any code path (drag/drop, paste, link click)
+            // that would otherwise navigate the webview away from the app and
+            // cause a "full page reload" appearance with unsaved-state loss.
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+                .title("Outline")
+                .inner_size(800.0, 600.0)
+                .resizable(true)
+                .fullscreen(false)
+                .on_navigation(|url| {
+                    let allowed = is_navigation_allowed(url);
+                    if !allowed {
+                        log::warn!("Blocked navigation to: {}", url);
+                    }
+                    allowed
+                })
+                .build()?;
 
             // Start the documents watcher
             let app_handle = app.handle().clone();
