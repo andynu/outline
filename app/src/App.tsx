@@ -301,6 +301,21 @@ function App() {
       if (docIdToLoad) {
         setCurrentDocumentId(docIdToLoad);
         await load(docIdToLoad);
+
+        // load_document now errors when an explicit doc_id refers to a
+        // missing folder (otl-sj95) instead of silently re-seeding a phantom
+        // doc. If the session pointed at a ghost, fall back to the default
+        // doc so the user still sees something useful on startup.
+        const errorAfterLoad = useOutlineStore.getState().error;
+        const loadedAfter = useOutlineStore.getState().documentId;
+        if (errorAfterLoad && !loadedAfter) {
+          console.warn(
+            `[App] Session doc ${docIdToLoad} missing on disk; falling back to default. (${errorAfterLoad})`
+          );
+          setCurrentDocumentId(undefined);
+          useOutlineStore.setState({ error: null });
+          await load();
+        }
       } else {
         await load();
       }

@@ -9,7 +9,50 @@ use outline_core::search::SearchIndex;
 
 use super::{parse_uuid, AppState};
 
-/// Load a document by ID, or create/load the default test document
+/// UUID of the default/first-run document.
+///
+/// This is the only document that `load_document` is allowed to auto-seed
+/// when its folder is missing (first launch with no data at all). Every
+/// other doc_id must refer to an already-existing folder — otherwise
+/// `load_document` errors out, so a missing folder (sync glitch, manual
+/// delete, stale entry in doc_prefixes.json) surfaces to the user instead
+/// of silently destroying the phantom.
+const DEFAULT_DOC_UUID: &str = "00000000-0000-0000-0000-000000000001";
+
+/// Decide how load_document should resolve a (doc_id, folder-exists) pair.
+///
+/// Extracted as a pure function so the "silent re-seed" data-loss bug
+/// (otl-sj95) has unit-test coverage without requiring a Tauri runtime.
+#[derive(Debug, PartialEq, Eq)]
+enum LoadAction {
+    /// Folder exists — load it.
+    Load,
+    /// First-run of the default document — seed with sample data.
+    SeedDefault,
+    /// Explicit doc_id whose folder is missing — caller-facing error.
+    MissingError,
+}
+
+fn decide_load_action(doc_id_explicit: bool, is_default: bool, folder_exists: bool) -> LoadAction {
+    if folder_exists {
+        LoadAction::Load
+    } else if !doc_id_explicit || is_default {
+        LoadAction::SeedDefault
+    } else {
+        LoadAction::MissingError
+    }
+}
+
+/// Load a document by ID, or load the default document on first run.
+///
+/// Behavior:
+/// - `doc_id = None`: load (or seed on first run) the default document.
+/// - `doc_id = Some(id)`: the folder MUST already exist. If it doesn't,
+///   this returns an error rather than silently re-seeding a fresh doc
+///   on top of whatever the user actually meant to open. See issue
+///   otl-sj95 for the data-loss scenario this prevents.
+///
+/// Use `create_document` to intentionally create a new empty document.
 #[tauri::command]
 pub fn load_document(
     state: State<AppState>,
@@ -17,22 +60,30 @@ pub fn load_document(
 ) -> Result<DocumentState, String> {
     ensure_dirs()?;
 
-    let doc_uuid = if let Some(id_str) = doc_id {
-        parse_uuid(&id_str)?
+    let doc_id_explicit = doc_id.is_some();
+    let (doc_uuid, is_default) = if let Some(id_str) = doc_id {
+        let uuid = parse_uuid(&id_str)?;
+        let is_default = uuid.to_string() == DEFAULT_DOC_UUID;
+        (uuid, is_default)
     } else {
-        // Use a fixed UUID for the default/test document
-        Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap()
+        (Uuid::parse_str(DEFAULT_DOC_UUID).unwrap(), true)
     };
 
     let doc_dir = documents_dir().join(doc_uuid.to_string());
 
-    let mut doc = if doc_dir.exists() {
-        Document::load(doc_dir)?
-    } else {
-        // Create new document with sample data
-        let mut doc = Document::create(doc_dir)?;
-        create_sample_data(&mut doc)?;
-        doc
+    let mut doc = match decide_load_action(doc_id_explicit, is_default, doc_dir.exists()) {
+        LoadAction::Load => Document::load(doc_dir)?,
+        LoadAction::SeedDefault => {
+            let mut doc = Document::create(doc_dir)?;
+            create_sample_data(&mut doc)?;
+            doc
+        }
+        LoadAction::MissingError => {
+            return Err(format!(
+                "Document {} not found on disk. It may have been deleted, unsynced, or moved. Use create_document to make a new document.",
+                doc_uuid
+            ));
+        }
     };
 
     // Ensure all nodes have short IDs and get the document prefix
@@ -57,6 +108,56 @@ pub fn load_document(
     });
 
     // Store current document
+    let mut current = state.current_document.lock().unwrap();
+    *current = Some(doc);
+
+    Ok(doc_state)
+}
+
+/// Create a brand-new empty document and load it.
+///
+/// This is the intentional "new document" path — distinct from `load_document`,
+/// which now refuses to seed a fresh doc when an explicit missing doc_id is
+/// provided (see otl-sj95). If `doc_id` is omitted, a fresh UUID is generated.
+/// Errors if a document folder already exists for the requested id.
+#[tauri::command]
+pub fn create_document(
+    state: State<AppState>,
+    doc_id: Option<String>,
+) -> Result<DocumentState, String> {
+    ensure_dirs()?;
+
+    let doc_uuid = match doc_id {
+        Some(id_str) => parse_uuid(&id_str)?,
+        None => Uuid::new_v4(),
+    };
+
+    let doc_dir = documents_dir().join(doc_uuid.to_string());
+    if doc_dir.exists() {
+        return Err(format!("Document {} already exists", doc_uuid));
+    }
+
+    let mut doc = Document::create(doc_dir)?;
+
+    // Give new docs a single empty root so the UI has something to focus on.
+    let root = Node::new(String::new());
+    doc.state.nodes = vec![root];
+    doc.save_state()?;
+
+    let prefix = short_ids::ensure_short_ids(&mut doc)?;
+    let mut doc_state = doc.state.clone();
+    doc_state.doc_id = Some(doc_uuid.to_string());
+    doc_state.doc_prefix = Some(prefix);
+
+    // Index in background, mirroring load_document.
+    let nodes_for_index = doc_state.nodes.clone();
+    std::thread::spawn(move || {
+        if let Ok(index) = SearchIndex::open() {
+            let _ = index.index_document(&doc_uuid, &nodes_for_index);
+            let _ = index.update_document_links(&doc_uuid, &nodes_for_index);
+        }
+    });
+
     let mut current = state.current_document.lock().unwrap();
     *current = Some(doc);
 
@@ -300,4 +401,57 @@ pub(crate) fn strip_html_for_title(html: &str) -> String {
         .replace("&quot;", "\"")
         .trim()
         .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Regression tests for otl-sj95: load_document must NOT silently re-seed
+    // a sample-data doc when an explicit doc_id points at a missing folder.
+
+    #[test]
+    fn no_args_first_run_seeds_default() {
+        // load_document() with no doc_id, folder absent -> seed the default doc.
+        assert_eq!(
+            decide_load_action(false, true, false),
+            LoadAction::SeedDefault
+        );
+    }
+
+    #[test]
+    fn no_args_with_folder_loads() {
+        assert_eq!(
+            decide_load_action(false, true, true),
+            LoadAction::Load
+        );
+    }
+
+    #[test]
+    fn explicit_default_uuid_missing_still_seeds() {
+        // Passing the default UUID explicitly is still a valid first-run path.
+        assert_eq!(
+            decide_load_action(true, true, false),
+            LoadAction::SeedDefault
+        );
+    }
+
+    #[test]
+    fn explicit_other_uuid_missing_errors_instead_of_seeding() {
+        // The bug: a non-default doc_id whose folder is missing must error,
+        // not silently produce a fresh Welcome doc that the user could then
+        // unknowingly edit or wipe.
+        assert_eq!(
+            decide_load_action(true, false, false),
+            LoadAction::MissingError
+        );
+    }
+
+    #[test]
+    fn explicit_other_uuid_present_loads() {
+        assert_eq!(
+            decide_load_action(true, false, true),
+            LoadAction::Load
+        );
+    }
 }

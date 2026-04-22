@@ -559,9 +559,10 @@ export async function createDocument(): Promise<string> {
   if (tauriInvoke) {
     // Generate a new UUID for the document
     const newId = crypto.randomUUID();
-    // Loading a non-existent document will create it
-    await tauriInvoke('load_document', { docId: newId });
-    return newId;
+    // Use the explicit create_document command — load_document no longer
+    // auto-seeds on missing folders (see otl-sj95).
+    const state = await tauriInvoke('create_document', { docId: newId }) as DocumentState;
+    return state.doc_id ?? newId;
   }
   // Browser-only mode: return mock ID
   return 'mock-doc-' + Date.now();

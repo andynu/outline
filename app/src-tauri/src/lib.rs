@@ -80,6 +80,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::load_document,
+            commands::create_document,
             commands::save_op,
             commands::save_ops,
             commands::create_node,
