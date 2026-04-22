@@ -12,6 +12,7 @@ import { useNoteEditor } from './useNoteEditor';
 import { useSuggestions } from './useSuggestions';
 import { useOutlineEditor } from './useOutlineEditor';
 import { processStaticContentElement, handleStaticContentClick } from '../../lib/renderStaticContent';
+import { buildNotePreview } from '../../lib/notePreview';
 import DOMPurify from 'dompurify';
 
 // Suggestion popups
@@ -100,6 +101,7 @@ export const OutlineItem = memo(function OutlineItem({
   const copySelectedAsMarkdown = useSelectionStore(state => state.copySelectedAsMarkdown);
   const copySelectedAsPlainText = useSelectionStore(state => state.copySelectedAsPlainText);
   const showShortIds = useSettingsStore(state => state.showShortIds);
+  const noteDisplayMode = useSettingsStore(state => state.noteDisplayMode);
   const exportSelectedToFile = useSelectionStore(state => state.exportSelectedToFile);
   const exportSelectedToFilePlainText = useSelectionStore(state => state.exportSelectedToFilePlainText);
   const deleteSelectedNodes = useSelectionStore(state => state.deleteSelectedNodes);
@@ -543,8 +545,8 @@ export const OutlineItem = memo(function OutlineItem({
         {isBookmarked && <span className="bookmark-indicator" title="Bookmarked">★</span>}
       </div>
 
-      {/* Note row */}
-      {(node.note || isEditingNote) && (
+      {/* Note row — honors noteDisplayMode; isEditingNote always shows the textarea */}
+      {(isEditingNote || (node.note && noteDisplayMode !== 'none')) && (
         <div className="note-row">
           {isEditingNote && isFocused ? (
             <textarea
@@ -557,6 +559,13 @@ export const OutlineItem = memo(function OutlineItem({
               placeholder="Add a note..."
               rows={1}
             />
+          ) : noteDisplayMode === 'one-line' ? (
+            <div
+              className="note-content note-preview"
+              onClick={handleNoteClick}
+            >
+              {buildNotePreview(node.note || '')}
+            </div>
           ) : (
             <div
               className="note-content"

@@ -21,6 +21,19 @@ test.describe('Clickable URLs in notes', () => {
     });
     await page.goto('/');
     await page.waitForSelector('.outline-item');
+
+    // Ensure noteDisplayMode is 'full' so rendered notes contain HTML
+    // (with clickable anchors). In 'one-line' mode the preview is plain
+    // stripped text — which is correct behavior but strips <a> tags, so
+    // these URL-click tests need 'full'.
+    await page.evaluate(() => {
+      const raw = localStorage.getItem('outline-settings');
+      const settings = raw ? JSON.parse(raw) : {};
+      settings.noteDisplayMode = 'full';
+      localStorage.setItem('outline-settings', JSON.stringify(settings));
+    });
+    await page.reload();
+    await page.waitForSelector('.outline-item');
   });
 
   async function focusFirstItem(page: import('@playwright/test').Page) {

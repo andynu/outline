@@ -8,8 +8,8 @@ import { processStaticContentElement, handleStaticContentClick } from '../lib/re
 import { formatDateRelative, formatDateRange } from '../lib/dateUtils';
 import { NODE_COLORS, getColorCss } from '../lib/colorPalette';
 import { useBookmarkStore } from '../store/bookmarkStore';
-import { stripHtml } from '../lib/utils';
 import { renderNoteHtml, handleNoteLinkClick } from '../lib/noteLinks';
+import { buildNotePreview } from '../lib/notePreview';
 import DOMPurify from 'dompurify';
 
 interface OutlineItemStaticProps {
@@ -405,10 +405,7 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
             onClick={(e) => { handleNoteLinkClick(e); }}
             dangerouslySetInnerHTML={{
               __html: noteDisplayMode === 'one-line'
-                ? (() => {
-                    const plain = stripHtml(node.note);
-                    return plain.length > 100 ? plain.slice(0, 100) + '...' : plain;
-                  })()
+                ? buildNotePreview(node.note)
                 : renderNoteHtml(node.note)
             }}
           />
