@@ -400,6 +400,11 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
       </div>
       {node.note && noteDisplayMode !== 'none' && (
         <div className="note-row">
+          {showShortIds && node.short_id && (
+            <span className="short-id-badge short-id-spacer" aria-hidden="true">
+              {node.short_id}
+            </span>
+          )}
           <div
             className="note-content note-preview"
             onClick={(e) => { handleNoteLinkClick(e); }}

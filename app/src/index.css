@@ -3448,12 +3448,21 @@ img.custom-emoji {
 
 /* Note field styles */
 .note-row {
+  display: flex;
+  align-items: flex-start;
   margin-left: 20px;
   margin-top: 2px;
   margin-bottom: 4px;
 }
 
+.note-row .short-id-spacer {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .note-content {
+  flex: 1;
+  min-width: 0;
   font-size: 0.85em;
   color: var(--text-tertiary);
   line-height: 1.4;
@@ -3477,6 +3486,8 @@ img.custom-emoji {
 }
 
 .note-input {
+  flex: 1;
+  min-width: 0;
   width: 100%;
   font-size: 0.85em;
   color: var(--text-secondary);

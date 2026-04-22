@@ -548,6 +548,11 @@ export const OutlineItem = memo(function OutlineItem({
       {/* Note row — honors noteDisplayMode; isEditingNote always shows the textarea */}
       {(isEditingNote || (node.note && noteDisplayMode !== 'none')) && (
         <div className="note-row">
+          {showShortIds && node.short_id && (
+            <span className="short-id-badge short-id-spacer" aria-hidden="true">
+              {node.short_id}
+            </span>
+          )}
           {isEditingNote && isFocused ? (
             <textarea
               ref={noteInputRef}
