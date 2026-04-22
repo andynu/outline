@@ -1,25 +1,49 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
+/** Validate a slug — mirrors outline_core::data::short_ids::validate_prefix.
+ *  Returns an error string, or null if valid. */
+function validateSlug(slug: string): string | null {
+  if (slug.length === 0) return 'Slug cannot be empty';
+  if (slug.length > 16) return 'Slug must be 16 characters or fewer';
+  if (!/^[a-z0-9]+$/.test(slug)) {
+    return 'Slug must be lowercase letters and digits only (no hyphens, spaces, or uppercase)';
+  }
+  return null;
+}
+
 interface RenameModalProps {
   isOpen: boolean;
   currentName: string;
   itemType: 'document' | 'folder' | 'bookmark';
-  onRename: (newName: string) => void;
+  /** Optional current slug (short-ID prefix). Only used when itemType === 'document'. */
+  currentSlug?: string;
+  onRename: (newName: string, newSlug?: string) => void;
   onClose: () => void;
 }
 
-export function RenameModal({ isOpen, currentName, itemType, onRename, onClose }: RenameModalProps) {
+export function RenameModal({
+  isOpen,
+  currentName,
+  itemType,
+  currentSlug,
+  onRename,
+  onClose,
+}: RenameModalProps) {
   const [name, setName] = useState(currentName);
+  const [slug, setSlug] = useState(currentSlug ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Reset name when modal opens with new currentName
+  const showSlug = itemType === 'document' && currentSlug !== undefined;
+
+  // Reset fields when modal opens with new values
   useEffect(() => {
     if (isOpen) {
       setName(currentName);
+      setSlug(currentSlug ?? '');
     }
-  }, [isOpen, currentName]);
+  }, [isOpen, currentName, currentSlug]);
 
-  // Focus and select input when modal opens
+  // Focus and select name input when modal opens
   useEffect(() => {
     if (isOpen && inputRef.current) {
       setTimeout(() => {
@@ -29,13 +53,39 @@ export function RenameModal({ isOpen, currentName, itemType, onRename, onClose }
     }
   }, [isOpen]);
 
+  const trimmedName = name.trim();
+  const trimmedSlug = slug.trim();
+  const nameValid = trimmedName.length > 0;
+  const slugError = showSlug ? validateSlug(trimmedSlug) : null;
+  const slugValid = !showSlug || slugError === null;
+  const isValid = nameValid && slugValid;
+
+  const nameChanged = trimmedName !== currentName;
+  const slugChanged = showSlug && trimmedSlug !== (currentSlug ?? '');
+  const hasChanged = nameChanged || slugChanged;
+
   const handleSubmit = useCallback(() => {
-    const trimmedName = name.trim();
-    if (trimmedName && trimmedName !== currentName) {
-      onRename(trimmedName);
+    if (!isValid || !hasChanged) {
+      onClose();
+      return;
     }
+    // Only pass name if it actually changed — callers use undefined to skip.
+    const outName = nameChanged ? trimmedName : currentName;
+    const outSlug = showSlug && slugChanged ? trimmedSlug : undefined;
+    onRename(outName, outSlug);
     onClose();
-  }, [name, currentName, onRename, onClose]);
+  }, [
+    isValid,
+    hasChanged,
+    nameChanged,
+    slugChanged,
+    trimmedName,
+    trimmedSlug,
+    currentName,
+    showSlug,
+    onRename,
+    onClose,
+  ]);
 
   // Keyboard handler
   useEffect(() => {
@@ -65,9 +115,6 @@ export function RenameModal({ isOpen, currentName, itemType, onRename, onClose }
     return null;
   }
 
-  const isValid = name.trim().length > 0;
-  const hasChanged = name.trim() !== currentName;
-
   return (
     <div className="modal-backdrop" onClick={handleBackdropClick}>
       <div className="modal rename-modal" role="dialog" aria-modal="true" aria-labelledby="rename-title">
@@ -93,6 +140,28 @@ export function RenameModal({ isOpen, currentName, itemType, onRename, onClose }
             onChange={(e) => setName(e.target.value)}
             placeholder={`Enter ${itemType} name...`}
           />
+
+          {showSlug && (
+            <>
+              <label htmlFor="rename-slug-input" className="input-label" style={{ marginTop: '1rem' }}>
+                Slug
+              </label>
+              <input
+                id="rename-slug-input"
+                type="text"
+                className="rename-input"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                placeholder="slug"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+              <div className="input-hint" style={{ marginTop: '0.25rem', fontSize: '0.85em', opacity: 0.7 }}>
+                {slugError ?? `Used in short IDs (e.g. ${trimmedSlug || 'slug'}-a3f2)`}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="modal-footer">

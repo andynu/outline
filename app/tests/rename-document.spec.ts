@@ -47,7 +47,7 @@ test.describe('Rename document', () => {
     await expect(modal.locator('h3')).toContainText('Rename Document');
 
     // Input should be focused and contain current title
-    const input = modal.locator('.rename-input');
+    const input = modal.locator('#rename-input');
     await expect(input).toBeFocused();
   });
 
@@ -84,11 +84,47 @@ test.describe('Rename document', () => {
     await page.waitForTimeout(100);
 
     // Press Escape
-    const input = modal.locator('.rename-input');
+    const input = modal.locator('#rename-input');
     await input.press('Escape');
 
     // Modal should close
     await expect(modal).not.toBeVisible();
+  });
+
+  test('rename modal shows Slug field for documents', async ({ page }) => {
+    const toggleBtn = page.locator('.sidebar-toggle');
+    await toggleBtn.click();
+    await page.waitForSelector('.sidebar');
+
+    const docItem = page.locator('.document-item').first();
+    await docItem.dblclick();
+
+    const modal = page.locator('.modal');
+    await expect(modal).toBeVisible();
+
+    // Slug field should be present and prefilled with current prefix.
+    const slugInput = modal.locator('#rename-slug-input');
+    await expect(slugInput).toBeVisible();
+    await expect(slugInput).toHaveValue('mock');
+  });
+
+  test('invalid slug disables Rename button and shows error', async ({ page }) => {
+    const toggleBtn = page.locator('.sidebar-toggle');
+    await toggleBtn.click();
+    await page.waitForSelector('.sidebar');
+
+    const docItem = page.locator('.document-item').first();
+    await docItem.dblclick();
+
+    const modal = page.locator('.modal');
+    await expect(modal).toBeVisible();
+
+    const slugInput = modal.locator('#rename-slug-input');
+    await slugInput.fill('Bad-Slug');
+
+    const renameBtn = modal.locator('.btn-primary');
+    await expect(renameBtn).toBeDisabled();
+    await expect(modal.locator('.input-hint')).toContainText('lowercase');
   });
 
   test('clicking Cancel closes rename modal', async ({ page }) => {

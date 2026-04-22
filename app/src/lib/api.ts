@@ -476,6 +476,7 @@ export interface DocumentInfo {
   title: string;
   node_count: number;
   title_node_id?: string;  // ID of the first root node (for renaming)
+  prefix?: string;         // Short-ID prefix / slug
 }
 
 // Search for nodes matching a query
@@ -518,8 +519,21 @@ export async function listDocuments(): Promise<DocumentInfo[]> {
       id: 'mock-doc',
       title: 'Mock Document',
       node_count: mockState.nodes.length,
+      prefix: 'mock',
     },
   ];
+}
+
+// Rename a document's short-ID prefix (slug).
+// Validation mirrors outline_core::data::short_ids::validate_prefix:
+// lowercase letters/digits, 1..=16 chars. Server also enforces uniqueness.
+export async function renameDocumentPrefix(docId: string, newPrefix: string): Promise<void> {
+  await initTauri();
+  if (tauriInvoke) {
+    await tauriInvoke('rename_document_prefix', { docId, newPrefix });
+    return;
+  }
+  // Browser-only mode: no-op (no prefix map to update)
 }
 
 // Get all nodes with dates across all documents

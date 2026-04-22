@@ -11,6 +11,7 @@ import {
   moveDocumentToFolder,
   reorderFolders,
   reorderDocuments,
+  renameDocumentPrefix,
   type DocumentInfo,
   type Folder,
   type FolderState,
@@ -301,15 +302,26 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
     }
   }, [contextMenuTarget, loadAll]);
 
-  const handleRenameDoc = useCallback(async (newName: string) => {
-    if (!renameDoc?.title_node_id) return;
+  const handleRenameDoc = useCallback(async (newName: string, newSlug?: string) => {
+    if (!renameDoc) return;
+
+    const nameChanged = renameDoc.title_node_id && newName !== renameDoc.title;
+    const slugChanged = newSlug !== undefined && newSlug !== renameDoc.prefix;
 
     try {
-      await updateNode(renameDoc.title_node_id, { content: newName });
-      await loadAll();
+      if (nameChanged && renameDoc.title_node_id) {
+        await updateNode(renameDoc.title_node_id, { content: newName });
+      }
+      if (slugChanged && newSlug !== undefined) {
+        await renameDocumentPrefix(renameDoc.id, newSlug);
+      }
+      if (nameChanged || slugChanged) {
+        await loadAll();
+      }
     } catch (e) {
       console.error('Failed to rename document:', e);
-      showToast('Failed to rename document');
+      const msg = e instanceof Error ? e.message : String(e);
+      showToast(`Failed to rename document: ${msg}`);
     }
   }, [renameDoc, loadAll]);
 
@@ -981,6 +993,7 @@ export const Sidebar = forwardRef<SidebarRef, SidebarProps>(function Sidebar(
       <RenameModal
         isOpen={renameDoc !== null}
         currentName={renameDoc?.title || ''}
+        currentSlug={renameDoc?.prefix}
         itemType="document"
         onRename={handleRenameDoc}
         onClose={() => setRenameDoc(null)}
