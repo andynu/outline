@@ -7,7 +7,7 @@
 import { create } from 'zustand';
 
 // Types
-export type Theme = 'light' | 'dark' | 'system' | 'gruvbox-dark' | 'gruvbox-light';
+export type Theme = 'light' | 'dark' | 'system' | 'gruvbox-dark' | 'gruvbox-light' | 'dark-os';
 export type NoteDisplayMode = 'none' | 'one-line' | 'full';
 export type ViewMode = 'outline' | 'article';
 
@@ -87,6 +87,7 @@ export const AVAILABLE_THEMES = [
   { id: 'dark' as Theme, name: 'Dark', isDark: true },
   { id: 'gruvbox-light' as Theme, name: 'Gruvbox Light', isDark: false },
   { id: 'gruvbox-dark' as Theme, name: 'Gruvbox Dark', isDark: true },
+  { id: 'dark-os' as Theme, name: 'Dark OS v1', isDark: true },
 ];
 
 const DEFAULT_SETTINGS: Settings = {
@@ -154,7 +155,7 @@ function applyTheme(theme: Theme) {
     document.documentElement.classList.remove('dark');
   } else {
     document.documentElement.setAttribute('data-theme', effectiveTheme);
-    if (effectiveTheme === 'dark' || effectiveTheme === 'gruvbox-dark') {
+    if (effectiveTheme === 'dark' || effectiveTheme === 'gruvbox-dark' || effectiveTheme === 'dark-os') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');

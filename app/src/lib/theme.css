@@ -274,6 +274,173 @@
   --scrollbar-thumb-hover: #5a5650;
 }
 
+/* === DARK OS v1 THEME === */
+/* Apply with data-theme="dark-os" on html or body element */
+/* Source aesthetic: cinematic operator/sysadmin — deep blacks, hairline strokes,
+ * cold-blue accent, monospace-first, square corners, zero round-rects. */
+[data-theme="dark-os"] {
+  color-scheme: dark;
+
+  /* Background layers — stepped for elevation on near-black */
+  --bg-primary: #000000;             /* root / content */
+  --bg-secondary: #070b10;           /* sidebar / panels / titlebar */
+  --bg-tertiary: #0f1a24;            /* hover states, inline wells */
+  --bg-elevated: #04070a;            /* cards, modals */
+
+  /* Ink — 5-stop text ramp (cool desaturated blues) */
+  --text-primary: #b9c9dc;           /* body default (ink-1) */
+  --text-secondary: #7e93a9;         /* secondary, labels (ink-2) */
+  --text-tertiary: #4c617a;          /* metadata, captions (ink-3) */
+  --text-muted: #2a3a4d;             /* dimmest (ink-4) */
+
+  /* Borders — hairline; emphasis via color, never thickness */
+  --border-primary: #1a2a3a;         /* default hairline (line-1) */
+  --border-secondary: #0f1a24;       /* subtle row divider (line-0) */
+  --border-focus: #7bb8ff;           /* focus = accent */
+
+  /* Single accent — cold cinematic blue */
+  --accent-primary: #7bb8ff;
+  --accent-primary-hover: #4e8bcc;
+  --accent-primary-light: #1e4a7a;
+  --accent-primary-lighter: rgba(123, 184, 255, 0.12);
+
+  /* Secondary accent — warn amber (used sparingly as a semantic signal) */
+  --accent-secondary: #e6a94a;
+  --accent-secondary-hover: #d09838;
+  --accent-secondary-light: #3a2a15;
+  --accent-secondary-lighter: #2a1f10;
+
+  /* Status — terse semantic palette */
+  --status-success: #7ec49a;
+  --status-success-bg: #0f2218;
+  --status-success-bg-hover: #152c20;
+
+  --status-warning: #e6a94a;
+  --status-warning-bg: #2a1f10;
+  --status-warning-bg-hover: #3a2a15;
+
+  --status-error: #e06a6a;
+  --status-error-bg: #2a1010;
+  --status-error-bg-hover: #3a1616;
+
+  --status-info: #7bb8ff;
+  --status-info-bg: #0c1e30;
+  --status-info-bg-hover: #12283f;
+
+  /* Date badges — re-expressed with single accent + semantic signals */
+  --date-today-bg-hover: #3a2a15;
+  --date-urgent-bg-hover: #3a2a15;
+  --date-soon-bg-hover: var(--status-warning-bg-hover);
+  --date-future-bg-hover: #0f1a24;
+
+  /* Wiki links — accent blue */
+  --wiki-link-color: #7bb8ff;
+  --wiki-link-bg: rgba(123, 184, 255, 0.08);
+  --wiki-link-bg-hover: rgba(123, 184, 255, 0.16);
+
+  --auto-link-color: #7bb8ff;
+  --auto-link-underline: #4e8bcc;
+
+  /* Hashtags — dim ink, subtle well */
+  --hashtag-color: #7e93a9;
+  --hashtag-bg: #0f1a24;
+  --hashtag-bg-hover: #152535;
+
+  /* Mentions — accent blue, subdued */
+  --mention-color: #7bb8ff;
+  --mention-bg: rgba(123, 184, 255, 0.08);
+  --mention-bg-hover: rgba(123, 184, 255, 0.16);
+
+  /* Checkbox */
+  --checkbox-border: #4c617a;
+  --checkbox-border-hover: #7e93a9;
+  --checkbox-checked-bg: var(--accent-primary);
+
+  /* Selection / focus — accent glow */
+  --selection-bg: rgba(123, 184, 255, 0.18);
+  --selection-bg-strong: rgba(123, 184, 255, 0.32);
+  --subtree-bg: rgba(123, 184, 255, 0.05);
+
+  /* Drop indicator */
+  --drop-indicator: var(--accent-primary);
+
+  /* Indent guides */
+  --indent-guide-color: #1a2a3a;
+
+  /* Search match highlight */
+  --highlight-bg: rgba(230, 169, 74, 0.22);
+
+  /* Chrome */
+  --chrome-bg: var(--bg-secondary);
+  --chrome-border: var(--border-primary);
+  --toolbar-btn-hover-bg: var(--bg-tertiary);
+
+  /* Buttons */
+  --btn-primary-bg: transparent;
+  --btn-primary-bg-hover: rgba(123, 184, 255, 0.12);
+  --btn-primary-text: #7bb8ff;
+  --btn-secondary-bg: transparent;
+  --btn-secondary-bg-hover: #0f1a24;
+  --btn-secondary-text: #b9c9dc;
+
+  /* Badge */
+  --badge-bg: var(--status-error);
+  --badge-text: #000000;
+
+  /* Sidebar */
+  --sidebar-active-bg: rgba(123, 184, 255, 0.12);
+  --sidebar-active-text: #7bb8ff;
+
+  /* Status bar */
+  --statusbar-bg: #020407;
+  --statusbar-text: var(--text-tertiary);
+
+  /* Save status */
+  --save-status-saved: var(--status-success);
+  --save-status-saving: var(--text-tertiary);
+
+  /* Modal overlay */
+  --modal-overlay: rgba(0, 0, 0, 0.78);
+  --modal-bg: var(--bg-elevated);
+  --modal-border: var(--border-primary);
+
+  /* Scrollbar */
+  --scrollbar-track: #000000;
+  --scrollbar-thumb: #1a2a3a;
+  --scrollbar-thumb-hover: #4c617a;
+}
+
+/* Dark OS: square corners everywhere. No exceptions.
+ * Spec rule: border-radius: 0, always. */
+[data-theme="dark-os"] *,
+[data-theme="dark-os"] *::before,
+[data-theme="dark-os"] *::after {
+  border-radius: 0 !important;
+}
+
+/* Dark OS: monospace-first typography.
+ * Body is mono; sans (Space Grotesk) reserved for display headings. */
+[data-theme="dark-os"] body {
+  font-family: "JetBrains Mono", "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: 0.01em;
+}
+
+/* Display headings: Space Grotesk, tight tracking */
+[data-theme="dark-os"] .document-title-editor .ProseMirror,
+[data-theme="dark-os"] .document-title-editor-inner,
+[data-theme="dark-os"] h1,
+[data-theme="dark-os"] h2,
+[data-theme="dark-os"] h3 {
+  font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Dark OS: no gradients, no drop shadows on flat surfaces */
+[data-theme="dark-os"] * {
+  background-image: none !important;
+}
+
 /* === GRUVBOX DARK THEME === */
 /* Apply with data-theme="gruvbox-dark" on html or body element */
 [data-theme="gruvbox-dark"] {
