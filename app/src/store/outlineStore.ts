@@ -3,6 +3,7 @@ import type { Node, TreeNode, DocumentState, UndoEntry, UndoAction, NodeChanges 
 import * as api from '../lib/api';
 import { formatISODate } from '../lib/dateUtils';
 import { parseFilterQuery, nodeMatchesParsedFilter, type ParsedFilter } from '../lib/searchQueryParser';
+import { logNav } from '../lib/navLog';
 
 // Constants
 const MAX_UNDO_STACK_SIZE = 100;
@@ -184,7 +185,7 @@ interface OutlineState {
   moveToPrevSibling: () => string | null;
 
   // Document operations
-  load: (docId?: string) => Promise<void>;
+  load: (docId?: string, caller?: string) => Promise<void>;
   addSiblingAfter: (nodeId: string) => Promise<string | null>;
   addSiblingBefore: (nodeId: string) => Promise<string | null>;
   createFirstChild: (parentId: string) => Promise<string | null>;
@@ -997,7 +998,8 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
 
   // === Document Operations ===
 
-  load: async (docId?: string) => {
+  load: async (docId?: string, caller: string = 'unknown') => {
+    logNav('store-load', { docId: docId ?? null, caller });
     set({ loading: true, error: null });
     try {
       const state = await api.loadDocument(docId);
@@ -1315,6 +1317,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       }
 
       // Reload to get final state after all moves
+      logNav('bulk-refresh', { caller: 'outlineStore.splitNode' });
       const finalState = await api.loadDocument(get().documentId ?? undefined);
       updateFromState(finalState);
 
@@ -1414,6 +1417,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       await api.deleteNode(nextSibling.id);
 
       // Reload state
+      logNav('bulk-refresh', { caller: 'outlineStore.mergeWithNextSibling' });
       const state = await api.loadDocument(get().documentId ?? undefined);
       updateFromState(state);
 
@@ -1501,6 +1505,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       await api.deleteNode(nodeId);
 
       // Reload state
+      logNav('bulk-refresh', { caller: 'outlineStore.mergeWithPreviousSibling' });
       const state = await api.loadDocument(get().documentId ?? undefined);
       updateFromState(state);
 
@@ -2671,6 +2676,7 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
               tags: action.node.tags,
             });
           }
+          logNav('bulk-refresh', { caller: 'outlineStore._executeUndoAction' });
           const state = await api.loadDocument(get().documentId ?? undefined);
           updateFromState(state);
           set({ focusedId: action.node.id });

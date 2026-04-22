@@ -38,6 +38,7 @@ import {
 import type { Node, TreeNode } from './lib/types';
 import * as api from './lib/api';
 import { useRangeDragSelection } from './lib/useRangeDragSelection';
+import { logNav } from './lib/navLog';
 import React from 'react';
 
 // Note: Tree building is now handled by the store's getTree() method
@@ -298,9 +299,10 @@ function App() {
 
       // Load document (from session or default)
       const docIdToLoad = session?.documentId;
+      logNav('app-start', { sessionDocId: docIdToLoad ?? null });
       if (docIdToLoad) {
         setCurrentDocumentId(docIdToLoad);
-        await load(docIdToLoad);
+        await load(docIdToLoad, 'app-start');
 
         // load_document now errors when an explicit doc_id refers to a
         // missing folder (otl-sj95) instead of silently re-seeding a phantom
@@ -312,12 +314,13 @@ function App() {
           console.warn(
             `[App] Session doc ${docIdToLoad} missing on disk; falling back to default. (${errorAfterLoad})`
           );
+          logNav('app-start', { sessionDocId: docIdToLoad, fallbackReason: errorAfterLoad });
           setCurrentDocumentId(undefined);
           useOutlineStore.setState({ error: null });
-          await load();
+          await load(undefined, 'app-start-fallback');
         }
       } else {
-        await load();
+        await load(undefined, 'app-start-default');
       }
 
       // Get the store state to validate node IDs
@@ -546,12 +549,16 @@ function App() {
   const switchDocument = useCallback(async (
     newDocId: string,
     afterLoad?: () => void,
+    caller: string = 'unknown',
   ) => {
     // Flush any pending per-doc writes for the outgoing document.
     flushSessionState();
 
+    const prevDocId = useOutlineStore.getState().documentId ?? null;
+    logNav('switch-doc', { prevDocId, newDocId, caller });
+
     setCurrentDocumentId(newDocId);
-    await load(newDocId);
+    await load(newDocId, `switch-doc:${caller}`);
 
     // Restore the new doc's saved state (if any).
     const session = loadSessionState();
@@ -596,14 +603,16 @@ function App() {
 
   // Handle document selection
   const handleSelectDocument = useCallback(async (docId: string) => {
-    await switchDocument(docId);
+    logNav('sidebar-click', { docId });
+    await switchDocument(docId, undefined, 'sidebar-click');
   }, [switchDocument]);
 
   // Handle new document
   const handleNewDocument = useCallback(async () => {
     try {
       const newId = await api.createDocument();
-      await switchDocument(newId);
+      logNav('new-doc', { newDocId: newId });
+      await switchDocument(newId, undefined, 'new-doc');
       sidebarRef.current?.refresh();
     } catch (e) {
       console.error('Failed to create document:', e);
@@ -617,12 +626,16 @@ function App() {
       const docs = await api.listDocuments();
       const remaining = docs.filter((d) => d.id !== deletedDocId);
       if (remaining.length > 0) {
-        await switchDocument(remaining[0].id);
+        const fallbackDocId = remaining[0].id;
+        logNav('delete-doc-fallback', { deletedDocId, fallbackDocId });
+        await switchDocument(fallbackDocId, undefined, 'delete-doc-fallback');
       } else {
+        logNav('delete-doc-fallback', { deletedDocId, fallbackDocId: null });
         await handleNewDocument();
       }
     } catch (e) {
       console.error('Failed to switch after delete:', e);
+      logNav('delete-doc-fallback', { deletedDocId, fallbackDocId: null, error: String(e) });
       await handleNewDocument();
     }
   }, [switchDocument, handleNewDocument]);
@@ -632,7 +645,7 @@ function App() {
     if (documentId !== currentDocumentId) {
       await switchDocument(documentId, () => {
         useOutlineStore.getState().setFocusedId(nodeId);
-      });
+      }, 'search');
     } else {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
@@ -644,7 +657,7 @@ function App() {
     if (documentId !== currentDocumentId) {
       await switchDocument(documentId, () => {
         useOutlineStore.getState().setFocusedId(nodeId);
-      });
+      }, 'date-view');
     } else {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
@@ -656,7 +669,7 @@ function App() {
     if (documentId !== currentDocumentId) {
       await switchDocument(documentId, () => {
         useOutlineStore.getState().setFocusedId(nodeId);
-      });
+      }, 'today-panel');
     } else {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
@@ -670,10 +683,11 @@ function App() {
 
   // Handle backlinks panel navigation (cross-document)
   const handleBacklinksNavigate = useCallback(async (nodeId: string, documentId: string) => {
+    logNav('backlink', { fromDocId: currentDocumentId ?? null, toDocId: documentId, nodeId });
     if (documentId !== currentDocumentId) {
       await switchDocument(documentId, () => {
         useOutlineStore.getState().setFocusedId(nodeId);
-      });
+      }, 'backlink');
     } else {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
@@ -684,7 +698,7 @@ function App() {
     if (documentId !== currentDocumentId) {
       await switchDocument(documentId, () => {
         useOutlineStore.getState().setFocusedId(nodeId);
-      });
+      }, 'bookmark');
     } else {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
@@ -698,12 +712,13 @@ function App() {
 
   // Handle quick navigator navigation
   const handleQuickNavigate = useCallback(async (nodeId: string, documentId: string) => {
+    logNav('quick-nav', { docId: documentId, nodeId });
     if (documentId && documentId !== currentDocumentId) {
       await switchDocument(documentId, () => {
         if (nodeId) {
           useOutlineStore.getState().setFocusedId(nodeId);
         }
-      });
+      }, 'quick-nav');
     } else if (nodeId) {
       useOutlineStore.getState().setFocusedId(nodeId);
     }
@@ -791,7 +806,7 @@ function App() {
       const result = await api.importOpmlFromPicker();
       if (result) {
         // Navigate to the newly imported document
-        await switchDocument(result.doc_id);
+        await switchDocument(result.doc_id, undefined, 'import-opml');
         // Refresh sidebar
         sidebarRef.current?.refresh();
       }

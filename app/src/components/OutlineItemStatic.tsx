@@ -10,6 +10,7 @@ import { NODE_COLORS, getColorCss } from '../lib/colorPalette';
 import { useBookmarkStore } from '../store/bookmarkStore';
 import { renderNoteHtml, handleNoteLinkClick } from '../lib/noteLinks';
 import { buildNotePreview } from '../lib/notePreview';
+import { logNav } from '../lib/navLog';
 import DOMPurify from 'dompurify';
 
 interface OutlineItemStaticProps {
@@ -92,7 +93,14 @@ export const OutlineItemStatic = memo(function OutlineItemStatic({
     const handled = handleStaticContentClick(e.nativeEvent, {
       onHashtagClick: (tag) => store().setFilterQuery(`#${tag}`),
       onMentionClick: (mention) => store().setFilterQuery(`@${mention}`),
-      onWikiLinkClick: (targetId) => onNavigateToNode?.(targetId),
+      onWikiLinkClick: (targetId) => {
+        logNav('wiki-link', {
+          fromDocId: store().documentId ?? null,
+          toDocId: null,
+          nodeId: targetId,
+        });
+        onNavigateToNode?.(targetId);
+      },
     });
     if (handled) return;
     const s = store();

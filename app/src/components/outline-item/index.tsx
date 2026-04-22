@@ -13,6 +13,7 @@ import { useSuggestions } from './useSuggestions';
 import { useOutlineEditor } from './useOutlineEditor';
 import { processStaticContentElement, handleStaticContentClick } from '../../lib/renderStaticContent';
 import { buildNotePreview } from '../../lib/notePreview';
+import { logNav } from '../../lib/navLog';
 import DOMPurify from 'dompurify';
 
 // Suggestion popups
@@ -302,6 +303,11 @@ export const OutlineItem = memo(function OutlineItem({
         useOutlineStore.getState().setFilterQuery(`@${mention}`);
       },
       onWikiLinkClick: (nodeId) => {
+        logNav('wiki-link', {
+          fromDocId: useOutlineStore.getState().documentId ?? null,
+          toDocId: null,
+          nodeId,
+        });
         if (onNavigateToNode) {
           onNavigateToNode(nodeId);
         }

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Editor } from '@tiptap/core';
 import { useOutlineStore } from '../../store/outlineStore';
+import { logNav } from '../../lib/navLog';
 import type { DatePickerMode } from '../ui/DatePicker';
 import type { RecurrenceMode } from '../ui/RecurrencePicker';
 
@@ -232,6 +233,7 @@ export function useSuggestions({ editorRef, nodeId }: UseSuggestionsParams) {
     } else {
       await api.updateNode(nodeId, { date: date || '' });
     }
+    logNav('bulk-refresh', { caller: 'useSuggestions.handleDateSelect' });
     const state = await api.loadDocument(useOutlineStore.getState().documentId ?? undefined);
     useOutlineStore.getState().updateFromState(state);
   }, [nodeId]);
@@ -271,6 +273,7 @@ export function useSuggestions({ editorRef, nodeId }: UseSuggestionsParams) {
       changes.recurrence_mode = mode === 'complete' ? 'complete' : '';
     }
     await api.updateNode(nodeId, changes);
+    logNav('bulk-refresh', { caller: 'useSuggestions.handleRecurrenceSelect' });
     const state = await api.loadDocument(useOutlineStore.getState().documentId ?? undefined);
     useOutlineStore.getState().updateFromState(state);
   }, [nodeId]);

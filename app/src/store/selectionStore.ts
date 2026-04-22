@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Node, DocumentState, UndoAction } from '../lib/types';
 import * as api from '../lib/api';
 import { useOutlineStore } from './outlineStore';
+import { logNav } from '../lib/navLog';
 
 // Progressive Ctrl+A (Dynalist-style) cascade state
 // Level 0 = inactive / not in a cascade
@@ -90,6 +91,14 @@ interface SelectionState {
 
 // Helper to access the outline store
 const outline = () => useOutlineStore.getState();
+
+// Helper: refresh state after a bulk mutation. Logs a navLog [bulk-refresh]
+// line so the forensics trail can tell which selection op triggered the
+// silent loadDocument. See docs/.../doc-load-tracing-design.md (otl-yovg).
+async function refreshAfterBulkOp(caller: string): Promise<DocumentState> {
+  logNav('bulk-refresh', { caller });
+  return api.loadDocument(outline().documentId ?? undefined);
+}
 
 function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
   if (a.size !== b.size) return false;
@@ -572,7 +581,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         await api.deleteNode(node.id);
       }
 
-      const state = await api.loadDocument(outline().documentId ?? undefined);
+      const state = await refreshAfterBulkOp('selectionStore.deleteSelectedNodes');
       updateFromState(state);
 
       set({ selectedIds: new Set<string>() });
@@ -603,7 +612,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         });
       }
 
-      const state = await api.loadDocument(outline().documentId ?? undefined);
+      const state = await refreshAfterBulkOp('selectionStore.toggleSelectedCheckboxes');
       outline().updateFromState(state);
 
       return true;
@@ -628,7 +637,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         });
       }
 
-      const state = await api.loadDocument(outline().documentId ?? undefined);
+      const state = await refreshAfterBulkOp('selectionStore.completeSelectedNodes');
       outline().updateFromState(state);
 
       return true;
@@ -652,7 +661,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         }
       }
 
-      const state = await api.loadDocument(outline().documentId ?? undefined);
+      const state = await refreshAfterBulkOp('selectionStore.uncompleteSelectedNodes');
       outline().updateFromState(state);
 
       return true;
@@ -679,7 +688,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         }
       }
 
-      const state = await api.loadDocument(outline().documentId ?? undefined);
+      const state = await refreshAfterBulkOp('selectionStore.convertSelectedToCheckbox');
       outline().updateFromState(state);
 
       return true;
@@ -706,7 +715,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         }
       }
 
-      const state = await api.loadDocument(outline().documentId ?? undefined);
+      const state = await refreshAfterBulkOp('selectionStore.convertSelectedToBullet');
       outline().updateFromState(state);
 
       return true;
@@ -733,7 +742,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         }
       }
 
-      const state = await api.loadDocument(outline().documentId ?? undefined);
+      const state = await refreshAfterBulkOp('selectionStore.convertSelectedToNumbered');
       outline().updateFromState(state);
 
       return true;
@@ -771,7 +780,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         }
       }
 
-      const state = await api.loadDocument(outline().documentId ?? undefined);
+      const state = await refreshAfterBulkOp('selectionStore.indentSelectedNodes');
       updateFromState(state);
 
       return true;
@@ -807,7 +816,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         await api.moveNode(node.id, parent.parent_id, newPosition);
       }
 
-      const state = await api.loadDocument(outline().documentId ?? undefined);
+      const state = await refreshAfterBulkOp('selectionStore.outdentSelectedNodes');
       updateFromState(state);
 
       return true;
@@ -847,7 +856,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         await api.saveOps(allOps);
       }
 
-      const state = await api.loadDocument(outline().documentId ?? undefined);
+      const state = await refreshAfterBulkOp('selectionStore.moveSelectedToTop');
       outline().updateFromState(state);
 
       return true;
@@ -895,7 +904,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         }
       }
 
-      const state = await api.loadDocument(outline().documentId ?? undefined);
+      const state = await refreshAfterBulkOp('selectionStore.moveSelectedToBottom');
       updateFromState(state);
 
       return true;

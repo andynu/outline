@@ -1,5 +1,6 @@
 import type { DatedNodeInfo, DocumentState, Node, NodeChanges, NodeType, Operation } from './types';
 import { stripHtml } from './utils';
+import { logNav } from './navLog';
 
 // Check if we're running in Tauri
 let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null | undefined = undefined;
@@ -197,6 +198,7 @@ function createMockData(): DocumentState {
 // Load document from Rust backend or use mock data
 export async function loadDocument(docId?: string): Promise<DocumentState> {
   await initTauri();
+  logNav('api-load', { docId: docId ?? null });
   if (tauriInvoke) {
     console.log('[API] load_document via Tauri');
     const result = await tauriInvoke('load_document', { docId }) as DocumentState;
