@@ -118,6 +118,13 @@ enum DocCommand {
         /// Document ID
         id: String,
     },
+    /// Rename a document's short-ID prefix (slug)
+    RenamePrefix {
+        /// Document ID, UUID, or current prefix
+        doc: String,
+        /// New prefix — lowercase letters and digits only, 1..=16 chars
+        new_prefix: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -301,6 +308,7 @@ fn run(cli: Cli, out: &OutputMode) -> Result<(), String> {
             DocCommand::List => cmd_doc_list(out),
             DocCommand::Show { id, flat, level } => cmd_doc_show(out, &id, flat, level, &cli.doc),
             DocCommand::Delete { id } => cmd_doc_delete(out, &id),
+            DocCommand::RenamePrefix { doc, new_prefix } => cmd_doc_rename_prefix(out, &doc, &new_prefix),
         },
         Commands::Node { command } => match command {
             NodeCommand::Create { parent_id, content, position, r#type, note } => {
@@ -609,6 +617,36 @@ fn print_tree(nodes: &[outline_core::data::Node], parent_id: Option<uuid::Uuid>,
 
         print_tree(nodes, Some(node.id), depth + 1, max_depth, prefix);
     }
+}
+
+fn cmd_doc_rename_prefix(out: &OutputMode, doc: &str, new_prefix: &str) -> Result<(), String> {
+    use outline_core::data::short_ids;
+
+    let doc_uuid = resolve_doc_ref(doc)?;
+
+    // Snapshot the old prefix (if any) for nicer output.
+    let old_prefix = short_ids::load_prefix_map()
+        .prefixes
+        .iter()
+        .find(|(_, id)| **id == doc_uuid.to_string())
+        .map(|(p, _)| p.clone());
+
+    short_ids::rename_prefix(&doc_uuid, new_prefix)?;
+
+    if out.is_json() {
+        out.print_json(&serde_json::json!({
+            "document_id": doc_uuid.to_string(),
+            "old_prefix": old_prefix,
+            "new_prefix": new_prefix,
+        }));
+    } else {
+        match old_prefix {
+            Some(old) => eprintln!("Renamed slug: {} -> {} (document {})", old, new_prefix, doc_uuid),
+            None => eprintln!("Set slug: {} (document {})", new_prefix, doc_uuid),
+        }
+    }
+
+    Ok(())
 }
 
 fn cmd_doc_delete(_out: &OutputMode, id: &str) -> Result<(), String> {

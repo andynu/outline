@@ -96,6 +96,7 @@ pub fn run() {
             commands::list_documents,
             commands::get_all_dated_nodes,
             commands::delete_document,
+            commands::rename_document_prefix,
             commands::get_backlinks,
             commands::get_unlinked_references,
             commands::convert_mention_to_link,

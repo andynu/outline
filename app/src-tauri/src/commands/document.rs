@@ -295,6 +295,7 @@ pub struct DocumentInfo {
     pub title: String,
     pub node_count: usize,
     pub title_node_id: Option<String>,  // ID of the first root node (for renaming)
+    pub prefix: Option<String>,          // Short-ID prefix / slug (e.g. "outline")
 }
 
 /// List all available documents
@@ -305,6 +306,10 @@ pub fn list_documents() -> Result<Vec<DocumentInfo>, String> {
 
     let doc_ids = list_doc_ids()?;
     let mut documents = Vec::new();
+
+    // Snapshot the prefix map so we can surface the slug to the UI without
+    // mutating it on every list (rename_prefix / ensure_short_ids own writes).
+    let prefix_map = short_ids::load_prefix_map();
 
     for doc_id in doc_ids {
         let doc_dir = documents_dir().join(doc_id.to_string());
@@ -323,16 +328,34 @@ pub fn list_documents() -> Result<Vec<DocumentInfo>, String> {
 
             let title_node_id = first_root.map(|n| n.id.to_string());
 
+            let doc_id_str = doc_id.to_string();
+            let prefix = prefix_map
+                .prefixes
+                .iter()
+                .find(|(_, id)| **id == doc_id_str)
+                .map(|(p, _)| p.clone());
+
             documents.push(DocumentInfo {
-                id: doc_id.to_string(),
+                id: doc_id_str,
                 title,
                 node_count: doc.state.nodes.len(),
                 title_node_id,
+                prefix,
             });
         }
     }
 
     Ok(documents)
+}
+
+/// Rename a document's short-ID prefix (slug).
+///
+/// Node short_ids are preserved — they continue to resolve against the
+/// updated prefix map. See outline_core::data::short_ids::rename_prefix.
+#[tauri::command]
+pub fn rename_document_prefix(doc_id: String, new_prefix: String) -> Result<(), String> {
+    let doc_uuid = parse_uuid(&doc_id)?;
+    short_ids::rename_prefix(&doc_uuid, &new_prefix)
 }
 
 /// A dated node with its document context
