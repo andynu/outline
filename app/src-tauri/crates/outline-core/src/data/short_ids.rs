@@ -141,6 +141,69 @@ pub fn save_prefix_map(map: &DocPrefixMap) -> Result<(), String> {
     Ok(())
 }
 
+/// Validate a user-supplied document prefix.
+///
+/// Rules mirror what `document_prefix` auto-produces so user-chosen slugs
+/// behave identically when they appear in short IDs and short-ID parsing:
+/// - non-empty, <= 16 chars (generous ceiling; auto-derived ones are <= 8)
+/// - ASCII lowercase alphanumeric only (no hyphens — the hyphen separates
+///   prefix from code in resolve_short_id)
+pub fn validate_prefix(prefix: &str) -> Result<(), String> {
+    if prefix.is_empty() {
+        return Err("Slug cannot be empty".to_string());
+    }
+    if prefix.len() > 16 {
+        return Err("Slug must be 16 characters or fewer".to_string());
+    }
+    if !prefix.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()) {
+        return Err("Slug must contain only lowercase letters and digits (no hyphens, spaces, or uppercase)".to_string());
+    }
+    Ok(())
+}
+
+/// Rename a document's prefix. Validates the new value, enforces uniqueness
+/// against other documents in the prefix map, and persists the change.
+///
+/// Node-level short IDs are unchanged — they're stored per-node and continue
+/// to resolve against the updated prefix map (resolve_short_id looks up the
+/// prefix fresh on each call).
+pub fn rename_prefix(doc_id: &Uuid, new_prefix: &str) -> Result<(), String> {
+    validate_prefix(new_prefix)?;
+
+    let mut map = load_prefix_map();
+    let doc_id_str = doc_id.to_string();
+
+    // Find the current prefix for this document (if any).
+    let current_prefix = map
+        .prefixes
+        .iter()
+        .find(|(_, id)| **id == doc_id_str)
+        .map(|(p, _)| p.clone());
+
+    // No-op if unchanged.
+    if current_prefix.as_deref() == Some(new_prefix) {
+        return Ok(());
+    }
+
+    // Reject if the target prefix is already claimed by a different document.
+    if let Some(existing_id) = map.prefixes.get(new_prefix) {
+        if existing_id != &doc_id_str {
+            return Err(format!(
+                "Slug '{}' is already used by another document",
+                new_prefix
+            ));
+        }
+    }
+
+    // Remove the old mapping (if any) and insert the new one.
+    if let Some(ref old) = current_prefix {
+        map.prefixes.remove(old);
+    }
+    map.prefixes.insert(new_prefix.to_string(), doc_id_str);
+
+    save_prefix_map(&map)
+}
+
 /// Get or create a prefix for a document, updating the map if needed
 pub fn get_or_create_prefix(doc_id: &Uuid, title: &str, map: &mut DocPrefixMap) -> String {
     let doc_id_str = doc_id.to_string();
@@ -252,6 +315,22 @@ fn strip_html_simple(html: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::document::{set_data_dir, TEST_DATA_DIR_MUTEX};
+    use tempfile::TempDir;
+
+    #[allow(dead_code)]
+    struct TestDataDir(TempDir);
+    impl Drop for TestDataDir {
+        fn drop(&mut self) {
+            set_data_dir(None);
+        }
+    }
+
+    fn setup_test_data_dir() -> TestDataDir {
+        let tmp = TempDir::new().unwrap();
+        set_data_dir(Some(tmp.path().to_path_buf()));
+        TestDataDir(tmp)
+    }
 
     #[test]
     fn test_generate_short_code() {
@@ -313,6 +392,116 @@ mod tests {
         // Second call should not assign new ones
         let assigned2 = assign_short_ids(&mut nodes);
         assert!(!assigned2);
+    }
+
+    #[test]
+    fn test_validate_prefix_accepts_valid() {
+        assert!(validate_prefix("work").is_ok());
+        assert!(validate_prefix("w").is_ok());
+        assert!(validate_prefix("abc123").is_ok());
+        assert!(validate_prefix("0abc").is_ok());
+        assert!(validate_prefix(&"a".repeat(16)).is_ok());
+    }
+
+    #[test]
+    fn test_rename_prefix_updates_map() {
+        let _lock = TEST_DATA_DIR_MUTEX.lock().unwrap();
+        let _guard = setup_test_data_dir();
+
+        let doc_id = Uuid::now_v7();
+        // Seed map with an existing prefix.
+        let mut map = DocPrefixMap::default();
+        map.prefixes.insert("old".to_string(), doc_id.to_string());
+        save_prefix_map(&map).unwrap();
+
+        rename_prefix(&doc_id, "new").unwrap();
+
+        let reloaded = load_prefix_map();
+        assert_eq!(reloaded.prefixes.get("new"), Some(&doc_id.to_string()));
+        assert!(reloaded.prefixes.get("old").is_none());
+    }
+
+    #[test]
+    fn test_rename_prefix_rejects_duplicate() {
+        let _lock = TEST_DATA_DIR_MUTEX.lock().unwrap();
+        let _guard = setup_test_data_dir();
+
+        let doc_a = Uuid::now_v7();
+        let doc_b = Uuid::now_v7();
+        let mut map = DocPrefixMap::default();
+        map.prefixes.insert("aaa".to_string(), doc_a.to_string());
+        map.prefixes.insert("bbb".to_string(), doc_b.to_string());
+        save_prefix_map(&map).unwrap();
+
+        // doc_a trying to take "bbb" should fail.
+        let err = rename_prefix(&doc_a, "bbb").unwrap_err();
+        assert!(err.contains("already used"), "got: {}", err);
+
+        // Map should be unchanged.
+        let reloaded = load_prefix_map();
+        assert_eq!(reloaded.prefixes.get("aaa"), Some(&doc_a.to_string()));
+        assert_eq!(reloaded.prefixes.get("bbb"), Some(&doc_b.to_string()));
+    }
+
+    #[test]
+    fn test_rename_prefix_rejects_invalid() {
+        let _lock = TEST_DATA_DIR_MUTEX.lock().unwrap();
+        let _guard = setup_test_data_dir();
+
+        let doc_id = Uuid::now_v7();
+        let mut map = DocPrefixMap::default();
+        map.prefixes.insert("old".to_string(), doc_id.to_string());
+        save_prefix_map(&map).unwrap();
+
+        assert!(rename_prefix(&doc_id, "Bad-Prefix").is_err());
+        assert!(rename_prefix(&doc_id, "").is_err());
+
+        // Map should be unchanged.
+        let reloaded = load_prefix_map();
+        assert_eq!(reloaded.prefixes.get("old"), Some(&doc_id.to_string()));
+    }
+
+    #[test]
+    fn test_rename_prefix_noop_when_unchanged() {
+        let _lock = TEST_DATA_DIR_MUTEX.lock().unwrap();
+        let _guard = setup_test_data_dir();
+
+        let doc_id = Uuid::now_v7();
+        let mut map = DocPrefixMap::default();
+        map.prefixes.insert("keep".to_string(), doc_id.to_string());
+        save_prefix_map(&map).unwrap();
+
+        // Renaming to same value should succeed silently.
+        rename_prefix(&doc_id, "keep").unwrap();
+
+        let reloaded = load_prefix_map();
+        assert_eq!(reloaded.prefixes.get("keep"), Some(&doc_id.to_string()));
+        assert_eq!(reloaded.prefixes.len(), 1);
+    }
+
+    #[test]
+    fn test_rename_prefix_adds_if_missing() {
+        let _lock = TEST_DATA_DIR_MUTEX.lock().unwrap();
+        let _guard = setup_test_data_dir();
+
+        // Doc has no existing prefix in the map (edge case — should still
+        // succeed by inserting the new one).
+        let doc_id = Uuid::now_v7();
+        rename_prefix(&doc_id, "fresh").unwrap();
+
+        let reloaded = load_prefix_map();
+        assert_eq!(reloaded.prefixes.get("fresh"), Some(&doc_id.to_string()));
+    }
+
+    #[test]
+    fn test_validate_prefix_rejects_invalid() {
+        assert!(validate_prefix("").is_err());
+        assert!(validate_prefix("Work").is_err()); // uppercase
+        assert!(validate_prefix("my-work").is_err()); // hyphen
+        assert!(validate_prefix("my work").is_err()); // space
+        assert!(validate_prefix("my_work").is_err()); // underscore
+        assert!(validate_prefix(&"a".repeat(17)).is_err()); // too long
+        assert!(validate_prefix("café").is_err()); // non-ascii
     }
 
     #[test]
