@@ -1,5 +1,21 @@
 import { test, expect } from '@playwright/test';
 
+type Row = { text: string; depth: number; focused: boolean };
+// Visible items, top-to-bottom, with nesting depth (number of .children-wrapper
+// ancestors). Focused items render .outline-editor, others .static-content —
+// exactly one content node per item.
+async function visibleTree(page: import('@playwright/test').Page): Promise<Row[]> {
+  return page.$$eval('.outline-editor, .static-content', (nodes) =>
+    nodes.map((n) => {
+      const item = (n as HTMLElement).closest('.outline-item') as HTMLElement | null;
+      let depth = 0;
+      let p: HTMLElement | null = item?.parentElement ?? null;
+      while (p) { if (p.classList && p.classList.contains('children-wrapper')) depth++; p = p.parentElement; }
+      return { text: (n.textContent || '').trim(), depth, focused: !!(item && item.classList.contains('focused')) };
+    })
+  );
+}
+
 test.describe('Enter key split behavior', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
@@ -160,58 +176,56 @@ test.describe('Enter key split behavior', () => {
     expect(html).toContain('ld');
   });
 
-  test('Split moves children to new item', async ({ page }) => {
-    // Navigate to an item with children (Getting Started has children)
-    const editors = page.locator('.editor-wrapper');
+  test('Split on an expanded parent: after-text becomes first child, children stay (otl-3smu)', async ({ page }) => {
+    const firstEditor = page.locator('.editor-wrapper').first();
+    await firstEditor.click();
+    await page.waitForTimeout(100);
 
-    // Find "Getting Started" item which has children
-    let targetIdx = -1;
-    const count = await editors.count();
-    for (let i = 0; i < count; i++) {
-      const text = await editors.nth(i).textContent();
-      if (text?.includes('Getting Started')) {
-        targetIdx = i;
-        break;
-      }
-    }
+    // Build ParentZ with children C1, C2 (expanded)
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('ParentZ');
+    await page.waitForTimeout(150);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('C1');
+    await page.waitForTimeout(150);
+    await page.keyboard.press('Tab'); // C1 becomes child of ParentZ
+    await page.waitForTimeout(200);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('C2'); // sibling of C1 (also child of ParentZ)
+    await page.waitForTimeout(200);
 
-    // If we found it, test the split
-    if (targetIdx >= 0) {
-      await editors.nth(targetIdx).click();
-      await page.waitForTimeout(200);
+    // Focus ParentZ (visible order: ParentZ, C1, C2 -> two ArrowUps)
+    await page.keyboard.press('ArrowUp');
+    await page.waitForTimeout(150);
+    await page.keyboard.press('ArrowUp');
+    await page.waitForTimeout(300);
+    // Restore DOM focus (lost after structural/nav ops), then place caret after "Paren"
+    await page.locator('.outline-item.focused .outline-editor').click();
+    await page.waitForTimeout(60);
+    expect(await page.locator('.outline-item.focused .outline-editor').textContent()).toBe('ParentZ');
+    await page.keyboard.press('Home');
+    for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(80);
 
-      // First verify it has children by checking the children wrapper
-      const parentItem = page.locator('.outline-item.focused');
-      const hasChildrenBefore = await parentItem.locator('.children-wrapper').count() > 0;
+    // Split: "Paren" | "tZ"
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(400);
 
-      if (hasChildrenBefore) {
-        // Count children before split
-        const childrenBefore = await parentItem.locator('.children-wrapper .outline-item').count();
-        expect(childrenBefore).toBeGreaterThan(0);
+    // The after-text is focused...
+    const focused = page.locator('.outline-item.focused .outline-editor');
+    expect(await focused.textContent()).toBe('tZ');
 
-        // Move to middle of content and split
-        const content = await parentItem.locator('.outline-editor').textContent();
-        await page.keyboard.press('Home');
-        const midPoint = Math.floor((content?.length || 10) / 2);
-        for (let i = 0; i < midPoint; i++) {
-          await page.keyboard.press('ArrowRight');
-        }
-        await page.waitForTimeout(50);
-
-        await page.keyboard.press('Enter');
-        await page.waitForTimeout(300);
-
-        // The new focused item should now have the children
-        const newFocusedItem = page.locator('.outline-item.focused');
-        const hasChildrenAfter = await newFocusedItem.locator('.children-wrapper').count() > 0;
-
-        if (hasChildrenBefore) {
-          // Children should have moved to the new item
-          const childrenAfter = await newFocusedItem.locator('.children-wrapper .outline-item').count();
-          expect(childrenAfter).toBe(childrenBefore);
-        }
-      }
-    }
+    // ...and it is the FIRST CHILD of "Paren", which keeps C1/C2. Children never migrate.
+    const tree = await visibleTree(page);
+    const pIdx = tree.findIndex((r) => r.text === 'Paren');
+    expect(pIdx).toBeGreaterThanOrEqual(0);
+    const d = tree[pIdx].depth;
+    expect(tree[pIdx + 1]).toMatchObject({ text: 'tZ', depth: d + 1, focused: true });
+    expect(tree[pIdx + 2]).toMatchObject({ text: 'C1', depth: d + 1 });
+    expect(tree[pIdx + 3]).toMatchObject({ text: 'C2', depth: d + 1 });
   });
 
   test('Enter on empty item creates new sibling', async ({ page }) => {
@@ -236,7 +250,7 @@ test.describe('Enter key split behavior', () => {
     expect(countAfter).toBe(countBefore + 1);
   });
 
-  test('Split while zoomed into a node with children zooms out instead of showing empty view', async ({ page }) => {
+  test('Split while zoomed into a node with children keeps the view populated', async ({ page }) => {
     // Create a parent item with children
     const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
@@ -294,12 +308,11 @@ test.describe('Enter key split behavior', () => {
     await page.keyboard.press('Enter');
     await page.waitForTimeout(300);
 
-    // The key test: outline should NOT be empty - items should still be visible
+    // The key test: outline should NOT be empty - items should still be visible.
+    // Under otl-3smu the after-text becomes a first child (inside the zoom) and
+    // the existing children stay, so the view is populated without zooming out.
     const itemsAfter = await page.locator('.outline-item').count();
     expect(itemsAfter).toBeGreaterThan(0);
-
-    // Should have zoomed out (breadcrumbs may or may not be visible depending on parent)
-    // The main assertion is that items are still visible (not empty view)
   });
 
   test('Split places caret at the split point (start of new item), not the end', async ({ page }) => {

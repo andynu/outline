@@ -1260,63 +1260,61 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
   },
 
   splitNode: async (nodeId: string, beforeContent: string, afterContent: string) => {
-    const { getNode, getSiblings, childrenOf, updateFromState, zoomedNodeId, _pushUndo } = get();
+    const { getNode, getSiblings, childrenOf, updateFromState, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node) return null;
-
-    const siblings = getSiblings(nodeId);
-    const idx = siblings.findIndex(n => n.id === nodeId);
-    // Anchor on the actual sibling position (not array index) to avoid
-    // collisions when sibling positions have gaps. See otl-o38c.
-    const anchorPos = siblings[idx]?.position ?? idx;
-    const newPosition = anchorPos + 1;
-
-    // Get children to move to new node
-    const children = childrenOf(nodeId);
 
     // Capture original content before split for undo
     const originalContent = node.content;
 
-    // Check if we're zoomed into the node being split and it has children
-    // If so, we need to zoom out after the split to avoid an empty view
-    const wasZoomedIntoSplitNode = zoomedNodeId === nodeId && children.length > 0;
+    // Place the new (after-text) node exactly where Enter-at-end would: an
+    // expanded item WITH children gets a new FIRST CHILD; otherwise a sibling
+    // after. Children never migrate — they stay with the (before-text) node.
+    // This makes Enter-at-end and Enter-mid-text consistent. (otl-3smu)
+    const children = childrenOf(nodeId);
+    const asFirstChild = children.length > 0 && !node.collapsed;
 
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      // Update current node with "before" content
+      // Truncate current node to the "before" content
       await api.updateNode(nodeId, { content: beforeContent });
 
-      // Batch shift siblings after insertion point. Pack trailing siblings
-      // to newPosition + 1, + 2, ... so they never collide with the newly
-      // created node or each other.
       const now = new Date().toISOString();
-      const siblingMoveOps = siblings.slice(idx + 1).map((s, i) => ({
-        op: 'move' as const,
-        id: s.id,
-        parent_id: node.parent_id,
-        position: newPosition + 1 + i,
-        updated_at: now,
-      }));
-      if (siblingMoveOps.length > 0) {
-        await api.saveOps(siblingMoveOps);
+      let result: { id: string; state: DocumentState };
+      if (asFirstChild) {
+        // Shift existing children down by one, insert the new node at position 0.
+        const childMoveOps = children.map((c, i) => ({
+          op: 'move' as const,
+          id: c.id,
+          parent_id: nodeId,
+          position: i + 1,
+          updated_at: now,
+        }));
+        if (childMoveOps.length > 0) {
+          await api.saveOps(childMoveOps);
+        }
+        result = await api.createNode(nodeId, 0, afterContent);
+      } else {
+        // Sibling after: anchor on the actual position (not array index) to
+        // avoid collisions when sibling positions have gaps. See otl-o38c.
+        const siblings = getSiblings(nodeId);
+        const idx = siblings.findIndex(n => n.id === nodeId);
+        const anchorPos = siblings[idx]?.position ?? idx;
+        const newPosition = anchorPos + 1;
+        const siblingMoveOps = siblings.slice(idx + 1).map((s, i) => ({
+          op: 'move' as const,
+          id: s.id,
+          parent_id: node.parent_id,
+          position: newPosition + 1 + i,
+          updated_at: now,
+        }));
+        if (siblingMoveOps.length > 0) {
+          await api.saveOps(siblingMoveOps);
+        }
+        result = await api.createNode(node.parent_id, newPosition, afterContent);
       }
 
-      // Create new node with "after" content
-      const result = await api.createNode(node.parent_id, newPosition, afterContent);
-
-      // Batch move children from original node to new node
-      const childMoveOps = children.map((child, i) => ({
-        op: 'move' as const,
-        id: child.id,
-        parent_id: result.id,
-        position: i,
-        updated_at: now,
-      }));
-      if (childMoveOps.length > 0) {
-        await api.saveOps(childMoveOps);
-      }
-
-      // Reload to get final state after all moves
+      // Reload to get final state
       logNav('bulk-refresh', { caller: 'outlineStore.splitNode' });
       const finalState = await api.loadDocument(get().documentId ?? undefined);
       updateFromState(finalState);
@@ -1325,36 +1323,17 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       // where the user was typing — not focus('end'). (otl-h3g8)
       set({ focusedId: result.id, pendingCursorPos: 0 });
 
-      // If we were zoomed into the split node, zoom out to its parent
-      // This prevents an empty view since the original node's children moved away
-      if (wasZoomedIntoSplitNode) {
-        set({ zoomedNodeId: node.parent_id });
-      }
-
-      // Build undo entry for split:
-      // Undo: move children back to original node, delete the new node, restore original content
-      // Redo: re-split by updating content, creating new node, and moving children
+      // Undo: delete the new node, restore original content.
+      // Redo: re-split (truncate content, recreate the new node).
       const undoActions: UndoAction[] = [];
-      // Move children back from new node to original node
-      for (let i = 0; i < children.length; i++) {
-        undoActions.push({ type: 'move', id: children[i].id, parentId: nodeId, position: i });
-      }
-      // Delete the new split-off node
       undoActions.push({ type: 'delete', id: result.id });
-      // Restore the original node's content
       undoActions.push({ type: 'update', id: nodeId, changes: { content: originalContent } });
 
       const newNode = get().getNode(result.id);
       const redoActions: UndoAction[] = [];
-      // Update original node to before content
       redoActions.push({ type: 'update', id: nodeId, changes: { content: beforeContent } });
-      // Recreate the split-off node
       if (newNode) {
         redoActions.push({ type: 'create', node: { ...newNode } });
-      }
-      // Move children to the new node
-      for (let i = 0; i < children.length; i++) {
-        redoActions.push({ type: 'move', id: children[i].id, parentId: result.id, position: i });
       }
 
       _pushUndo({
