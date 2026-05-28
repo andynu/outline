@@ -1321,7 +1321,9 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
       const finalState = await api.loadDocument(get().documentId ?? undefined);
       updateFromState(finalState);
 
-      set({ focusedId: result.id });
+      // Caret belongs at the split point: the start of the new "after" node,
+      // where the user was typing — not focus('end'). (otl-h3g8)
+      set({ focusedId: result.id, pendingCursorPos: 0 });
 
       // If we were zoomed into the split node, zoom out to its parent
       // This prevents an empty view since the original node's children moved away

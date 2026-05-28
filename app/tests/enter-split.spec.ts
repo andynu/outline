@@ -301,4 +301,36 @@ test.describe('Enter key split behavior', () => {
     // Should have zoomed out (breadcrumbs may or may not be visible depending on parent)
     // The main assertion is that items are still visible (not empty view)
   });
+
+  test('Split places caret at the split point (start of new item), not the end', async ({ page }) => {
+    const firstEditor = page.locator('.editor-wrapper').first();
+    await firstEditor.click();
+    await page.waitForTimeout(100);
+
+    // Fresh item with content to split
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('HelloWorld');
+    await page.waitForTimeout(100);
+
+    // Move caret to just after "Hello" (5 chars from start)
+    await page.keyboard.press('Home');
+    for (let i = 0; i < 5; i++) {
+      await page.keyboard.press('ArrowRight');
+    }
+    await page.waitForTimeout(50);
+
+    // Split
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+
+    // New focused item holds the "after" text
+    const focusedEditor = page.locator('.outline-item.focused .outline-editor');
+    expect(await focusedEditor.textContent()).toBe('World');
+
+    // Caret must be at the START of the new item: the next typed char lands before "World"
+    await page.keyboard.type('X');
+    await page.waitForTimeout(100);
+    expect(await focusedEditor.textContent()).toBe('XWorld');
+  });
 });
