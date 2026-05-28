@@ -316,3 +316,125 @@ test.describe('Forward Delete key behavior', () => {
     expect(newContent).toBe('XThird item');
   });
 });
+
+test.describe('Merge uses the visible neighbor, not just the sibling (otl-7yri)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('.outline-item', { timeout: 10000 });
+  });
+
+  // After a structural op (Tab/Shift+Tab/Arrow), the editor briefly loses DOM
+  // focus; click the focused item to restore it before placing the caret.
+  const placeCaret = async (page: import('@playwright/test').Page, where: 'Home' | 'End') => {
+    await page.waitForTimeout(300);
+    await page.locator('.outline-item.focused .outline-editor').click();
+    await page.waitForTimeout(60);
+    await page.keyboard.press(where);
+    await page.waitForTimeout(80);
+  };
+
+  test('Backspace at start of a non-empty first child merges into its parent', async ({ page }) => {
+    const firstEditor = page.locator('.editor-wrapper').first();
+    await firstEditor.click();
+    await page.waitForTimeout(100);
+
+    // Parent with one child
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('ParentX');
+    await page.waitForTimeout(150);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('ChildX');
+    await page.waitForTimeout(150);
+    await page.keyboard.press('Tab'); // ChildX becomes child of ParentX
+    await page.waitForTimeout(200);
+
+    const countBefore = await page.locator('.outline-item').count();
+
+    await placeCaret(page, 'Home');
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(400);
+
+    // Previously a dead no-op; now it must merge ChildX up into ParentX
+    const countAfter = await page.locator('.outline-item').count();
+    expect(countAfter).toBe(countBefore - 1);
+
+    const focused = page.locator('.outline-item.focused .outline-editor');
+    expect(await focused.textContent()).toBe('ParentXChildX');
+
+    // Caret sits at the join point (after "ParentX")
+    await page.keyboard.type('|');
+    await page.waitForTimeout(100);
+    expect(await focused.textContent()).toBe('ParentX|ChildX');
+  });
+
+  test('Backspace at start merges into the previous VISIBLE row, even across levels', async ({ page }) => {
+    const firstEditor = page.locator('.editor-wrapper').first();
+    await firstEditor.click();
+    await page.waitForTimeout(100);
+
+    // Getting Started > AX > A1X ; BX  (BX's sibling is AX, but the row visually
+    // above BX is A1X). Built by indent/outdent; see _diag for the exact tree.
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('AX');
+    await page.waitForTimeout(150);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('A1X');
+    await page.waitForTimeout(150);
+    await page.keyboard.press('Tab'); // child of AX
+    await page.waitForTimeout(200);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('BX');
+    await page.waitForTimeout(150);
+    await page.keyboard.press('Shift+Tab'); // outdent BX to AX's level
+    await page.waitForTimeout(200);
+
+    await placeCaret(page, 'Home');
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(400);
+
+    // The visible row above BX is A1X (not its sibling AX) — merge into A1X
+    const focused = page.locator('.outline-item.focused .outline-editor');
+    expect(await focused.textContent()).toBe('A1XBX');
+  });
+
+  test('Delete at end of a last child merges the next visible row up into it', async ({ page }) => {
+    const firstEditor = page.locator('.editor-wrapper').first();
+    await firstEditor.click();
+    await page.waitForTimeout(100);
+
+    // Getting Started > AX > A1X ; BX  (A1X is AX's last child; BX is next visible)
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('AX');
+    await page.waitForTimeout(150);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('A1X');
+    await page.waitForTimeout(150);
+    await page.keyboard.press('Tab'); // child of AX
+    await page.waitForTimeout(200);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('BX');
+    await page.waitForTimeout(150);
+    await page.keyboard.press('Shift+Tab'); // BX to AX's level
+    await page.waitForTimeout(200);
+
+    // Focus A1X (the last child of AX), caret at end
+    await page.keyboard.press('ArrowUp'); // BX -> A1X
+    await placeCaret(page, 'End');
+    const focused = page.locator('.outline-item.focused .outline-editor');
+    expect(await focused.textContent()).toBe('A1X');
+
+    // Delete at end: previously a dead no-op (no next sibling); now merges BX up
+    await page.keyboard.press('Delete');
+    await page.waitForTimeout(400);
+
+    expect(await focused.textContent()).toBe('A1XBX');
+  });
+});

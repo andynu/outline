@@ -190,8 +190,8 @@ interface OutlineState {
   addSiblingBefore: (nodeId: string) => Promise<string | null>;
   createFirstChild: (parentId: string) => Promise<string | null>;
   splitNode: (nodeId: string, beforeContent: string, afterContent: string) => Promise<string | null>;
-  mergeWithNextSibling: (nodeId: string) => Promise<{ cursorPos: number } | null>;
-  mergeWithPreviousSibling: (nodeId: string) => Promise<{ cursorPos: number; newFocusId: string } | null>;
+  mergeWithNext: (nodeId: string) => Promise<{ cursorPos: number; mergedContent: string } | null>;
+  mergeWithPrevious: (nodeId: string) => Promise<{ cursorPos: number; newFocusId: string } | null>;
   updateContent: (nodeId: string, content: string) => Promise<void>;
   updateNote: (nodeId: string, note: string) => void;  // Debounced
   deleteNode: (nodeId: string, focusDirection?: 'previous' | 'next') => Promise<string | null>;
@@ -1373,38 +1373,40 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     }
   },
 
-  mergeWithNextSibling: async (nodeId: string) => {
-    const { getNode, getSiblings, childrenOf, updateFromState, _pushUndo } = get();
+  mergeWithNext: async (nodeId: string) => {
+    const { getNode, getVisibleNodes, childrenOf, updateFromState, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node) return null;
 
-    const siblings = getSiblings(nodeId);
-    const idx = siblings.findIndex(n => n.id === nodeId);
-
-    // Check if there's a next sibling
-    if (idx < 0 || idx >= siblings.length - 1) return null;
-    const nextSibling = siblings[idx + 1];
+    // Merge the NEXT VISIBLE row up into this node (the "join line below" model
+    // shared with Dynalist/Workflowy), not strictly the next sibling. This also
+    // fixes the dead no-op when the node was the last child. (otl-7yri)
+    const visible = getVisibleNodes();
+    const idx = visible.findIndex(n => n.id === nodeId);
+    if (idx < 0 || idx >= visible.length - 1) return null;
+    const target = visible[idx + 1];
 
     // Capture state before merge for undo
     const originalContent = node.content;
-    const nextSiblingContent = nextSibling.content;
-    const savedNextSibling = { ...nextSibling };
+    const savedTarget = { ...target };
 
-    // Calculate cursor position (end of current content, before merge)
+    // Calculate cursor position (end of current content, the join point)
     // Strip HTML tags to get text length
     const plainTextLength = node.content.replace(/<[^>]*>/g, '').length;
 
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      // Merge content: append next sibling's content to current node
-      const mergedContent = node.content + nextSibling.content;
+      // Merge content: append the target's content to the current node
+      const mergedContent = node.content + target.content;
       await api.updateNode(nodeId, { content: mergedContent });
 
-      // Batch move next sibling's children to current node (after current's children)
-      const currentChildren = childrenOf(nodeId);
-      const nextChildren = childrenOf(nextSibling.id);
+      // Move the target's children under this node, after this node's existing
+      // children. Exclude the target itself if it is currently a child of this
+      // node (so we don't count the soon-deleted node).
+      const currentChildren = childrenOf(nodeId).filter(c => c.id !== target.id);
+      const targetChildren = childrenOf(target.id);
       const now = new Date().toISOString();
-      const childMoveOps = nextChildren.map((child, i) => ({
+      const childMoveOps = targetChildren.map((child, i) => ({
         op: 'move' as const,
         id: child.id,
         parent_id: nodeId,
@@ -1415,36 +1417,30 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         await api.saveOps(childMoveOps);
       }
 
-      // Delete the next sibling (now empty)
-      await api.deleteNode(nextSibling.id);
+      // Delete the target (now merged away)
+      await api.deleteNode(target.id);
 
       // Reload state
-      logNav('bulk-refresh', { caller: 'outlineStore.mergeWithNextSibling' });
+      logNav('bulk-refresh', { caller: 'outlineStore.mergeWithNext' });
       const state = await api.loadDocument(get().documentId ?? undefined);
       updateFromState(state);
 
       // Build undo entry for merge:
-      // Undo: restore original content, recreate next sibling, move children back
-      // Redo: re-merge by updating content, moving children, deleting next sibling
+      // Undo: restore original content, recreate target, move children back
+      // Redo: re-merge by updating content, moving children, deleting target
       const undoActions: UndoAction[] = [];
-      // Restore original content of surviving node
       undoActions.push({ type: 'update', id: nodeId, changes: { content: originalContent } });
-      // Recreate the deleted next sibling
-      undoActions.push({ type: 'create', node: savedNextSibling });
-      // Move children back to the recreated next sibling
-      for (let i = 0; i < nextChildren.length; i++) {
-        undoActions.push({ type: 'move', id: nextChildren[i].id, parentId: nextSibling.id, position: i });
+      undoActions.push({ type: 'create', node: savedTarget });
+      for (let i = 0; i < targetChildren.length; i++) {
+        undoActions.push({ type: 'move', id: targetChildren[i].id, parentId: target.id, position: i });
       }
 
       const redoActions: UndoAction[] = [];
-      // Re-merge: update surviving node with merged content
       redoActions.push({ type: 'update', id: nodeId, changes: { content: mergedContent } });
-      // Move children from next sibling to surviving node
-      for (let i = 0; i < nextChildren.length; i++) {
-        redoActions.push({ type: 'move', id: nextChildren[i].id, parentId: nodeId, position: currentChildren.length + i });
+      for (let i = 0; i < targetChildren.length; i++) {
+        redoActions.push({ type: 'move', id: targetChildren[i].id, parentId: nodeId, position: currentChildren.length + i });
       }
-      // Delete the next sibling again
-      redoActions.push({ type: 'delete', id: nextSibling.id });
+      redoActions.push({ type: 'delete', id: target.id });
 
       _pushUndo({
         description: 'Merge items',
@@ -1453,7 +1449,10 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
         timestamp: Date.now(),
       });
 
-      return { cursorPos: plainTextLength };
+      // Focus stays on this node. The editor keeps DOM focus, so the
+      // external-content sync effect (index.tsx) is skipped — return the merged
+      // content + caret so the Delete handler can reconcile the live editor.
+      return { cursorPos: plainTextLength, mergedContent };
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
       return null;
@@ -1462,89 +1461,90 @@ export const useOutlineStore = create<OutlineState>((set, get) => ({
     }
   },
 
-  mergeWithPreviousSibling: async (nodeId: string) => {
-    const { getNode, getSiblings, childrenOf, updateFromState, setFocusedId, _pushUndo } = get();
+  mergeWithPrevious: async (nodeId: string) => {
+    const { getNode, getVisibleNodes, childrenOf, updateFromState, _pushUndo } = get();
     const node = getNode(nodeId);
     if (!node) return null;
 
-    const siblings = getSiblings(nodeId);
-    const idx = siblings.findIndex(n => n.id === nodeId);
-
-    // Check if there's a previous sibling
+    // Merge this node up into the PREVIOUS VISIBLE row (the "join line above"
+    // model shared with Dynalist/Workflowy), not strictly the previous sibling.
+    // This also fixes the dead no-op for a non-empty first child (its previous
+    // visible row is its parent, so it now merges into the parent). (otl-7yri)
+    const visible = getVisibleNodes();
+    const idx = visible.findIndex(n => n.id === nodeId);
+    // No previous visible row (first visible item) — nothing to merge into.
     if (idx <= 0) return null;
-    const prevSibling = siblings[idx - 1];
+    const target = visible[idx - 1];
 
     // Capture state before merge for undo
-    const prevOriginalContent = prevSibling.content;
+    const targetOriginalContent = target.content;
     const savedCurrentNode = { ...node };
 
-    // Calculate cursor position (end of prev sibling content, before merge)
+    // Calculate cursor position (end of target content, the join point)
     // Strip HTML tags to get text length
-    const plainTextLength = prevSibling.content.replace(/<[^>]*>/g, '').length;
+    const plainTextLength = target.content.replace(/<[^>]*>/g, '').length;
 
     set(s => ({ pendingOperations: s.pendingOperations + 1 }));
     try {
-      // Merge content: append current node's content to previous sibling
-      const mergedContent = prevSibling.content + node.content;
-      await api.updateNode(prevSibling.id, { content: mergedContent });
+      // Merge content: append this node's content to the target
+      const mergedContent = target.content + node.content;
+      await api.updateNode(target.id, { content: mergedContent });
 
-      // Batch move current node's children to previous sibling (after prev's children)
-      const prevChildren = childrenOf(prevSibling.id);
+      // Move this node's children under the target, after the target's existing
+      // children. Exclude this node itself if it is currently a child of the
+      // target (first-child merge), so we don't count the soon-deleted node.
+      const targetChildren = childrenOf(target.id).filter(c => c.id !== nodeId);
       const currentChildren = childrenOf(nodeId);
       const now = new Date().toISOString();
       const childMoveOps = currentChildren.map((child, i) => ({
         op: 'move' as const,
         id: child.id,
-        parent_id: prevSibling.id,
-        position: prevChildren.length + i,
+        parent_id: target.id,
+        position: targetChildren.length + i,
         updated_at: now,
       }));
       if (childMoveOps.length > 0) {
         await api.saveOps(childMoveOps);
       }
 
-      // Delete the current node (now empty)
+      // Delete the current node (now merged away)
       await api.deleteNode(nodeId);
 
       // Reload state
-      logNav('bulk-refresh', { caller: 'outlineStore.mergeWithPreviousSibling' });
+      logNav('bulk-refresh', { caller: 'outlineStore.mergeWithPrevious' });
       const state = await api.loadDocument(get().documentId ?? undefined);
       updateFromState(state);
 
-      // Focus the previous sibling with cursor at merge point
-      set({ focusedId: prevSibling.id, pendingCursorPos: plainTextLength });
+      // Focus the target with cursor at merge point. Focus moves to a different
+      // node, so its editor remounts and picks up the merged content; the mount
+      // effect applies pendingCursorPos.
+      set({ focusedId: target.id, pendingCursorPos: plainTextLength });
 
       // Build undo entry for merge with previous:
-      // Undo: restore prev sibling's original content, recreate current node, move children back
+      // Undo: restore target's original content, recreate current node, move children back
       // Redo: re-merge by updating content, moving children, deleting current node
       const undoActions: UndoAction[] = [];
-      // Restore previous sibling's original content
-      undoActions.push({ type: 'update', id: prevSibling.id, changes: { content: prevOriginalContent } });
-      // Recreate the deleted current node
+      undoActions.push({ type: 'update', id: target.id, changes: { content: targetOriginalContent } });
       undoActions.push({ type: 'create', node: savedCurrentNode });
-      // Move children back to the recreated current node
       for (let i = 0; i < currentChildren.length; i++) {
         undoActions.push({ type: 'move', id: currentChildren[i].id, parentId: nodeId, position: i });
       }
 
       const redoActions: UndoAction[] = [];
-      // Re-merge: update previous sibling with merged content
-      redoActions.push({ type: 'update', id: prevSibling.id, changes: { content: mergedContent } });
-      // Move children from current node to previous sibling
+      redoActions.push({ type: 'update', id: target.id, changes: { content: mergedContent } });
       for (let i = 0; i < currentChildren.length; i++) {
-        redoActions.push({ type: 'move', id: currentChildren[i].id, parentId: prevSibling.id, position: prevChildren.length + i });
+        redoActions.push({ type: 'move', id: currentChildren[i].id, parentId: target.id, position: targetChildren.length + i });
       }
-      // Delete the current node again
       redoActions.push({ type: 'delete', id: nodeId });
 
       _pushUndo({
         description: 'Merge items',
         undo: { type: 'batch', actions: undoActions, focusId: nodeId },
-        redo: { type: 'batch', actions: redoActions, focusId: prevSibling.id },
+        redo: { type: 'batch', actions: redoActions, focusId: target.id },
         timestamp: Date.now(),
       });
 
-      return { cursorPos: plainTextLength, newFocusId: prevSibling.id };
+      return { cursorPos: plainTextLength, newFocusId: target.id };
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
       return null;

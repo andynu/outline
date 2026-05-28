@@ -390,9 +390,10 @@ export function useOutlineEditor({
                   store.deleteNode(nodeId);
                   return true;
                 } else {
-                  // Merge with previous sibling at cursor position 1 with content
+                  // Merge up into the previous visible row. Focus moves there,
+                  // so its editor remounts with the merged content. (otl-7yri)
                   event.preventDefault();
-                  useOutlineStore.getState().mergeWithPreviousSibling(nodeId);
+                  useOutlineStore.getState().mergeWithPrevious(nodeId);
                   return true;
                 }
               }
@@ -413,9 +414,18 @@ export function useOutlineEditor({
               // Check if cursor is at the end of content
               const isAtEnd = to >= docSize - 1;
               if (isAtEnd) {
-                // At end - try to merge with next sibling
+                // At end - merge the next visible row up into this node. Focus
+                // stays here, so the focused editor won't auto-sync the longer
+                // merged content (index.tsx sync is gated on !isFocused) —
+                // reconcile the live editor once the async merge resolves. (otl-7yri)
                 event.preventDefault();
-                useOutlineStore.getState().mergeWithNextSibling(nodeId);
+                useOutlineStore.getState().mergeWithNext(nodeId).then(res => {
+                  const ed = editorRef.current;
+                  if (res && ed && !ed.isDestroyed) {
+                    ed.commands.setContent(res.mergedContent, false);
+                    ed.commands.setTextSelection(res.cursorPos + 1);
+                  }
+                });
                 return true;
               }
             }
