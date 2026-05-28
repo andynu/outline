@@ -431,16 +431,25 @@ export function useOutlineEditor({
             }
 
             // === NAVIGATION ===
+            // Only cross to the adjacent item when the caret is on the first/last
+            // visual line. Otherwise let ProseMirror move the caret within a
+            // wrapped, multi-line item. (otl-fspy)
             if (event.key === 'ArrowUp' && !mod && !event.shiftKey) {
-              event.preventDefault();
-              store.moveToPrevious();
-              return true;
+              if (view.endOfTextblock('up')) {
+                event.preventDefault();
+                store.moveToPrevious();
+                return true;
+              }
+              return false;
             }
 
             if (event.key === 'ArrowDown' && !mod && !event.shiftKey) {
-              event.preventDefault();
-              store.moveToNext();
-              return true;
+              if (view.endOfTextblock('down')) {
+                event.preventDefault();
+                store.moveToNext();
+                return true;
+              }
+              return false;
             }
 
             // Move item with Ctrl+Arrow (Shift+Arrow reserved for selection)
