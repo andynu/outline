@@ -1,5 +1,17 @@
 import { test, expect } from '@playwright/test';
 
+// Indentation is rendered via nested .children-wrapper containers, not a
+// margin-left on .outline-item. Measure nesting depth = number of
+// .children-wrapper ancestors of the focused item.
+function focusedDepth(page: import('@playwright/test').Page): Promise<number> {
+  return page.locator('.outline-item.focused').first().evaluate((el) => {
+    let d = 0;
+    let p: HTMLElement | null = el.parentElement;
+    while (p) { if (p.classList && p.classList.contains('children-wrapper')) d++; p = p.parentElement; }
+    return d;
+  });
+}
+
 test.describe('Hierarchy', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
@@ -8,52 +20,31 @@ test.describe('Hierarchy', () => {
   });
 
   test('Tab indents item under previous sibling', async ({ page }) => {
-    // Find "Press Tab to indent" and click it
+    // "Press Tab to indent" has a previous sibling, so it can be indented.
     const editor = page.locator('.editor-wrapper').filter({ hasText: /^Press Tab to indent$/ });
     await editor.click();
-    await page.waitForTimeout(100);
+    await expect(page.locator('.outline-item.focused')).toHaveCount(1);
 
-    // Get the focused outline-item
-    const focusedItem = page.locator('.outline-item.focused');
-    const initialStyle = await focusedItem.getAttribute('style');
-    const initialMargin = parseInt(initialStyle?.match(/margin-left:\s*(\d+)px/)?.[1] || '0');
-
-    // Press Tab to indent
+    const before = await focusedDepth(page);
     await page.keyboard.press('Tab');
-    await page.waitForTimeout(100);
 
-    // Check that the margin increased (item is now more indented)
-    const newStyle = await focusedItem.getAttribute('style');
-    const newMargin = parseInt(newStyle?.match(/margin-left:\s*(\d+)px/)?.[1] || '0');
-
-    expect(newMargin).toBeGreaterThan(initialMargin);
+    // Item is now nested one level deeper (under its previous sibling).
+    await expect.poll(() => focusedDepth(page)).toBe(before + 1);
   });
 
   test('Shift+Tab outdents item to parent level', async ({ page }) => {
-    // First, indent an item so we can outdent it
     const editor = page.locator('.editor-wrapper').filter({ hasText: /^Press Tab to indent$/ });
     await editor.click();
-    await page.waitForTimeout(100);
+    await expect(page.locator('.outline-item.focused')).toHaveCount(1);
 
-    const focusedItem = page.locator('.outline-item.focused');
-
-    // Ensure it's indented first
+    // Indent first so there is something to outdent.
+    const base = await focusedDepth(page);
     await page.keyboard.press('Tab');
-    await page.waitForTimeout(100);
+    await expect.poll(() => focusedDepth(page)).toBe(base + 1);
 
-    const beforeOutdent = await focusedItem.getAttribute('style');
-    const beforeMargin = parseInt(beforeOutdent?.match(/margin-left:\s*(\d+)px/)?.[1] || '0');
-    expect(beforeMargin).toBeGreaterThan(0);
-
-    // Press Shift+Tab to outdent
+    // Outdent returns it to its original depth.
     await page.keyboard.press('Shift+Tab');
-    await page.waitForTimeout(100);
-
-    // Check that the margin decreased
-    const newStyle = await focusedItem.getAttribute('style');
-    const newMargin = parseInt(newStyle?.match(/margin-left:\s*(\d+)px/)?.[1] || '0');
-
-    expect(newMargin).toBeLessThan(beforeMargin);
+    await expect.poll(() => focusedDepth(page)).toBe(base);
   });
 
   test('items with children show filled bullet', async ({ page }) => {
@@ -147,42 +138,29 @@ test.describe('Hierarchy', () => {
     await expect(bullet).not.toHaveClass(/has-children/);
   });
 
-  test('multiple indent/outdent cycles work correctly', async ({ page }) => {
-    // Create a new item so we have a clean slate
+  test('indent then outdent returns to the original depth', async ({ page }) => {
+    // Build two siblings so the second one has a previous sibling to indent under.
     const firstEditor = page.locator('.editor-wrapper').first();
     await firstEditor.click();
     await page.waitForTimeout(100);
-
-    // Create new item
+    const c0 = await page.locator('.outline-item').count();
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(100);
+    await expect(page.locator('.outline-item')).toHaveCount(c0 + 1); // new item exists
+    await page.waitForTimeout(80);                                   // editor mount/focus settles
+    await page.keyboard.type('cycleA');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.outline-item')).toHaveCount(c0 + 2);
+    await page.waitForTimeout(80);
+    await page.keyboard.type('cycleB');
+    await expect(page.locator('.outline-item.focused .outline-editor')).toHaveText('cycleB');
 
-    const focusedItem = page.locator('.outline-item.focused');
+    const initial = await focusedDepth(page);
 
-    // Get initial margin
-    const initial = await focusedItem.getAttribute('style');
-    const initialMargin = parseInt(initial?.match(/margin-left:\s*(\d+)px/)?.[1] || '0');
-
-    // Indent twice
+    // Indent cycleB under cycleA, then outdent back.
     await page.keyboard.press('Tab');
-    await page.waitForTimeout(50);
-    await page.keyboard.press('Tab');
-    await page.waitForTimeout(100);
+    await expect.poll(() => focusedDepth(page)).toBe(initial + 1);
 
-    const afterTwoIndents = await focusedItem.getAttribute('style');
-    const marginAfterIndent = parseInt(afterTwoIndents?.match(/margin-left:\s*(\d+)px/)?.[1] || '0');
-    expect(marginAfterIndent).toBeGreaterThan(initialMargin);
-
-    // Outdent twice
     await page.keyboard.press('Shift+Tab');
-    await page.waitForTimeout(50);
-    await page.keyboard.press('Shift+Tab');
-    await page.waitForTimeout(100);
-
-    const afterOutdent = await focusedItem.getAttribute('style');
-    const finalMargin = parseInt(afterOutdent?.match(/margin-left:\s*(\d+)px/)?.[1] || '0');
-
-    // Should be back to around initial margin
-    expect(finalMargin).toBeLessThanOrEqual(initialMargin);
+    await expect.poll(() => focusedDepth(page)).toBe(initial);
   });
 });

@@ -126,22 +126,17 @@ test.describe('Navigation', () => {
     expect(text3).toBe(text1);
   });
 
-  test('Arrow Up at first item stays on first item', async ({ page }) => {
+  test('Arrow Up at first item moves focus to the document title', async ({ page }) => {
     const editors = page.locator('.editor-wrapper');
 
     // Click on first item
     await editors.first().click();
-    await page.waitForTimeout(100);
+    await expect(page.locator('.outline-item.focused')).toHaveCount(1);
 
-    const firstItemText = await editors.first().textContent();
-
-    // Press ArrowUp - should stay on first item
+    // Up from the first item leaves the outline and focuses the document title
+    // (requestTitleFocus) — focus is no longer on any outline item.
     await page.keyboard.press('ArrowUp');
-    await page.waitForTimeout(100);
-
-    // Should still be on first item
-    const focusedText = await page.locator('.outline-item.focused .editor-wrapper').first().textContent();
-    expect(focusedText).toBe(firstItemText);
+    await expect(page.locator('.outline-item.focused')).toHaveCount(0);
   });
 
   test('Arrow Down at last item stays on last item', async ({ page }) => {
