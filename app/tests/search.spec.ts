@@ -91,14 +91,9 @@ test.describe('Search', () => {
     await expect(searchModal).not.toBeVisible();
   });
 
-  // KNOWN BUG otl-fyed: SearchModal's window keydown listener re-attaches on
-  // every selectedIndex/results change, so ArrowDown can fire while it's
-  // detached and escape to the outline's global navigation (focus jumps to the
-  // editor) instead of moving the result selection. Deterministic under load.
-  // Keyboard-model coherence work (otl-uogy/otl-obv5); fixme until otl-fyed.
-  test.fixme('arrow keys navigate search results', async ({ page }) => {
+  test('arrow keys navigate search results', async ({ page }) => {
     await page.keyboard.press('Control+f');
-    await page.waitForTimeout(100);
+    await expect(page.locator('.search-input')).toBeFocused();
 
     const searchInput = page.locator('.search-input');
     await searchInput.fill('e');

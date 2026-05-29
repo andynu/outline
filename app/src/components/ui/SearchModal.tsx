@@ -86,11 +86,19 @@ export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose,
     onClose();
   }, [onClose]);
 
-  // Keyboard handler
+  // Keyboard handler. Attach the window listener ONCE per open and read the
+  // latest state/handlers from a ref. Re-creating the listener on every
+  // selectedIndex/results change (the previous effect deps) left a window in
+  // which an ArrowDown could fire while the listener was momentarily detached,
+  // escaping to the outline's global navigation and moving focus to the editor
+  // instead of advancing the result selection (otl-fyed).
+  const kbdRef = useRef({ mode, results, selectedIndex, selectResult, handleClose, applyFilter });
+  kbdRef.current = { mode, results, selectedIndex, selectResult, handleClose, applyFilter };
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeydown = (event: KeyboardEvent) => {
+      const { mode, results, selectedIndex, selectResult, handleClose, applyFilter } = kbdRef.current;
       // Tab toggles mode
       if (event.key === 'Tab') {
         event.preventDefault();
@@ -128,7 +136,7 @@ export function SearchModal({ isOpen, documentScope, initialQuery = '', onClose,
 
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
-  }, [isOpen, mode, results, selectedIndex, selectResult, handleClose, applyFilter]);
+  }, [isOpen]);
 
   const handleBackdropClick = useCallback((event: React.MouseEvent) => {
     if (event.target === event.currentTarget) {
