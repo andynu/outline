@@ -95,7 +95,7 @@ test.describe('Settings panel', () => {
 
     // Check theme options exist
     const options = themeSelect.locator('option');
-    await expect(options).toHaveCount(5); // system, light, dark, gruvbox-light, gruvbox-dark
+    await expect(options).toHaveCount(6); // system, light, dark, gruvbox-light, gruvbox-dark, dark-os
 
     // Select dark theme
     await themeSelect.selectOption('dark');

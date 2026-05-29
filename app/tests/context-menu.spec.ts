@@ -1,9 +1,25 @@
 import { test, expect } from '@playwright/test';
 
+// The first root node ("Welcome to Outline") is promoted to the document title
+// (.document-title-editor-inner), NOT rendered as an .outline-item, and which-it-is
+// races on load. So `.outline-item.first()` is unreliable (may briefly be the title
+// node or settle on a different real item). The first *real* outline item is
+// "Getting Started". Target it by text for a stable action+assertion subject.
+function gettingStarted(page: import('@playwright/test').Page) {
+  return page.locator('.outline-container > .outline-item').filter({ hasText: 'Getting Started' }).first();
+}
+
+// Standalone-token match for the `checked` class (added as a discrete className
+// token in both outline-item renderers); a token-boundary regex avoids substring
+// collisions with other class names.
+const CHECKED_CLASS = /(?:^|\s)checked(?:\s|$)/;
+
 test.describe('Context menu', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    // Wait for the outline to load
+    // Wait for the title node to be promoted so "Getting Started" is stably the
+    // first real outline item (avoids the document-title-vs-outline-item race).
+    await page.waitForSelector('.document-title-editor-inner', { timeout: 10000 });
     await page.waitForSelector('.outline-item', { timeout: 10000 });
   });
 
@@ -92,27 +108,25 @@ test.describe('Context menu', () => {
   });
 
   test('Mark Complete action works', async ({ page }) => {
-    // First convert item to checkbox so we can mark it complete
-    const firstItem = page.locator('.outline-item').first();
-    await firstItem.click({ button: 'right' });
-    await page.waitForTimeout(100);
-
-    await page.locator('.menu-item').filter({ hasText: 'Convert to Checkbox' }).click();
-    await page.waitForTimeout(100);
-
-    // Menu should close after action
+    // Act on a stable item by text (not .first(), which races the title node)
+    // and assert on the SAME item. The context-menu "Mark Complete" action calls
+    // toggleCheckbox() directly (OutlineItemStatic.tsx) — it sets `is_checked` (the
+    // `checked` class) without requiring the item to be a checkbox first, and does
+    // NOT advance focus (unlike the Ctrl+Enter keyboard toggle), so asserting on the
+    // same item is correct.
+    const item = gettingStarted(page);
     const contextMenu = page.locator('.context-menu');
+
+    // Right-click Getting Started's OWN row (direct child), not the whole .outline-item:
+    // the parent element is tall (it wraps its 3 rendered children), so a center-click
+    // on `item` lands on a child row and opens the menu for the wrong node.
+    await item.locator('> .item-row').click({ button: 'right' });
+    await expect(contextMenu).toBeVisible();
+    await page.locator('.menu-item').filter({ hasText: 'Mark Complete' }).click();
     await expect(contextMenu).not.toBeVisible();
 
-    // Now right-click again and mark complete
-    await firstItem.click({ button: 'right' });
-    await page.waitForTimeout(100);
-
-    await page.locator('.menu-item').filter({ hasText: 'Mark Complete' }).click();
-    await page.waitForTimeout(100);
-
     // Item should be marked as checked
-    await expect(firstItem).toHaveClass(/checked/);
+    await expect(item).toHaveClass(CHECKED_CLASS);
   });
 
   test('Convert to Checkbox action works', async ({ page }) => {

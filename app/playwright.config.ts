@@ -17,9 +17,12 @@ export default defineConfig({
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
-  /* Retry failures: more on CI, but also locally so timing/contention flakiness
-     under high parallelism doesn't show up as false reds. See otl-5740. */
-  retries: process.env.CI ? 2 : 1,
+  /* Local: retries:0. The timing-fragile specs were de-flaked (otl-ljud) — they
+     now gate on observed state / web-first assertions instead of fixed waits, so
+     the suite is green locally without retry-masking. vim-navigation keeps a
+     describe-local retries:2 for an architectural keyboard race (otl-obv5). CI
+     keeps 2 for cross-environment slack. See otl-5740, otl-ljud. */
+  retries: process.env.CI ? 2 : 0,
   /* Serial on CI. Locally, cap to a few workers: the editor/focus timing in
      these tests gets flaky when many pages hammer one dev server (this box has
      32 cores, so an uncapped run spawned ~32 contending pages). See otl-5740. */

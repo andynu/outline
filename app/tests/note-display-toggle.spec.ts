@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * Tests for the toolbar button that cycles through the three
@@ -8,10 +8,26 @@ import { test, expect } from '@playwright/test';
  * so the test creates a note on the first item, then focuses a different
  * item so the first item is rendered via OutlineItemStatic.
  */
+
+// Focus an item AND give its contenteditable DOM focus before keyboard ops.
+// Clicking sets React focus (the .focused class), but the editor only gets DOM
+// focus on a setTimeout(0) tick, so Shift+Enter (handled in the editor's
+// ProseMirror keydown) is dropped if it races that tick. Clicking the editor
+// focuses it synchronously. Only the focused item renders .outline-editor.
+async function focusItemEditor(page: Page, item: Locator) {
+  await item.locator('.editor-wrapper').first().click();
+  await expect(page.locator('.outline-item.focused')).toHaveCount(1);
+  await page.locator('.outline-item.focused .outline-editor').click();
+}
+
 test.describe('Note display toolbar toggle', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('.outline-item');
+    // First root node is promoted to the document title (otl-nroo); wait for
+    // the title editor so the title-vs-item split has settled before any
+    // .outline-item query.
+    await page.waitForSelector('.document-title-editor-inner');
 
     // Reset the stored noteDisplayMode to the default ('one-line')
     // so the toggle starts in a predictable state even if a previous
@@ -24,6 +40,7 @@ test.describe('Note display toolbar toggle', () => {
     });
     await page.reload();
     await page.waitForSelector('.outline-item');
+    await page.waitForSelector('.document-title-editor-inner');
   });
 
   test('toolbar button is visible and starts in one-line mode', async ({ page }) => {
@@ -53,65 +70,66 @@ test.describe('Note display toolbar toggle', () => {
   });
 
   test('cycling the button affects note rendering on unfocused items', async ({ page }) => {
-    // Create at least two items so we can focus one and leave the other unfocused.
-    const firstItem = page.locator('.outline-item').first();
-    await firstItem.click();
-    await page.waitForSelector('.outline-item.focused');
+    // Use two stable top-level items so one can hold the note while the other
+    // takes focus. "Getting Started" carries the note; "Features" gets focus,
+    // leaving "Getting Started" rendered via OutlineItemStatic (the renderer
+    // that honors noteDisplayMode). Neither is a descendant of the other, so
+    // the per-item .note-preview locator stays unambiguous.
+    const notedItem = page
+      .locator('.outline-container > .outline-item')
+      .filter({ hasText: 'Getting Started' })
+      .first();
+    const focusTarget = page
+      .locator('.outline-container > .outline-item')
+      .filter({ hasText: 'Features' })
+      .first();
 
-    // Seed a multi-line note on the first item.
+    // Seed a multi-line note on the noted item (editor DOM focus required for
+    // Shift+Enter to open the note input).
+    await focusItemEditor(page, notedItem);
     await page.keyboard.press('Shift+Enter');
     const noteInput = page.locator('.note-input');
     await expect(noteInput).toBeVisible();
     const longLine = 'A'.repeat(150); // > 100 chars so truncation kicks in for one-line
     await noteInput.fill(`${longLine}\nSecond line of the note`);
-    await page.waitForTimeout(100);
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(100);
+    // Shift+Enter from inside the note closes it and commits the value.
+    await page.keyboard.press('Shift+Enter');
+    await expect(noteInput).toBeHidden();
 
-    // Ensure there's a second item to focus; if not, create one.
-    const itemCount = await page.locator('.outline-item').count();
-    if (itemCount < 2) {
-      // Move caret to end and press Enter to create a new sibling.
-      await page.keyboard.press('End');
-      await page.keyboard.press('Enter');
-      await page.keyboard.type('Second item');
-      await page.waitForTimeout(100);
-    }
-
-    // Focus the second item so the first one renders via OutlineItemStatic.
-    const secondItem = page.locator('.outline-item').nth(1);
-    await secondItem.click();
-    await page.waitForTimeout(100);
+    // Focus a different item so the noted item renders via OutlineItemStatic.
+    await focusTarget.locator('.editor-wrapper').first().click();
+    await expect(page.locator('.outline-item.focused')).toHaveCount(1);
+    await expect(notedItem).not.toHaveClass(/(^|\s)focused(\s|$)/);
 
     const btn = page.locator('.toolbar-btn.note-display-toggle');
     // state starts as one-line per beforeEach
     await expect(btn).toHaveAttribute('data-note-display-mode', 'one-line');
 
-    // One-line mode: note-preview exists on the first (now unfocused) item
-    const firstNotePreview = firstItem.locator('.note-preview');
-    await expect(firstNotePreview).toBeVisible();
-    const oneLineText = (await firstNotePreview.textContent()) || '';
+    // One-line mode: note-preview exists on the now-unfocused noted item.
+    // Scope with .first() — the item's subtree could contain other previews.
+    const notePreview = notedItem.locator('.note-preview').first();
+    await expect(notePreview).toBeVisible();
     // truncated (...) since plain text > 100 chars
-    expect(oneLineText.endsWith('...')).toBe(true);
-    expect(oneLineText.length).toBeLessThanOrEqual(110);
+    await expect(notePreview).toHaveText(/\.\.\.$/);
+    await expect.poll(async () => ((await notePreview.textContent()) || '').length)
+      .toBeLessThanOrEqual(110);
 
     // Cycle to 'full'
     await btn.click();
     await expect(btn).toHaveAttribute('data-note-display-mode', 'full');
-    await expect(firstNotePreview).toBeVisible();
+    await expect(notePreview).toBeVisible();
     // in full mode, the full first line (150 A's) should be present
-    const fullText = (await firstNotePreview.textContent()) || '';
-    expect(fullText).toContain(longLine);
+    await expect(notePreview).toContainText(longLine);
 
     // Cycle to 'none' — preview is not rendered
     await btn.click();
     await expect(btn).toHaveAttribute('data-note-display-mode', 'none');
-    await expect(firstItem.locator('.note-preview')).toHaveCount(0);
+    await expect(notedItem.locator('.note-preview')).toHaveCount(0);
 
     // Cycle back to 'one-line'
     await btn.click();
     await expect(btn).toHaveAttribute('data-note-display-mode', 'one-line');
-    await expect(firstItem.locator('.note-preview')).toBeVisible();
+    await expect(notedItem.locator('.note-preview').first()).toBeVisible();
   });
 
   test('Ctrl+Shift+N cycles noteDisplayMode: one-line -> full -> none -> one-line', async ({ page }) => {

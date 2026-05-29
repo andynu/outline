@@ -24,6 +24,11 @@ test.describe('Hierarchy', () => {
     const editor = page.locator('.editor-wrapper').filter({ hasText: /^Press Tab to indent$/ });
     await editor.click();
     await expect(page.locator('.outline-item.focused')).toHaveCount(1);
+    // item.click() sets React focus (.focused) but the contenteditable only gets
+    // DOM focus on a setTimeout(0) tick; Tab is handled in ProseMirror keydown so
+    // it is dropped under load if the editor lacks DOM focus. Click it to focus
+    // synchronously. Only the focused item renders .outline-editor (unique).
+    await page.locator('.outline-item.focused .outline-editor').click();
 
     const before = await focusedDepth(page);
     await page.keyboard.press('Tab');
@@ -36,6 +41,10 @@ test.describe('Hierarchy', () => {
     const editor = page.locator('.editor-wrapper').filter({ hasText: /^Press Tab to indent$/ });
     await editor.click();
     await expect(page.locator('.outline-item.focused')).toHaveCount(1);
+    // Force synchronous DOM focus on the contenteditable before the key-presses;
+    // Tab/Shift+Tab are handled in ProseMirror keydown and are dropped under load
+    // if the editor only has React focus (the setTimeout(0) tick hasn't run).
+    await page.locator('.outline-item.focused .outline-editor').click();
 
     // Indent first so there is something to outdent.
     const base = await focusedDepth(page);

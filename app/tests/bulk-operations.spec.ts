@@ -1,4 +1,31 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
+
+// The first root node renders as the document title, not an .outline-item
+// (otl-nroo). "Getting Started" is the first real outline item and has 3 sibling
+// children in the seed, giving an unnested group safe for bulk selection (none is
+// an ancestor of another, so per-item descendant locators stay unambiguous).
+//   c1 = "Press Enter to create a new item"
+//   c2 = "Press Tab to indent"
+function gsChildren(page: Page): Locator {
+  return page.locator('.outline-container > .outline-item').filter({ hasText: 'Getting Started' }).first()
+    .locator('> .children-wrapper > .children > .outline-item');
+}
+
+// Select the first two Getting Started children via Ctrl+click and open the bulk
+// context menu on the first. Returns [c1, c2]. Ctrl+clicking the editor selects
+// (no DOM-focus race: selection is a React click handler, not an editor key).
+async function selectTwoSiblingsAndOpenMenu(page: Page): Promise<[Locator, Locator]> {
+  const c1 = gsChildren(page).nth(0);
+  const c2 = gsChildren(page).nth(1);
+  await c1.locator('.editor-wrapper').first().click({ modifiers: ['Control'] });
+  await expect(c1).toHaveClass(/selected/);
+  await c2.locator('.editor-wrapper').first().click({ modifiers: ['Control'] });
+  await expect(c2).toHaveClass(/selected/);
+  // Right-click the first selected item to open the bulk context menu.
+  await c1.locator('> .item-row').click({ button: 'right' });
+  await expect(page.locator('.context-menu:not(.submenu-flyout)')).toBeVisible();
+  return [c1, c2];
+}
 
 test.describe('Bulk operations on multi-selection', () => {
   test.beforeEach(async ({ page }) => {
@@ -284,89 +311,54 @@ test.describe('Bulk operations on multi-selection', () => {
 
   test.describe('Type conversion', () => {
     test('convert to checkbox via context menu', async ({ page }) => {
-      const items = page.locator('.outline-item');
-      const editors = page.locator('.editor-wrapper');
+      // Two sibling bullets selected; bulk menu open.
+      const [c1, c2] = await selectTwoSiblingsAndOpenMenu(page);
 
-      // Select first item (which should be a bullet)
-      await editors.first().click({ modifiers: ['Control'] });
-      await page.waitForTimeout(50);
-      await editors.nth(1).click({ modifiers: ['Control'] });
-      await page.waitForTimeout(50);
-
-      // Right-click to open context menu
-      await items.first().click({ button: 'right' });
-      await page.waitForTimeout(100);
-
-      // Click "Convert to checkbox" if available
-      const contextMenu = page.locator('.context-menu');
+      // "Convert to checkbox" is a top-level bulk-menu item (enabled for bullets).
+      const contextMenu = page.locator('.context-menu:not(.submenu-flyout)');
       const convertBtn = contextMenu.locator('text=Convert to checkbox');
+      await expect(convertBtn).toBeEnabled();
+      await convertBtn.click();
 
-      // Only test if the button is enabled (items have bullets)
-      if (await convertBtn.isEnabled()) {
-        await convertBtn.click();
-        await page.waitForTimeout(200);
-
-        // Both items should now have checkboxes
-        const firstCheckbox = items.first().locator('.checkbox-btn');
-        const secondCheckbox = items.nth(1).locator('.checkbox-btn');
-        await expect(firstCheckbox).toBeVisible();
-        await expect(secondCheckbox).toBeVisible();
-      }
+      // Each selected item now shows its OWN checkbox (direct-child locator avoids
+      // matching nested descendants).
+      await expect(c1.locator('> .item-row .checkbox-btn')).toBeVisible();
+      await expect(c2.locator('> .item-row .checkbox-btn')).toBeVisible();
     });
 
     test('convert to bullet via context menu', async ({ page }) => {
-      const items = page.locator('.outline-item');
-      const editors = page.locator('.editor-wrapper');
+      const contextMenu = page.locator('.context-menu:not(.submenu-flyout)');
 
-      // First, convert items to checkboxes via context menu
-      await editors.first().click({ modifiers: ['Control'] });
-      await page.waitForTimeout(50);
-      await editors.nth(1).click({ modifiers: ['Control'] });
-      await page.waitForTimeout(50);
-
-      // Right-click to open context menu and select "Convert to checkbox"
-      await items.first().click({ button: 'right' });
-      await page.waitForTimeout(100);
-      const contextMenu = page.locator('.context-menu');
+      // First, convert the two sibling bullets to checkboxes via the bulk menu.
+      const [c1, c2] = await selectTwoSiblingsAndOpenMenu(page);
       await contextMenu.locator('text=Convert to checkbox').click();
-      await page.waitForTimeout(200);
 
-      // Verify they're now checkboxes
-      await expect(items.first().locator('.checkbox-btn')).toBeVisible({ timeout: 2000 });
-      await expect(items.nth(1).locator('.checkbox-btn')).toBeVisible({ timeout: 2000 });
+      // Each now shows its OWN checkbox (direct-child locator avoids nested matches).
+      await expect(c1.locator('> .item-row .checkbox-btn')).toBeVisible();
+      await expect(c2.locator('> .item-row .checkbox-btn')).toBeVisible();
 
-      // Press Escape to exit edit mode into navigate mode, then Escape again to clear selection
+      // Escape twice: exit edit mode, then clear selection.
       await page.keyboard.press('Escape');
-      await page.waitForTimeout(50);
       await page.keyboard.press('Escape');
-      await page.waitForTimeout(50);
-      // Click first item to re-enter edit mode, then Ctrl+click both to select
-      await items.first().locator('> .item-row').click();
-      await page.waitForTimeout(50);
-      await items.first().locator('> .item-row').click({ modifiers: ['Control'] });
-      await page.waitForTimeout(50);
-      await items.nth(1).locator('> .item-row').click({ modifiers: ['Control'] });
-      await page.waitForTimeout(50);
+      await expect(page.locator('.outline-item.selected')).toHaveCount(0);
 
-      // Verify both items are selected before opening context menu
-      await expect(items.first()).toHaveClass(/selected/);
-      await expect(items.nth(1)).toHaveClass(/selected/);
+      // Re-select the same two children, then open the bulk menu again.
+      await c1.locator('> .item-row').click();
+      await c1.locator('> .item-row').click({ modifiers: ['Control'] });
+      await expect(c1).toHaveClass(/selected/);
+      await c2.locator('> .item-row').click({ modifiers: ['Control'] });
+      await expect(c2).toHaveClass(/selected/);
+      await c1.locator('> .item-row').click({ button: 'right' });
+      await expect(contextMenu).toBeVisible();
 
-      // Right-click to open context menu
-      await items.first().click({ button: 'right' });
-      await page.waitForTimeout(100);
-
-      // Click "Convert to bullet" (lowercase - bulk menu)
+      // "Convert to bullet" is enabled because the selection contains checkboxes.
       const convertBtn = contextMenu.locator('text=Convert to bullet');
+      await expect(convertBtn).toBeEnabled();
+      await convertBtn.click();
 
-      if (await convertBtn.isEnabled()) {
-        await convertBtn.click();
-        await page.waitForTimeout(200);
-
-        // Both items should now have bullets (no checkbox-btn)
-        await expect(items.first().locator('.checkbox-btn')).toHaveCount(0);
-        await expect(items.nth(1).locator('.checkbox-btn')).toHaveCount(0);
-      }
+      // Neither item has its own checkbox anymore (back to bullets).
+      await expect(c1.locator('> .item-row .checkbox-btn')).toHaveCount(0);
+      await expect(c2.locator('> .item-row .checkbox-btn')).toHaveCount(0);
     });
   });
 
@@ -525,35 +517,23 @@ test.describe('Bulk operations on multi-selection', () => {
       // Grant clipboard permissions
       await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 
-      const items = page.locator('.outline-item');
-      const editors = page.locator('.editor-wrapper');
+      // Two sibling items selected; bulk menu open.
+      await selectTwoSiblingsAndOpenMenu(page);
 
-      // Get the actual content of first item to compare
-      const firstItemContent = await items.first().locator('.outline-editor').textContent();
-
-      // Select first item only (need 2 for bulk menu)
-      await editors.first().click({ modifiers: ['Control'] });
-      await page.waitForTimeout(50);
-      await editors.nth(1).click({ modifiers: ['Control'] });
-      await page.waitForTimeout(50);
-
-      // Right-click to open context menu
-      await items.first().click({ button: 'right' });
-      await page.waitForTimeout(100);
-
-      // Open the Copy / Export submenu and click "Copy as Plain Text"
+      // Open the Copy / Export submenu and click "Copy as Plain Text".
       const contextMenu = page.locator('.context-menu:not(.submenu-flyout)');
       const exportTrigger = contextMenu.locator('.submenu-trigger', { hasText: 'Copy / Export' });
       await exportTrigger.hover();
-      await page.waitForTimeout(200);
-      await page.locator('.submenu-flyout').locator('text=Copy as Plain Text').click();
-      await page.waitForTimeout(200);
+      const flyout = page.locator('.submenu-flyout');
+      await expect(flyout).toBeVisible();
+      await flyout.locator('text=Copy as Plain Text').click();
 
-      // Verify clipboard has plain text (no markdown bullets)
+      // Wait until the copy lands (clipboard non-empty), then assert it's plain
+      // text — content present, but NOT starting with "- " markdown syntax.
+      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+        .not.toBe('');
       const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
-      // Plain text should NOT start with "- " markdown syntax
       expect(clipboardContent).not.toMatch(/^- /);
-      // But should contain the text content
       expect(clipboardContent.length).toBeGreaterThan(0);
     });
   });

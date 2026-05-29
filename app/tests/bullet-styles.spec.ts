@@ -66,35 +66,67 @@ test.describe('Bullet styles', () => {
   });
 
   test('bullet gets has-children class when item gets children', async ({ page }) => {
-    // Click on an existing item to ensure focus
-    const firstEditor = page.locator('.editor-wrapper').first();
-    await firstEditor.click();
-    await page.waitForTimeout(100);
+    const items = page.locator('.outline-item');
+    const focusedEditor = page.locator('.outline-item.focused .outline-editor');
 
-    // Create a new leaf item using Enter
+    // Helper: ensure the focused item's contenteditable has DOM focus before
+    // editor-scoped keys. React focus lands first, but the contenteditable only
+    // receives DOM focus on a setTimeout(0) tick (editor-dom-focus-race), so a
+    // keypress fired too early is dropped. Clicking the focused editor forces it,
+    // and End parks the caret at line end so a following Enter creates a trailing
+    // sibling instead of splitting mid-text.
+    const focusEditor = async () => {
+      await expect(page.locator('.outline-item.focused')).toHaveCount(1);
+      await focusedEditor.click();
+      await page.keyboard.press('End');
+    };
+
+    // Focus Getting Started (the first real outline item; the first root is the
+    // document title — see otl-nroo) and give its editor DOM focus.
+    await page.locator('.outline-container > .outline-item')
+      .filter({ hasText: 'Getting Started' }).first()
+      .locator('.editor-wrapper').first().click();
+    await focusEditor();
+    const baseCount = await items.count();
+
+    // Create a new leaf item with Enter, gating each step on observed state.
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(200); // Wait for editor to initialize
+    await expect(items).toHaveCount(baseCount + 1);
+    await focusEditor();
     await page.keyboard.type('Parent to be');
-    await page.waitForTimeout(100);
+    await expect(focusedEditor).toHaveText('Parent to be');
 
-    // Verify it starts as a leaf (filled bullet, no has-children class)
-    const parentItem = page.locator('.outline-item').filter({ hasText: 'Parent to be' });
+    // Scope to the item whose OWN row carries the text. A bare
+    // filter({ hasText: 'Parent to be' }) also matches any ANCESTOR whose subtree
+    // contains it: pressing Enter at the end of an expanded parent (Getting
+    // Started) inserts "Parent to be" as its first child (Workflowy behavior, see
+    // useOutlineEditor), so Getting Started's subtree now contains the text and
+    // .first() would resolve to Getting Started — which already has children, so
+    // the "no has-children" assertion would see a stale parent. A parent's own
+    // children live under > .children-wrapper, never under > .item-row, so
+    // matching the row text isolates "Parent to be" itself.
+    const parentItem = page.locator('.outline-item')
+      .filter({ has: page.locator('> .item-row', { hasText: 'Parent to be' }) });
     await expect(parentItem).toBeVisible();
     let bullet = parentItem.locator('> .item-row .bullet');
     await expect(bullet).toHaveText('●');
     await expect(bullet).not.toHaveClass(/has-children/);
 
-    // Add a child by pressing Enter then Tab to indent
+    // Add a child: Enter to create a sibling, type it, then Tab to indent it
+    // under "Parent to be".
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(200); // Wait for new editor to initialize
+    await expect(items).toHaveCount(baseCount + 2);
+    await focusEditor();
     await page.keyboard.type('Child item');
-    await page.waitForTimeout(100);
+    await expect(focusedEditor).toHaveText('Child item');
+    await focusEditor();
     await page.keyboard.press('Tab');
 
-    // Wait for update
-    await page.waitForTimeout(200);
-
-    // Now the parent should have has-children class (still filled bullet)
+    // The child now nests under "Parent to be"; the parent gains has-children
+    // (still a filled bullet).
+    await expect(
+      parentItem.locator('> .children-wrapper > .children > .outline-item').filter({ hasText: 'Child item' })
+    ).toBeVisible();
     bullet = parentItem.locator('> .item-row .bullet');
     await expect(bullet).toHaveText('●');
     await expect(bullet).toHaveClass(/has-children/);

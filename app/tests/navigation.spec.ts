@@ -1,10 +1,27 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
+
+// Focus an item AND give its contenteditable DOM focus before keyboard ops.
+// Clicking sets React focus (the .focused class), but the editor only gets DOM
+// focus on a setTimeout(0) tick (useOutlineEditor), so a bare item-click +
+// key-press races that tick and drops the keystroke under load. The Arrow keys
+// for cross-item navigation are handled in the editor's ProseMirror keydown
+// (useOutlineEditor.ts) and are lost entirely when the editor lacks DOM focus.
+// Clicking the editor focuses it synchronously. Only the focused item renders
+// .outline-editor (descendants are static), so the selector is unique.
+async function focusItemEditor(page: Page, item: Locator) {
+  await item.locator('.editor-wrapper').first().click();
+  await expect(page.locator('.outline-item.focused')).toHaveCount(1);
+  await page.locator('.outline-item.focused .outline-editor').click();
+}
 
 test.describe('Navigation', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    // Wait for the outline to load
+    // Wait for the outline to load. The first root node is promoted to the
+    // document title (otl-nroo) — wait for the title editor too so the
+    // title-vs-item split has settled before any .outline-item.first() query.
     await page.waitForSelector('.outline-item', { timeout: 10000 });
+    await page.waitForSelector('.document-title-editor-inner');
   });
 
   test('Arrow Down moves focus to next item', async ({ page }) => {
@@ -127,16 +144,22 @@ test.describe('Navigation', () => {
   });
 
   test('Arrow Up at first item moves focus to the document title', async ({ page }) => {
-    const editors = page.locator('.editor-wrapper');
-
-    // Click on first item
-    await editors.first().click();
-    await expect(page.locator('.outline-item.focused')).toHaveCount(1);
+    // Focus the first real outline item ("Getting Started"). Targeting by text
+    // avoids the title-promotion race that makes .outline-item.first() unstable
+    // on load, and focusItemEditor gives the editor DOM focus so the editor-
+    // scoped ArrowUp handler actually fires.
+    const firstItem = page
+      .locator('.outline-container > .outline-item')
+      .filter({ hasText: 'Getting Started' })
+      .first();
+    await focusItemEditor(page, firstItem);
 
     // Up from the first item leaves the outline and focuses the document title
-    // (requestTitleFocus) — focus is no longer on any outline item.
+    // (requestTitleFocus) — focus is no longer on any outline item, and the
+    // title editor becomes the active element.
     await page.keyboard.press('ArrowUp');
     await expect(page.locator('.outline-item.focused')).toHaveCount(0);
+    await expect(page.locator('.document-title-editor-inner')).toBeFocused();
   });
 
   test('Arrow Down at last item stays on last item', async ({ page }) => {

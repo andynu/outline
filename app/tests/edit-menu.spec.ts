@@ -1,9 +1,31 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
+
+// The first root node ("Welcome to Outline") is promoted to the document title
+// (.document-title-editor-inner), NOT rendered as an .outline-item, and which-it-is
+// races on load — so `.outline-item.first()` / `.editor-wrapper.first()` can transiently
+// resolve to the soon-to-be-title node. "Getting Started" is the first *real* outline
+// item; target it by text for a stable subject.
+function gettingStarted(page: Page): Locator {
+  return page.locator('.outline-container > .outline-item').filter({ hasText: 'Getting Started' }).first();
+}
+
+// Focus an item AND give its contenteditable DOM focus before keyboard shortcuts.
+// Clicking the item sets React focus (the .focused class), but the editor only
+// receives DOM focus on a setTimeout(0) tick, so a bare item-click + shortcut races
+// that tick and drops the keystroke under load (Ctrl+Shift+X / Ctrl+Enter are
+// editor-scoped). Only the focused item renders .outline-editor, so the selector is
+// unique; clicking it focuses the contenteditable synchronously.
+async function focusItemEditor(page: Page, item: Locator) {
+  await item.click();
+  await expect(page.locator('.outline-item.focused')).toHaveCount(1);
+  await page.locator('.outline-item.focused .outline-editor').click();
+}
 
 test.describe('Edit menu', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    // Wait for the app to load
+    // Wait for the title node to be promoted so "Getting Started" is stably first.
+    await page.waitForSelector('.document-title-editor-inner');
     await page.waitForSelector('.outline-item');
   });
 
@@ -71,22 +93,22 @@ test.describe('Edit menu', () => {
   });
 
   test('Delete Completed Items removes all completed items', async ({ page }) => {
-    // Focus the first editor
-    const firstEditor = page.locator('.editor-wrapper').first();
-    await firstEditor.click();
-    await page.waitForSelector('.outline-item.focused');
+    // Focus a stable item's editor (not .editor-wrapper.first(), which races the
+    // title-node promotion) with synchronous contenteditable DOM focus.
+    await focusItemEditor(page, gettingStarted(page));
 
-    // Create a completed item
+    // Create a new sibling; Enter moves focus to the new empty item, whose editor
+    // also focuses on a setTimeout(0) tick — re-acquire DOM focus before shortcuts.
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(100);
+    await page.locator('.outline-item.focused .outline-editor').click();
     await page.keyboard.type('Task 1 - done');
     await page.keyboard.press('Control+Shift+x'); // Convert to checkbox
-    await page.waitForTimeout(100);
+    // Wait for the checkbox to actually appear on the focused item before completing.
+    await expect(page.locator('.outline-item.focused .checkbox-btn')).toBeVisible();
     await page.keyboard.press('Control+Enter'); // Mark complete
-    await page.waitForTimeout(200);
 
-    // Verify completed item exists
-    await expect(page.locator('.outline-item.checked').first()).toBeVisible();
+    // Verify completed item exists (web-first; gates the counts below).
+    await expect(page.locator('.outline-item.checked')).toHaveCount(1);
 
     // Count items before
     const countBefore = await page.locator('.outline-item').count();
@@ -95,13 +117,12 @@ test.describe('Edit menu', () => {
     // Open Edit menu and click Delete Completed Items
     const editMenu = page.locator('.menu-dropdown').filter({ hasText: 'Edit' });
     await editMenu.locator('.menu-trigger').click();
-    await page.waitForTimeout(100);
-
     const deleteBtn = editMenu.locator('.menu-item-btn').filter({ hasText: 'Delete Completed Items' });
+    await expect(deleteBtn).not.toBeDisabled();
     await deleteBtn.click();
-    await page.waitForTimeout(500);
 
-    // All completed items should be gone
+    // All completed items should be gone (web-first wait before reading counts).
+    await expect(page.locator('.outline-item.checked')).toHaveCount(0);
     const checkedAfter = await page.locator('.outline-item.checked').count();
     expect(checkedAfter).toBe(0);
 
