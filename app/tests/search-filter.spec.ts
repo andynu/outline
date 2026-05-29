@@ -174,12 +174,7 @@ test.describe('Search filter mode', () => {
     await expect(page.locator('.filter-bar')).not.toBeVisible();
   });
 
-  // KNOWN BUG otl-cq2i: applying a content filter sets the filter (filter-bar
-  // shows the query) but the matching items + ancestors don't reliably render
-  // in browser-mock mode (0 .outline-item, non-deterministic per load — likely
-  // a virtual-list re-measure race). fixme until otl-cq2i; the assertion below
-  // is the intended behavior.
-  test.fixme('filter shows matching items and ancestors', async ({ page }) => {
+  test('filter shows matching items and ancestors', async ({ page }) => {
     // Filter for a child item (e.g., "Hierarchical notes" is a child of "Features")
     await page.keyboard.press('Control+f');
     await expect(page.locator('.search-input')).toBeVisible();

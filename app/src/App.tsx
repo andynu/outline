@@ -1829,7 +1829,7 @@ function App() {
                     <ArticleView tree={articleTree} />
                   ) : (
                     <>
-                      {!zoomedNodeId && tree.length > 0 && (
+                      {!zoomedNodeId && !filterQuery && tree.length > 0 && (
                         <DocumentTitle
                           node={tree[0].node}
                           onTitleChange={() => sidebarRef.current?.refresh()}
@@ -1839,7 +1839,11 @@ function App() {
                         <ZoomedLeafNoteEditor nodeId={zoomedNodeId} />
                       ) : (
                         <div className="outline-container" ref={outlineContainerRef}>
-                          {(zoomedNodeId ? tree : tree.slice(1)).map(item => (
+                          {/* Normally the first root renders as the document title (slice it off).
+                              When zoomed OR filtering, render the full tree: a filter can reduce the
+                              roots to only matches, and slicing off the first match would hide it
+                              (and leave an empty outline) — otl-cq2i. */}
+                          {(zoomedNodeId || filterQuery ? tree : tree.slice(1)).map(item => (
                             <TreeItemRenderer
                               key={item.node.id}
                               item={item}
