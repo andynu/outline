@@ -157,9 +157,12 @@ test.describe('Multi-select', () => {
     await editors.first().click({ modifiers: ['Control'] });
     await page.waitForTimeout(50);
 
-    // First is selected and focused, second is neither
-    await expect(firstItem).toHaveClass(/selected/);
-    await expect(firstItem).toHaveClass(/focused/);
-    await expect(secondItem).not.toHaveClass(/focused/);
+    // First is selected and focused, second is neither.
+    // Use a token-boundary match for "focused": the bare /focused/ substring
+    // also matches the unrelated "in-focused-subtree" class, which the second
+    // item legitimately carries, producing a false failure.
+    await expect(firstItem).toHaveClass(/(^|\s)selected(\s|$)/);
+    await expect(firstItem).toHaveClass(/(^|\s)focused(\s|$)/);
+    await expect(secondItem).not.toHaveClass(/(^|\s)focused(\s|$)/);
   });
 });

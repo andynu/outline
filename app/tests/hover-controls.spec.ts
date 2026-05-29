@@ -15,38 +15,36 @@ test.describe('Hover controls', () => {
 
     // Move mouse away from items
     await page.mouse.move(0, 0);
-    await page.waitForTimeout(100);
 
     // Button exists but should be invisible (opacity: 0) on unfocused item
     await expect(menuBtn).toBeAttached();
-    const opacity = await menuBtn.evaluate(el => getComputedStyle(el).opacity);
-    expect(parseFloat(opacity)).toBe(0);
+    await expect(menuBtn).toHaveCSS('opacity', '0');
   });
 
   test('hamburger menu button appears on hover', async ({ page }) => {
-    const firstItem = page.locator('.outline-item').first();
-    const itemRow = firstItem.locator('.item-row');
-    const menuBtn = firstItem.locator('.hover-menu-btn');
+    // Scope to the item's OWN row/button with the direct-child combinator —
+    // the first item is the root, so a descendant selector also matches every
+    // nested child's .item-row/.hover-menu-btn (strict-mode violation).
+    const firstItem = page.locator('.outline-container > .outline-item').first();
+    const itemRow = firstItem.locator('> .item-row');
+    const menuBtn = itemRow.locator('> .hover-menu-btn');
 
-    // Hover over the item
+    // Hover over the item; the button fades in (opacity 0 -> 1)
     await itemRow.hover();
-    await page.waitForTimeout(200);
 
     // Button should be visible now
-    const opacity = await menuBtn.evaluate(el => getComputedStyle(el).opacity);
-    expect(parseFloat(opacity)).toBe(1);
+    await expect(menuBtn).toHaveCSS('opacity', '1');
   });
 
   test('clicking hamburger menu button opens context menu', async ({ page }) => {
-    const firstItem = page.locator('.outline-item').first();
-    const itemRow = firstItem.locator('.item-row');
-    const menuBtn = firstItem.locator('.hover-menu-btn');
+    const firstItem = page.locator('.outline-container > .outline-item').first();
+    const itemRow = firstItem.locator('> .item-row');
+    const menuBtn = itemRow.locator('> .hover-menu-btn');
 
-    // Hover and click
+    // Hover so the button fades in, then click it
     await itemRow.hover();
-    await page.waitForTimeout(100);
+    await expect(menuBtn).toHaveCSS('opacity', '1');
     await menuBtn.click();
-    await page.waitForTimeout(100);
 
     // Context menu should be visible
     const contextMenu = page.locator('.context-menu');
@@ -54,13 +52,12 @@ test.describe('Hover controls', () => {
   });
 
   test('controls appear on focused item', async ({ page }) => {
-    const firstItem = page.locator('.outline-item').first();
-    await firstItem.click();
-    await page.waitForSelector('.outline-item.focused');
+    const firstItem = page.locator('.outline-container > .outline-item').first();
+    await firstItem.locator('> .item-row').click();
+    await expect(page.locator('.outline-item.focused')).toHaveCount(1);
 
-    // Hamburger button should be visible on focused item
-    const menuBtn = firstItem.locator('.hover-menu-btn');
-    const opacity = await menuBtn.evaluate(el => getComputedStyle(el).opacity);
-    expect(parseFloat(opacity)).toBe(1);
+    // Hamburger button should be visible on the focused item
+    const menuBtn = firstItem.locator('> .item-row > .hover-menu-btn');
+    await expect(menuBtn).toHaveCSS('opacity', '1');
   });
 });

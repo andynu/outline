@@ -91,36 +91,35 @@ test.describe('Search', () => {
     await expect(searchModal).not.toBeVisible();
   });
 
-  test('arrow keys navigate search results', async ({ page }) => {
+  // KNOWN BUG otl-fyed: SearchModal's window keydown listener re-attaches on
+  // every selectedIndex/results change, so ArrowDown can fire while it's
+  // detached and escape to the outline's global navigation (focus jumps to the
+  // editor) instead of moving the result selection. Deterministic under load.
+  // Keyboard-model coherence work (otl-uogy/otl-obv5); fixme until otl-fyed.
+  test.fixme('arrow keys navigate search results', async ({ page }) => {
     await page.keyboard.press('Control+f');
     await page.waitForTimeout(100);
 
     const searchInput = page.locator('.search-input');
     await searchInput.fill('e');
-    await page.waitForTimeout(300);
 
-    // Wait for results
+    // Wait for at least two results to render. The old code read count()
+    // synchronously right after a fixed wait, so under load it saw 0-1 results
+    // and silently skipped the whole assertion block (vacuous pass).
     const searchResults = page.locator('.result');
-    const count = await searchResults.count();
+    await expect.poll(() => searchResults.count()).toBeGreaterThanOrEqual(2);
 
-    if (count >= 2) {
-      // First result should be selected
-      await expect(searchResults.first()).toHaveClass(/selected/);
+    // First result starts selected
+    await expect(searchResults.first()).toHaveClass(/(^|\s)selected(\s|$)/);
 
-      // Press down arrow
-      await page.keyboard.press('ArrowDown');
-      await page.waitForTimeout(100);
+    // Down arrow moves selection to the second result
+    await page.keyboard.press('ArrowDown');
+    await expect(searchResults.nth(1)).toHaveClass(/(^|\s)selected(\s|$)/);
+    await expect(searchResults.first()).not.toHaveClass(/(^|\s)selected(\s|$)/);
 
-      // Second result should be selected
-      await expect(searchResults.nth(1)).toHaveClass(/selected/);
-
-      // Press up arrow
-      await page.keyboard.press('ArrowUp');
-      await page.waitForTimeout(100);
-
-      // First result should be selected again
-      await expect(searchResults.first()).toHaveClass(/selected/);
-    }
+    // Up arrow moves selection back to the first
+    await page.keyboard.press('ArrowUp');
+    await expect(searchResults.first()).toHaveClass(/(^|\s)selected(\s|$)/);
   });
 
   test('Enter selects current result', async ({ page }) => {

@@ -112,15 +112,16 @@ test.describe('Paste markdown lists', () => {
   });
 
   test('pasting plain text (non-list) uses default paste behavior', async ({ page }) => {
-    // Focus the first item
+    // Focus the first item, ensuring the editor has DOM focus before typing
+    // (it focuses on a setTimeout(0) tick, which a bare click + key-press races)
     const editors = page.locator('.editor-wrapper');
     await editors.first().click();
-    await page.waitForTimeout(100);
+    await expect(page.locator('.outline-item.focused')).toHaveCount(1);
+    await page.locator('.outline-item.focused .outline-editor').click();
 
     // Clear existing content and type initial text
     await page.keyboard.press('Control+a');
     await page.keyboard.type('Start: ');
-    await page.waitForTimeout(50);
 
     // Prepare plain text (not a list)
     const plainText = 'Just some plain text without list markers';
@@ -132,8 +133,9 @@ test.describe('Paste markdown lists', () => {
     await page.keyboard.press('Control+v');
     await page.waitForTimeout(200);
 
-    // Verify the text was pasted inline
-    const focusedEditor = page.locator('.outline-item.focused .editor-wrapper');
+    // Verify the text was pasted inline (.first(): the focused item has children
+    // whose .editor-wrapper would also match)
+    const focusedEditor = page.locator('.outline-item.focused .editor-wrapper').first();
     await expect(focusedEditor).toContainText('Just some plain text');
   });
 

@@ -1,4 +1,20 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
+
+// The first root node is promoted to the document title, not an .outline-item
+// (see otl-nroo), so we target "Getting Started" — the first real outline item,
+// which has 3 children in the seed.
+function gettingStarted(page: Page): Locator {
+  return page.locator('.outline-container > .outline-item').filter({ hasText: 'Getting Started' }).first();
+}
+
+// Nesting depth of the focused item (number of .children-wrapper ancestors).
+const focusedDepth = (page: Page): Promise<number> =>
+  page.locator('.outline-item.focused').first().evaluate((el) => {
+    let d = 0;
+    let p: HTMLElement | null = el.parentElement;
+    while (p) { if (p.classList && p.classList.contains('children-wrapper')) d++; p = p.parentElement; }
+    return d;
+  });
 
 test.describe('Lazy rendering of collapsed nodes', () => {
   test.beforeEach(async ({ page }) => {
@@ -8,121 +24,52 @@ test.describe('Lazy rendering of collapsed nodes', () => {
   });
 
   test('children of collapsed nodes are not rendered', async ({ page }) => {
-    // First create a child to make an item collapsible
-    const firstItem = page.locator('.outline-container > .outline-item').first();
-    await firstItem.click();
-    await page.waitForSelector('.outline-item.focused');
+    const gs = gettingStarted(page);
 
-    // Create a child item
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(100);
-    await page.keyboard.press('Tab');
-    await page.waitForTimeout(100);
-    await page.keyboard.type('Child item');
-    await page.waitForTimeout(100);
+    // Getting Started starts with its 3 seed children rendered
+    await expect(gs.locator('> .children-wrapper > .children > .outline-item')).toHaveCount(3);
 
-    // Go back to parent
-    await page.keyboard.press('ArrowUp');
-    await page.waitForTimeout(100);
+    // Collapse it by clicking its own bullet
+    await gs.locator('> .item-row .bullet').click();
 
-    // Count items in the first item's subtree (should have 1 child visible)
-    const childrenWrapper = firstItem.locator('.children-wrapper');
-    await expect(childrenWrapper).toBeVisible();
-
-    const childItems = firstItem.locator('.children > .outline-item');
-    await expect(childItems).toHaveCount(1);
-
-    // Collapse the parent by clicking the bullet
-    const bullet = firstItem.locator('> .item-row .bullet');
-    await bullet.click();
-    await page.waitForTimeout(100);
-
-    // The children-wrapper should no longer be in the DOM
-    await expect(childrenWrapper).not.toBeVisible();
-
-    // Verify children-wrapper is completely removed, not just hidden
-    const wrapperCount = await firstItem.locator('.children-wrapper').count();
-    expect(wrapperCount).toBe(0);
+    // The children-wrapper should be removed from the DOM (lazy: not just hidden)
+    await expect(gs.locator('> .children-wrapper')).toHaveCount(0);
   });
 
   test('children are rendered when node is expanded', async ({ page }) => {
-    // First create a child
-    const firstItem = page.locator('.outline-container > .outline-item').first();
-    await firstItem.click();
-    await page.waitForSelector('.outline-item.focused');
+    const gs = gettingStarted(page);
+    const bullet = gs.locator('> .item-row .bullet');
 
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(100);
-    await page.keyboard.press('Tab');
-    await page.waitForTimeout(100);
-    await page.keyboard.type('Child item');
-    await page.waitForTimeout(100);
-
-    // Go back to parent
-    await page.keyboard.press('ArrowUp');
-    await page.waitForTimeout(100);
-
-    // Collapse by clicking the bullet
-    const bullet = firstItem.locator('> .item-row .bullet');
+    // Collapse
     await bullet.click();
-    await page.waitForTimeout(100);
-
-    // Verify collapsed
     await expect(bullet).toHaveClass(/collapsed/);
-    const wrapperCount = await firstItem.locator('.children-wrapper').count();
-    expect(wrapperCount).toBe(0);
+    await expect(gs.locator('> .children-wrapper')).toHaveCount(0);
 
-    // Now expand by clicking the bullet again
+    // Expand again — children should be rendered
     await bullet.click();
-    await page.waitForTimeout(100);
-
-    // Children should be rendered again
-    const childrenWrapper = firstItem.locator('.children-wrapper');
-    await expect(childrenWrapper).toBeVisible();
-
-    const childItems = firstItem.locator('.children > .outline-item');
-    await expect(childItems).toHaveCount(1);
+    await expect(gs.locator('> .children-wrapper')).toBeVisible();
+    await expect(gs.locator('> .children-wrapper > .children > .outline-item')).toHaveCount(3);
   });
 
   test('deeply nested collapsed children are not rendered', async ({ page }) => {
-    // Create a hierarchy: parent > child > grandchild
-    const firstItem = page.locator('.outline-container > .outline-item').first();
-    await firstItem.click();
-    await page.waitForSelector('.outline-item.focused');
+    const gs = gettingStarted(page);
+    const children = gs.locator('> .children-wrapper > .children > .outline-item');
+    await expect(children).toHaveCount(3);
 
-    // Create child
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(100);
+    // Build a second level: indent the 2nd child under the 1st (-> grandchild),
+    // ensuring DOM focus before the structural key-press (editor-dom-focus-race).
+    await children.nth(1).locator('.editor-wrapper').first().click();
+    await expect(page.locator('.outline-item.focused')).toHaveCount(1);
+    await page.locator('.outline-item.focused .outline-editor').click();
+    const depth = await focusedDepth(page);
     await page.keyboard.press('Tab');
-    await page.waitForTimeout(100);
-    await page.keyboard.type('Child');
-    await page.waitForTimeout(100);
+    await expect.poll(() => focusedDepth(page).catch(() => depth)).toBe(depth + 1);
 
-    // Create grandchild
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(100);
-    await page.keyboard.press('Tab');
-    await page.waitForTimeout(100);
-    await page.keyboard.type('Grandchild');
-    await page.waitForTimeout(100);
+    // Getting Started now has a 2-level subtree; collapse it
+    await expect(gs.locator('.outline-item').first()).toBeVisible();
+    await gs.locator('> .item-row .bullet').click();
 
-    // Count all outline items in the first item's subtree
-    let nestedItems = await firstItem.locator('.outline-item').count();
-    expect(nestedItems).toBe(2); // child + grandchild
-
-    // Go to parent and collapse it
-    await page.keyboard.press('ArrowUp');
-    await page.waitForTimeout(100);
-    await page.keyboard.press('ArrowUp');
-    await page.waitForTimeout(100);
-
-    // Get the direct bullet (not nested ones) and click to collapse
-    const bullet = firstItem.locator('> .item-row .bullet');
-    await bullet.click();
-    await page.waitForTimeout(100);
-
-    // All nested items should be removed from DOM
-    nestedItems = await firstItem.locator('.outline-item').count();
-    expect(nestedItems).toBe(0);
+    // All nested items (children + grandchild) should be removed from the DOM
+    await expect(gs.locator('.outline-item')).toHaveCount(0);
   });
 });

@@ -3,11 +3,16 @@ import { test, expect } from '@playwright/test';
 test.describe('Markdown links', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    // Wait for editor to be ready
     await page.waitForSelector('.outline-item');
-    // Focus the first item
-    await page.click('.outline-item');
-    await page.waitForSelector('.outline-item.focused');
+    // The first root node becomes the document title (otl-nroo) and which-it-is
+    // races on load, so a bare .outline-item.first() click edits an inconsistent
+    // target. Wait for the title editor, then focus "Getting Started" (the first
+    // stable outline item) with real editor DOM focus before typing.
+    await page.waitForSelector('.document-title-editor-inner');
+    const gs = page.locator('.outline-container > .outline-item').filter({ hasText: 'Getting Started' }).first();
+    await gs.locator('> .item-row').click();
+    await expect(page.locator('.outline-item.focused')).toHaveCount(1);
+    await page.locator('.outline-item.focused .outline-editor').click();
   });
 
   test('shows styled markdown syntax while editing', async ({ page }) => {
@@ -58,8 +63,8 @@ test.describe('Markdown links', () => {
     await page.waitForTimeout(200);
 
     // Press down arrow to move focus away and trigger static rendering
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(100);
+    await page.locator('.outline-container > .outline-item').nth(1).locator('> .item-row').click();
+    await expect(page.locator('.outline-item').first()).not.toHaveClass(/(^|\s)focused(\s|$)/);
 
     // Now the first item should be unfocused and use static rendering
     // In static mode, markdown links are rendered as regular anchors showing just the text
@@ -78,12 +83,14 @@ test.describe('Markdown links', () => {
     await page.waitForTimeout(200);
 
     // Press down arrow to unfocus
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(100);
+    await page.locator('.outline-container > .outline-item').nth(1).locator('> .item-row').click();
+    await expect(page.locator('.outline-item').first()).not.toHaveClass(/(^|\s)focused(\s|$)/);
 
     // In static rendering, the URL syntax should not be visible
     const firstItem = page.locator('.outline-item').first();
-    const staticContent = firstItem.locator('.static-content');
+    // Scope to the item's OWN static-content (.first()); the first outline item
+    // has children whose .static-content would also match (strict-mode violation).
+    const staticContent = firstItem.locator('.static-content').first();
     await expect(staticContent).toBeVisible();
 
     // Get the visible text - the markdown link should be replaced by just the display text
@@ -106,8 +113,8 @@ test.describe('Markdown links', () => {
     await page.waitForTimeout(200);
 
     // Press down arrow to unfocus
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(100);
+    await page.locator('.outline-container > .outline-item').nth(1).locator('> .item-row').click();
+    await expect(page.locator('.outline-item').first()).not.toHaveClass(/(^|\s)focused(\s|$)/);
 
     // The link should be rendered with https:// protocol added
     const firstItem = page.locator('.outline-item').first();
@@ -124,8 +131,8 @@ test.describe('Markdown links', () => {
     await page.waitForTimeout(200);
 
     // Press down arrow to unfocus
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(100);
+    await page.locator('.outline-container > .outline-item').nth(1).locator('> .item-row').click();
+    await expect(page.locator('.outline-item').first()).not.toHaveClass(/(^|\s)focused(\s|$)/);
 
     // The link should be rendered correctly
     const firstItem = page.locator('.outline-item').first();
