@@ -54,17 +54,21 @@ test.describe('Secondary notes field', () => {
     await expect(noteContent).toHaveText('This is a test note');
   });
 
-  // KNOWN BUG otl-qro7: pressing Escape on an empty note loses focus entirely
-  // (document.activeElement becomes <body>, focusedId is cleared, the item
-  // collapses to static) instead of returning to the main editor. The Escape
-  // handler's editorRef.current?.commands.focus('end') is disturbed by the
-  // synchronous setIsEditingNote(false) re-render. Deterministic once the
-  // note-open race is fixed (was previously masked by the flaky open). This is
-  // focus-model coherence work (otl-uogy/otl-obv5); fixme until otl-qro7 lands,
-  // then re-enable — the assertion below is the correct intended behavior.
+  // KNOWN BUG otl-qro7: after closing an empty note (Escape), restoring the main
+  // editor's DOM focus + edit mode is non-deterministic — focus often ends up on
+  // <body> / the item only navigate-focused. Both a synchronous handler focus and
+  // a post-commit effect race the note-textarea unmount + keyboard-mode
+  // transition. This is keyboard/cursor-model coherence work; fix within otl-obv5,
+  // then re-enable. The leaf-targeted body below is the correct test for the fix.
   test.fixme('Escape closes note editor and returns focus to main editor', async ({ page }) => {
-    const firstItem = page.locator('.outline-item').first();
-    await focusItemEditor(page, firstItem);
+    // Target a stable childless leaf by its OWN row: clicking the first item can
+    // land on a child (the first root is the document title and its item is tall
+    // — otl-nroo), which would make the focus assertion check the wrong element.
+    const item = page.locator('.outline-item')
+      .filter({ has: page.locator('> .item-row', { hasText: 'Press Tab to indent' }) });
+    await item.locator('> .item-row').click();
+    await expect(item).toHaveClass(/(^|\s)focused(\s|$)/);
+    await page.locator('.outline-item.focused .outline-editor').click();
 
     // Open note editor
     await page.keyboard.press('Shift+Enter');
@@ -77,8 +81,8 @@ test.describe('Secondary notes field', () => {
     // Note input should be gone (no note content yet)
     await expect(noteInput).not.toBeVisible();
 
-    // Item should still be focused (focus returns to the main editor)
-    await expect(firstItem).toHaveClass(/focused/);
+    // Focus returns to the item's main editor (otl-qro7)
+    await expect(item).toHaveClass(/(^|\s)focused(\s|$)/);
   });
 
   test('Shift+Enter in note editor closes it', async ({ page }) => {
