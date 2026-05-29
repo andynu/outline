@@ -17,10 +17,13 @@ export default defineConfig({
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
-  /* Retry on CI only */
-  retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  /* Retry failures: more on CI, but also locally so timing/contention flakiness
+     under high parallelism doesn't show up as false reds. See otl-5740. */
+  retries: process.env.CI ? 2 : 1,
+  /* Serial on CI. Locally, cap to a few workers: the editor/focus timing in
+     these tests gets flaky when many pages hammer one dev server (this box has
+     32 cores, so an uncapped run spawned ~32 contending pages). See otl-5740. */
+  workers: process.env.CI ? 1 : 4,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
