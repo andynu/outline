@@ -1,4 +1,19 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
+
+// Give the focused item's contenteditable real DOM focus before keyboard ops.
+// Clicking the item sets React focus, but the editor focuses on a setTimeout(0)
+// tick, so a bare click + key-press races it under load. See notes.spec.ts.
+async function focusItemEditor(page: Page, item: Locator) {
+  await item.click();
+  await expect(page.locator('.outline-item.focused')).toHaveCount(1);
+  await page.locator('.outline-item.focused .outline-editor').click();
+}
+
+// Parse the leading integer out of a stat item's text (e.g. "12 words" -> 12).
+async function statValue(item: Locator): Promise<number> {
+  const t = await item.textContent();
+  return parseInt(t?.match(/\d+/)?.[0] || '0');
+}
 
 test.describe('Statistics footer', () => {
   test.beforeEach(async ({ page }) => {
@@ -43,79 +58,54 @@ test.describe('Statistics footer', () => {
   });
 
   test('word count updates when typing', async ({ page }) => {
-    const statusBar = page.locator('.status-bar');
     const totalWordsItem = page.locator('.stat-item[title*="Total words"]');
 
     // Get initial word count
-    const initialText = await totalWordsItem.textContent();
-    const initialWords = parseInt(initialText?.match(/\d+/)?.[0] || '0');
+    const initialWords = await statValue(totalWordsItem);
 
-    // Focus an item and type some words
+    // Focus an item (with the editor DOM-focused) and type some words
     const firstItem = page.locator('.outline-item').first();
-    await firstItem.click();
-    await page.waitForSelector('.outline-item.focused');
-
-    // Add some words
+    await focusItemEditor(page, firstItem);
     await page.keyboard.type(' extra words here');
-    await page.waitForTimeout(300);
 
-    // Get new word count
-    const newText = await totalWordsItem.textContent();
-    const newWords = parseInt(newText?.match(/\d+/)?.[0] || '0');
-
-    // Word count should have increased
-    expect(newWords).toBeGreaterThan(initialWords);
+    // Word count should increase (the stat recompute is async/debounced — poll)
+    await expect.poll(() => statValue(totalWordsItem)).toBeGreaterThan(initialWords);
   });
 
   test('item count updates when adding items', async ({ page }) => {
     const itemCountItem = page.locator('.stat-item[title*="Total items"]');
 
     // Get initial item count
-    const initialText = await itemCountItem.textContent();
-    const initialCount = parseInt(initialText?.match(/\d+/)?.[0] || '0');
+    const initialCount = await statValue(itemCountItem);
 
     // Add a new item
     const firstItem = page.locator('.outline-item').first();
-    await firstItem.click();
-    await page.waitForSelector('.outline-item.focused');
+    await focusItemEditor(page, firstItem);
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(200);
 
-    // Get new item count
-    const newText = await itemCountItem.textContent();
-    const newCount = parseInt(newText?.match(/\d+/)?.[0] || '0');
-
-    // Item count should have increased by 1
-    expect(newCount).toBe(initialCount + 1);
+    // Item count should have increased by 1 (poll — recompute is async)
+    await expect.poll(() => statValue(itemCountItem)).toBe(initialCount + 1);
   });
 
   test('note words update when adding note', async ({ page }) => {
     const noteWordsItem = page.locator('.stat-item[title*="Words in notes"]');
 
     // Get initial note word count (should be 0 initially)
-    const initialText = await noteWordsItem.textContent();
-    const initialNoteWords = parseInt(initialText?.match(/\d+/)?.[0] || '0');
+    const initialNoteWords = await statValue(noteWordsItem);
 
-    // Focus an item and add a note
+    // Focus an item and open its note editor
     const firstItem = page.locator('.outline-item').first();
-    await firstItem.click();
-    await page.waitForSelector('.outline-item.focused');
-
-    // Press Shift+Enter to add a note
+    await focusItemEditor(page, firstItem);
     await page.keyboard.press('Shift+Enter');
-    await page.waitForTimeout(100);
-
-    // Type in the note
     const noteInput = page.locator('.note-input');
+    await expect(noteInput).toBeVisible();
+
+    // Type in the note (no Escape — count updates live on input; this also
+    // avoids the otl-qro7 escape-focus bug)
     await noteInput.fill('This is a test note with words');
-    await page.waitForTimeout(300);
 
-    // Get new note word count
-    const newText = await noteWordsItem.textContent();
-    const newNoteWords = parseInt(newText?.match(/\d+/)?.[0] || '0');
-
-    // Note word count should have increased
-    expect(newNoteWords).toBeGreaterThan(initialNoteWords);
+    // Note word count should increase (poll — recompute is async)
+    await expect.poll(() => statValue(noteWordsItem)).toBeGreaterThan(initialNoteWords);
   });
 
   test('separators are visible between stats', async ({ page }) => {
