@@ -66,10 +66,11 @@ Phase 0 and 1 are merged into one spec/implementation cycle because they are tig
 
 ### Phase 0 — Scaffold
 
-- New `outline-web` Rails app (latest stable Rails, SQLite).
+- New `outline-web` Rails app (**Rails 8.1.x**, SQLite).
 - `.beads/` issue tracker initialized.
 - minitest as the test framework; CI runs `rake test`.
-- Deploy skeleton matching the existing Rails-style deploy target.
+- **Deploy:** nginx + Passenger on the target host, deployed via git + a custom script (matching the existing Rails-style setup).
+- **Asset strategy:** Rails' own assets via Propshaft. The React UI is **not** importmaps — it is a separate Vite build (it needs a real bundler for TipTap/JSX); nginx serves the built static bundle, Rails serves the API. Use the JS toolchain the UI needs; don't compromise the UI to stay importmaps-pure.
 - **Auth (single-user):**
   - Password-protected **session** for the browser UI.
   - One **personal access token** for `otl`/API, sent as `Authorization: Bearer <token>`.
@@ -87,7 +88,7 @@ Faithful port of the Rust structs to ActiveRecord + SQLite. **Migrations are DDL
 | `nodes` | id (uuid), document_id (FK), parent_id (uuid, null), position (int), content (text), note (text, null), node_type, heading_level (int, null), is_checked (bool), color (string, null), tags (JSON), date (string, null), date_recurrence (string, null), recurrence_mode (string, null), date_end (string, null), defer_date (string, null), short_id (string, null), collapsed (bool), mirror_source_id (uuid, null), created_at, updated_at | Faithful to Rust `Node` |
 | `bookmarks` | id, node_id (FK), label, emoji, position | |
 | `capture_targets` | id, name, node_id (FK), is_default (bool) | |
-| `custom_emoji` | id, name, image (blob or path) | |
+| `custom_emoji` | id, name, image_path | Image stored as a **file under the app data dir**, served directly by nginx (not a SQLite blob) |
 | `nodes_fts` | FTS5 virtual table over (content, note) | Backs `search`, backlinks, unlinked references |
 
 **Type/representation decisions:**
@@ -130,7 +131,8 @@ REST endpoints mirroring the **core** Tauri commands. Token/session auth on all.
 
 - **Validation errors** (cycle in move, missing parent, cross-document move, unknown id) → 422 with a structured error body; the op is rejected without partial application (transaction rollback).
 - **Auth failures** → 401.
-- **Batch `/ops`** → applied transactionally; a single invalid op fails the batch with an index pointer to the offending op (so the client can correct and resubmit). *(Open question flagged below: whether batches should be all-or-nothing or best-effort with a per-op result list — to settle during planning.)*
+- **Batch `/ops`** → **all-or-nothing transaction.** A single invalid op rolls back the whole batch and returns an index pointer + reason for the offending op (so the client can correct and resubmit). Chosen for simplicity over best-effort/per-op results.
+- **Conflict-recovery logging:** every rejected op (and every LWW collision where an incoming write loses to a newer `updated_at`) is logged with full data — op type, target id, the incoming payload, the existing value it lost to, and timestamps — so a conflict can be reconstructed and resolved by hand later if needed. The simple semantics are acceptable precisely because the log preserves everything needed to recover.
 
 ### Testing Strategy
 
@@ -150,8 +152,8 @@ REST endpoints mirroring the **core** Tauri commands. Token/session auth on all.
 
 Web client port (Phase 2), offline cache/queue (Phase 3), CLI (Phase 4), OPML snapshot/import + ical + capture + import/export + recurrence (Phase 5), mobile (Phase 6).
 
-## Open Questions (resolve during planning)
+## Resolved Decisions (from review)
 
-1. `POST /ops` batch semantics: all-or-nothing transaction vs. best-effort with a per-op result list.
-2. `custom_emoji` image storage: SQLite blob vs. file path under the app data dir.
-3. Exact Rails version + deploy mechanism on the target host (confirm against the existing Rails deploy setup).
+1. **`POST /ops` batch semantics:** all-or-nothing transaction (simpler), backed by rich conflict-recovery logging so manual reconstruction is always possible. See Error Handling.
+2. **`custom_emoji` image storage:** file path under the app data dir, served directly by nginx.
+3. **Rails 8.1.x**, deployed under **nginx + Passenger** via git + custom script. React UI builds via Vite (not importmaps); Propshaft for Rails' own assets.
